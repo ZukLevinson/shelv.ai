@@ -29,12 +29,20 @@ export function parseLabelText(rawText: string): ParsedItemData {
     .filter(Boolean);
 
   // Pass 1: Prioritize explicit "Catalog #" or Hebrew equivalents "מסח"א", "מס קטלוגי", "מק"ט", etc.
-  // The user explicitly specified:
-  // "if there is white label with Catalog # - do not scan the barcode. no barcodes should be scanned at all. only the numbers after the Catalog #: ..."
+  // When there are multiple numbers on the same label (Customer Order #, Warranty, Phone, Serial),
+  // we MUST strictly extract the number following Catalog / מסח"א first!
   const catalogRegex = /(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*יי?א|\s*קטלוגי|\s*מצאי|\s*סידורי\s*של)?|מק"?ט)\s*[:#\-.\s]+([0-9A-Za-z\s\-]{6,16})/i;
+
+  // Words that indicate non-catalog numbers on the same label
+  const nonCatalogPrefixRegex = /(?:Customer\s*Order|Order\s*#|PO\s*#|הזמנה|Phone|טלפון|טל|Warranty|אחריות|Model|דגם|Date|תאריך)/i;
 
   for (const line of lines) {
     const cleanLine = line.replace(/[|\[\]{}~_]/g, ' ').trim();
+
+    // If line explicitly contains Customer Order # or Phone, do not treat it as Catalog #
+    if (nonCatalogPrefixRegex.test(cleanLine) && !/(?:Catalog|מס(?:ח"?א|יי?א|קטלוגי|מק"?ט))/i.test(cleanLine)) {
+      continue;
+    }
 
     const catMatch = cleanLine.match(catalogRegex);
     if (catMatch && !result.masha) {
@@ -93,8 +101,8 @@ export function parseLabelText(rawText: string): ParsedItemData {
   // e.g. "943112961", "943121160", or spaced handwriting like "9 4 3 1 1 2 9 6 1"
   if (!result.masha) {
     for (const line of lines) {
-      // Exclude phone number or date lines
-      if (/Phone|טלפון|טל|Date|תאריך|Begin|Warranty/i.test(line)) continue;
+      // Exclude lines that represent other numbers on the sticker (Order #, Phone, Date, Warranty)
+      if (/Phone|טלפון|טל|Date|תאריך|Begin|Warranty|Customer\s*Order|Order\s*#|PO\s*#|הזמנה/i.test(line)) continue;
 
       // Normalize look-alike characters (O->0, I/l->1, S->5, etc.)
       const normalizedLine = normalizeDigits(line);
