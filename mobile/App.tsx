@@ -1058,14 +1058,6 @@ export default function App() {
               </View>
             )}
 
-            {/* Floating Status Pill inside camera - only when live */}
-            {!frozenImage && !ocrLoading && !isProcessingFound && (
-              <View style={styles.floatingStatusPill}>
-                <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 6 }]} />
-                <Text style={styles.statusPillTextCompact} numberOfLines={1}>{scanningStatus}</Text>
-              </View>
-            )}
-
             {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
@@ -1090,7 +1082,6 @@ export default function App() {
                 <View style={styles.shutterInnerCircle} />
                 <Text style={styles.shutterText}>📸 צלם מדבקה לפענוח</Text>
               </TouchableOpacity>
-              <Text style={styles.shutterHint}>ייצב מול המדבקה ולחץ לצילום</Text>
             </View>
           )}
 
@@ -1338,14 +1329,6 @@ export default function App() {
               </View>
             )}
 
-            {/* Floating Status inside camera bottom - only when live */}
-            {!frozenImage && !ocrLoading && !isProcessingFound && (
-              <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
-                <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 6 }]} />
-                <Text style={[styles.statusPillTextCompact, { color: '#93c5fd' }]} numberOfLines={1}>{scanningStatus}</Text>
-              </View>
-            )}
-
             {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
@@ -1370,7 +1353,6 @@ export default function App() {
                 <View style={styles.shutterInnerCircle} />
                 <Text style={styles.shutterText}>📸 צלם S/N לפענוח</Text>
               </TouchableOpacity>
-              <Text style={styles.shutterHintBlue}>ייצב מול מדבקת המספר הסידורי ולחץ לצילום</Text>
             </View>
           )}
 
