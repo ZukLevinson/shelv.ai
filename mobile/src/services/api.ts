@@ -48,3 +48,16 @@ export async function completeSweepSession(sessionId: string) {
   });
   return res.json();
 }
+
+export async function scanWithGemini(base64Image: string) {
+  const res = await fetch(`${SERVER_URL}/api/sweep/gemini-scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64Image }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Gemini Vision scan failed');
+  }
+  return res.json();
+}

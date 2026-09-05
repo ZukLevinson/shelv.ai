@@ -1,8 +1,25 @@
 import { Router } from 'express';
 import { recordObservation, startSweepSession, completeSweepSession } from '../services/sweepService.js';
+import { analyzeFrameWithGemini } from '../services/geminiVisionService.js';
 import { db } from '../db/database.js';
 
 export const sweepRouter = Router();
+
+// POST /api/sweep/gemini-scan - Fast visual inspection using Gemini Vision on Vertex AI
+sweepRouter.post('/gemini-scan', async (req, res) => {
+  const { image } = req.body;
+  if (!image) {
+    return res.status(400).json({ error: 'image base64 string is required' });
+  }
+
+  try {
+    const result = await analyzeFrameWithGemini(image);
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Gemini Scan API] Error analyzing frame:', error);
+    res.status(500).json({ error: error.message || 'Gemini Vision analysis failed' });
+  }
+});
 
 sweepRouter.post('/scan', (req, res) => {
   const { sweepId, roomId, serialNumber, masha, scannedBy, stickerOwnerText, productNameDetected } = req.body;

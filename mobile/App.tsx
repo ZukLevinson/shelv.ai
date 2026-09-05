@@ -15,7 +15,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
-import { fetchRooms, submitScan, lookupItem } from './src/services/api';
+import { fetchRooms, submitScan, lookupItem, scanWithGemini } from './src/services/api';
 
 type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'manual_entry' | 'summary';
 
@@ -58,6 +58,8 @@ export default function App() {
   const isHandlingBarcodeRef = useRef<boolean>(false);
   const liveOcrIntervalRef = useRef<any>(null);
   const isOcrRunningRef = useRef<boolean>(false);
+  const ocrWorkerRef = useRef<any>(null);
+  const isWorkerInitializingRef = useRef<boolean>(false);
 
   // Keep a ref of the current step for barcode callback
   const currentStepRef = useRef<Step>(currentStep);
@@ -230,21 +232,41 @@ export default function App() {
     }
   };
 
-  // Ultra-fast Hardware-Accelerated Text Stream Detector (60 FPS on Chrome/Android/Modern Web)
+  // Lazily get or create single shared Tesseract Worker (fast, no re-initialization lag)
+  const getOrCreateOcrWorker = async () => {
+    if (ocrWorkerRef.current) {
+      return ocrWorkerRef.current;
+    }
+    if (isWorkerInitializingRef.current) {
+      // Wait if already being created
+      while (isWorkerInitializingRef.current) {
+        await new Promise(res => setTimeout(res, 50));
+      }
+      return ocrWorkerRef.current;
+    }
+
+    try {
+      isWorkerInitializingRef.current = true;
+      const worker = await createWorker(['eng', 'heb']);
+      ocrWorkerRef.current = worker;
+      return worker;
+    } catch (err) {
+      console.warn('Failed to create OCR worker:', err);
+      return null;
+    } finally {
+      isWorkerInitializingRef.current = false;
+    }
+  };
+
+  // Continuous Hands-Free Gemini Vision Stream Detector
+  // Runs continuously in the background whenever camera is pointed at equipment label!
   const startLiveTextStreamScanner = () => {
     stopLiveOcrStream();
     if (typeof window === 'undefined') return;
 
-    // Check if browser has native TextDetector (Shape Detection API)
-    const hasNativeTextDetector = 'TextDetector' in window;
-    // @ts-ignore
-    const detector = hasNativeTextDetector ? new window.TextDetector() : null;
-
-    // Canvas for frame extraction (scaled to 1280x720 for optimal speed vs text fidelity)
+    // Canvas for live cropped frame extraction
     const streamCanvas = document.createElement('canvas');
     const streamCtx = streamCanvas.getContext('2d', { willReadFrequently: true });
-
-    let consecutiveFailures = 0;
 
     liveOcrIntervalRef.current = setInterval(async () => {
       if (currentStepRef.current !== 'scan_masha' || !videoRef.current || isOcrRunningRef.current) {
@@ -259,44 +281,60 @@ export default function App() {
       isOcrRunningRef.current = true;
 
       try {
-        if (detector) {
-          // Hardware-accelerated native detector: ~15ms per frame!
-          const detectedTexts = await detector.detect(video);
-          if (detectedTexts && detectedTexts.length > 0) {
-            const rawCombined = detectedTexts.map((t: any) => t.rawValue).join('\n');
-            setRecognizedLiveText(rawCombined.trim());
+        if (!streamCtx) return;
 
-            const parsed = parseLabelText(rawCombined);
-            if (parsed.masha) {
-              setLastOcrDiagnosis(`⚡ [חומרה - זמן אמת] זוהה מסח"א: ${parsed.masha}!`);
-              await onMashaRecognized(parsed);
-              return;
-            } else {
-              setLastOcrDiagnosis(`👀 נקלט טקסט חי בפריים (${detectedTexts.length} מילים) - ממתין לזיהוי מספר מסח"א...`);
-            }
-          }
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+
+        // Crop centered reticle area (75% of view) for focused high-detail extraction
+        const cropW = Math.round(vw * 0.75);
+        const cropH = Math.round(vh * 0.75);
+        const cropX = Math.round((vw - cropW) / 2);
+        const cropY = Math.round((vh - cropH) / 2);
+
+        // Scale to 800px width for fast upload & instant Gemini Vision inference
+        const targetW = 800;
+        const targetH = Math.round((cropH / cropW) * targetW);
+
+        if (streamCanvas.width !== targetW || streamCanvas.height !== targetH) {
+          streamCanvas.width = targetW;
+          streamCanvas.height = targetH;
+        }
+
+        streamCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+        const base64Jpg = streamCanvas.toDataURL('image/jpeg', 0.82);
+
+        setScanningStatus('✨ Gemini סורק בזמן אמת...');
+        const geminiRes = await scanWithGemini(base64Jpg);
+
+        if (currentStepRef.current !== 'scan_masha') return;
+
+        if (geminiRes.rawText) {
+          setRecognizedLiveText(geminiRes.rawText);
+        }
+
+        if (geminiRes.masha) {
+          setScanningStatus(`⚡ Gemini זיהה מסח"א: ${geminiRes.masha}!`);
+          setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}`);
+
+          await onMashaRecognized({
+            masha: geminiRes.masha,
+            productDescription: geminiRes.productDescription,
+            stickerOwner: geminiRes.stickerOwner,
+            serialNumber: geminiRes.serialNumber,
+          });
+          return;
+        } else if (geminiRes.rawText) {
+          setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
         } else {
-          // Lightweight stream scanner: extract centered frame snapshot
-          if (streamCtx) {
-            const vw = video.videoWidth || 1280;
-            const vh = video.videoHeight || 720;
-            if (streamCanvas.width !== vw) {
-              streamCanvas.width = vw;
-              streamCanvas.height = vh;
-            }
-            streamCtx.drawImage(video, 0, 0, vw, vh);
-          }
+          setScanningStatus('סורק פעיל - כוון את המצלמה למדבקה / מסח"א...');
         }
-      } catch (streamErr) {
-        consecutiveFailures++;
-        if (consecutiveFailures > 5) {
-          // Silent fallback to button-triggered OCR
-          stopLiveOcrStream();
-        }
+      } catch (streamErr: any) {
+        console.warn('Live Gemini scan tick warning:', streamErr.message);
       } finally {
         isOcrRunningRef.current = false;
       }
-    }, 450); // Scan every 450ms without blocking UI
+    }, 750); // Continuous live inspection every 750ms
   };
 
   const handleLiveBarcodeScanned = async (barcodeText: string) => {
@@ -364,101 +402,35 @@ export default function App() {
   };
 
   // Process any image source (canvas or image element) with Tesseract across multiple angles
+  // Process any image source (canvas or image element) with Gemini Vision
   const processImageForOcr = async (sourceCanvas: HTMLCanvasElement) => {
     try {
       setOcrLoading(true);
-      setScanningStatus('מבצע פענוח OCR מתקדם רב-כיווני...');
+      setScanningStatus('✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision...');
 
-      const srcWidth = sourceCanvas.width;
-      const srcHeight = sourceCanvas.height;
+      const base64Jpg = sourceCanvas.toDataURL('image/jpeg', 0.88);
+      const geminiRes = await scanWithGemini(base64Jpg);
 
-      // Helper to generate rotated canvas keeping clean original pixels (no destructive thresholding)
-      const createRotatedCanvas = (angleDeg: number, enhanceContrast: boolean = false) => {
-        const rotCanvas = document.createElement('canvas');
-        const is90or270 = angleDeg === 90 || angleDeg === 270;
-        const targetW = is90or270 ? srcHeight : srcWidth;
-        const targetH = is90or270 ? srcWidth : srcHeight;
-        rotCanvas.width = targetW;
-        rotCanvas.height = targetH;
-        const ctx = rotCanvas.getContext('2d');
-        if (!ctx) return rotCanvas;
-
-        ctx.save();
-        ctx.translate(targetW / 2, targetH / 2);
-        ctx.rotate((angleDeg * Math.PI) / 180);
-        ctx.drawImage(sourceCanvas, -srcWidth / 2, -srcHeight / 2);
-        ctx.restore();
-
-        if (enhanceContrast) {
-          const imgData = ctx.getImageData(0, 0, targetW, targetH);
-          const d = imgData.data;
-          for (let i = 0; i < d.length; i += 4) {
-            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-            // Gentle contrast stretch only as fallback
-            const contrast = (lum - 128) * 1.3 + 128;
-            const finalVal = Math.min(255, Math.max(0, contrast));
-            d[i] = finalVal;
-            d[i + 1] = finalVal;
-            d[i + 2] = finalVal;
-          }
-          ctx.putImageData(imgData, 0, 0);
-        }
-
-        return rotCanvas;
-      };
-
-      // Create OCR worker with Hebrew and English
-      const worker = await createWorker(['eng', 'heb']);
-
-      let bestParsed: ReturnType<typeof parseLabelText> | null = null;
-      let allRecognizedTexts: string[] = [];
-
-      // Test 0° first (clean/original) - covers >90% of normal photos
-      // Then 90°, 270°, 180°
-      const testPasses = [
-        { angle: 0, enhance: false },
-        { angle: 90, enhance: false },
-        { angle: 270, enhance: false },
-        { angle: 180, enhance: false },
-        { angle: 0, enhance: true }, // fallback with contrast stretch
-      ];
-
-      for (const pass of testPasses) {
-        setScanningStatus(`מפענח טקסט בזווית ${pass.angle}°...`);
-        const rotCanvas = createRotatedCanvas(pass.angle, pass.enhance);
-        const ret = await worker.recognize(rotCanvas);
-        const recognizedText = ret.data.text || '';
-        console.log(`[OCR Result ${pass.angle}° (enhance=${pass.enhance})]:`, recognizedText);
-        
-        if (recognizedText.trim()) {
-          allRecognizedTexts.push(`[${pass.angle}°]: ${recognizedText.trim()}`);
-          setRecognizedLiveText(recognizedText.trim());
-        }
-
-        const parsed = parseLabelText(recognizedText);
-        if (parsed.masha) {
-          bestParsed = parsed;
-          setLastOcrDiagnosis(`✅ אותר בהצלחה מסח"א / Catalog #: ${parsed.masha}${parsed.productDescription ? ` | ${parsed.productDescription}` : ''}${parsed.stickerOwner ? ` | בעלים: ${parsed.stickerOwner}` : ''}`);
-          break; // Found valid Masha!
-        } else {
-          setLastOcrDiagnosis(`⚠️ נקלט טקסט בזווית ${pass.angle}°, אך לא נמצא רצף ספרות מסח"א/Catalog # תקין (6-14 ספרות)`);
-        }
+      if (geminiRes.rawText) {
+        setRecognizedLiveText(geminiRes.rawText);
       }
 
-      await worker.terminate();
-
-      if (bestParsed && bestParsed.masha) {
-        await onMashaRecognized(bestParsed);
+      if (geminiRes.masha) {
+        setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}${geminiRes.stickerOwner ? ` | בעלים: ${geminiRes.stickerOwner}` : ''}`);
+        await onMashaRecognized({
+          masha: geminiRes.masha,
+          productDescription: geminiRes.productDescription,
+          stickerOwner: geminiRes.stickerOwner,
+          serialNumber: geminiRes.serialNumber,
+        });
       } else {
-        setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או צלם במצלמת המכשיר');
-        if (!allRecognizedTexts.length) {
-          setLastOcrDiagnosis('❌ לא נקלט אף טקסט בפריים. ודא תאורה טובה וקרב את העדשה למדבקה');
-        }
+        setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או קרב את העדשה למדבקה');
+        setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
       }
     } catch (err: any) {
-      console.error('OCR error:', err);
-      setScanningStatus('שגיאה במהלך פענוח OCR');
-      setLastOcrDiagnosis(`❌ שגיאה בפענוח: ${err.message || 'פענוח OCR נכשל'}`);
+      console.error('Gemini Vision scan error:', err);
+      setScanningStatus('שגיאה במהלך פענוח Gemini Vision');
+      setLastOcrDiagnosis(`❌ שגיאה בפענוח: ${err.message || 'פענוח נכשל'}`);
     } finally {
       setOcrLoading(false);
     }
@@ -678,9 +650,9 @@ export default function App() {
               </View>
               <Text style={styles.stepBadge}>שלב 1 מתוך 2</Text>
             </View>
-            <Text style={styles.stepTitle}>כוון למדבקת מסח"א / רצף מספרים בכתב יד</Text>
+            <Text style={styles.stepTitle}>כוון את המצלמה למדבקה (סריקה אוטומטית)</Text>
             <Text style={styles.stepHint}>
-              זיהוי טקסט וספרות (ללא ברקוד). מזהה רצף ספרות בכתב יד (7-10 ספרות) או מדבקת Catalog #
+              זיהוי רציף אוטומטי ללא לחיצה: כוון את העדשה למסח"א / Catalog #, המערכת תזהה ותעבור מיד לשלב הבא!
             </Text>
           </View>
 
@@ -727,32 +699,18 @@ export default function App() {
 
           {/* Live Scanner Real-time Status */}
           <View style={styles.statusPill}>
+            <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 6 }]} />
             <Text style={styles.statusPillText}>{scanningStatus}</Text>
           </View>
 
-          {/* OCR Action Buttons for Handwritten / Printed Masha Stickers */}
+          {/* OCR Action Buttons (Secondary backup if needed) */}
           <View style={styles.ocrButtonsContainer}>
             <TouchableOpacity
-              style={[styles.ocrCaptureButton, ocrLoading && styles.ocrCaptureButtonDisabled]}
-              onPress={captureAndRecognizeHandwrittenMasha}
-              disabled={ocrLoading}
-            >
-              {ocrLoading ? (
-                <View style={styles.ocrLoadingRow}>
-                  <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.ocrCaptureButtonText}>מפענח טקסט וכתב יד מתוך הפריים (OCR)...</Text>
-                </View>
-              ) : (
-                <Text style={styles.ocrCaptureButtonText}>⚡ סרוק מסח"א מהמסך החי (OCR)</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.nativeCameraButton, ocrLoading && styles.ocrCaptureButtonDisabled]}
+              style={[styles.nativeCameraButton, { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1 }]}
               onPress={() => fileInputRef.current?.click()}
               disabled={ocrLoading}
             >
-              <Text style={styles.nativeCameraText}>📸 צילום חד ברזולוציה גבוהה (מצלמת המכשיר)</Text>
+              <Text style={[styles.nativeCameraText, { color: '#94a3b8' }]}>📷 גיבוי: צילום תמונת HD ידנית</Text>
             </TouchableOpacity>
 
             {/* Hidden native camera/gallery file input */}
