@@ -26,7 +26,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
-import { fetchRooms, submitScan, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification } from './src/services/api';
+import { fetchRooms, submitScan, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo } from './src/services/api';
 
 type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'edit_form' | 'manual_entry' | 'summary';
 export type ScanPipelineStage = 'idle' | 'searching' | 'qualified' | 'deciphering' | 'success';
@@ -79,6 +79,12 @@ export default function App() {
   const [editDesc, setEditDesc] = useState('');
   const [editOwner, setEditOwner] = useState('');
 
+  // Duplicate alert modal state
+  const [alreadyScannedModalData, setAlreadyScannedModalData] = useState<{
+    sn: string;
+    existingScan: ExistingScanInfo;
+  } | null>(null);
+
   // Video, camera, and file input refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -97,6 +103,9 @@ export default function App() {
 
   const scannedMashaRef = useRef<string>(scannedMasha);
   scannedMashaRef.current = scannedMasha;
+
+  const scannedSnRef = useRef<string>(scannedSn);
+  scannedSnRef.current = scannedSn;
 
   const detectedDescRef = useRef<string>(detectedDescription);
   detectedDescRef.current = detectedDescription;
@@ -138,9 +147,9 @@ export default function App() {
 
   const startSweepForRoom = (room: any) => {
     setSelectedRoom(room);
-    setCurrentStep('scan_masha');
+    setCurrentStep('scan_sn');
     resetCurrentScan();
-    setScanningStatus('כוון את המצלמה למדבקת מסח"א ולחץ על "צלם מדבקה"...');
+    setScanningStatus('כוון את המצלמה לברקוד מספר סידורי (S/N)...');
   };
 
   const resetCurrentScan = () => {
@@ -506,6 +515,132 @@ export default function App() {
     }, 400); // Fast 400ms tick for qualification checks
   };
 
+  const dismissAlreadyScanned = () => {
+    setAlreadyScannedModalData(null);
+    setFrozenImage(null);
+    setIsProcessingFound(false);
+    setScannedSn('');
+    scannedSnRef.current = '';
+    setScanStage('searching');
+    setScanningStatus('כוון לברקוד המספר הסידורי (S/N)...');
+    isHandlingBarcodeRef.current = false;
+    isDecipheringRef.current = false;
+    startLiveCamera();
+  };
+
+  const proceedToMashaAnyway = () => {
+    if (alreadyScannedModalData) {
+      setScannedSn(alreadyScannedModalData.sn);
+      scannedSnRef.current = alreadyScannedModalData.sn;
+    }
+    setAlreadyScannedModalData(null);
+    setFrozenImage(null);
+    setIsProcessingFound(false);
+    setCurrentStep('scan_masha');
+    setScanningStatus('כוון את המצלמה למדבקת מסח"א ולחץ "צלם מדבקה"...');
+  };
+
+  const handleSkipSn = () => {
+    setScannedSn('');
+    scannedSnRef.current = '';
+    setFrozenImage(null);
+    setIsProcessingFound(false);
+    setCurrentStep('scan_masha');
+    setScanningStatus('כוון את המצלמה למדבקת מסח"א (דולג S/N)...');
+  };
+
+  const checkAndProcessScannedSn = async (rawSn: string) => {
+    if (!rawSn) return;
+    const cleanSn = rawSn.trim().toUpperCase();
+    if (!cleanSn) return;
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(80); } catch (e) {}
+    }
+
+    setIsProcessingFound(true);
+    setFoundInfoText(`מספר סידורי (S/N): ${cleanSn}\nבודק כפילויות במערכת...`);
+    setScanningStatus(`🔍 בודק האם S/N: ${cleanSn} כבר נסרק במערכת...`);
+
+    try {
+      const checkRes = await checkSnAlreadyScanned(cleanSn, selectedRoom?.id);
+
+      if (checkRes.alreadyScanned && checkRes.existingScan) {
+        // Already scanned!
+        const existing = checkRes.existingScan;
+        const roomName = existing.roomName || 'חדר במערכת';
+        const whoStr = existing.scannedBy || 'עובד סריקה';
+        const dateStr = existing.scannedAt
+          ? new Date(existing.scannedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+          : '';
+
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate([150, 100, 150]); } catch (e) {}
+        }
+
+        setIsProcessingFound(false);
+        setScanningStatus(`⚠️ שים לב: S/N ${cleanSn} כבר נסרק! אין צורך לסרוק שוב.`);
+
+        setAlreadyScannedModalData({
+          sn: cleanSn,
+          existingScan: existing,
+        });
+
+        const whereMsg = existing.isCurrentRoom
+          ? `הפריט נסרק כבר בחדר זה (${roomName}) ע"י ${whoStr}${dateStr ? ` בשעה ${dateStr}` : ''}.`
+          : `הפריט נסרק כבר בחדר "${roomName}" ע"י ${whoStr}${dateStr ? ` בשעה ${dateStr}` : ''}.`;
+
+        Alert.alert(
+          'פריט זה כבר נסרק! ⚠️',
+          `מספר סידורי: ${cleanSn}\n${whereMsg}\n\nאין צורך לסרוק אותו שוב.`,
+          [
+            {
+              text: 'הבנתי, סרוק פריט הבא',
+              style: 'cancel',
+              onPress: () => dismissAlreadyScanned(),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Fresh S/N - proceed to Stage 2 (Masha)
+      setScannedSn(cleanSn);
+      scannedSnRef.current = cleanSn;
+
+      if (checkRes.officialItem) {
+        if (checkRes.officialItem.description) {
+          setDetectedDescription(checkRes.officialItem.description);
+        }
+        if (checkRes.officialItem.masha) {
+          setScannedMasha(checkRes.officialItem.masha);
+        }
+        if (checkRes.officialItem.official_holder_name) {
+          setDetectedOwner(checkRes.officialItem.official_holder_name);
+        }
+      }
+
+      setScanningStatus(`✨ S/N ${cleanSn} נקלט בהצלחה! עובר לשלב 2: מסח"א...`);
+      setFoundInfoText(`מספר סידורי (S/N): ${cleanSn} ✓\nעובר לשלב סריקת מסח"א...`);
+
+      await new Promise(res => setTimeout(res, 850));
+
+      setIsProcessingFound(false);
+      setFrozenImage(null);
+      setCurrentStep('scan_masha');
+      setScanningStatus('כוון את המצלמה למדבקת מסח"א ולחץ "צלם מדבקה"...');
+    } catch (err: any) {
+      console.warn('Error checking S/N:', err);
+      // Fallback in case of server error: allow proceeding
+      setScannedSn(cleanSn);
+      scannedSnRef.current = cleanSn;
+      setIsProcessingFound(false);
+      setFrozenImage(null);
+      setCurrentStep('scan_masha');
+      setScanningStatus('כוון את המצלמה למדבקת מסח"א ולחץ "צלם מדבקה"...');
+    }
+  };
+
   const handleLiveBarcodeScanned = async (barcodeText: string) => {
     if (!barcodeText || isHandlingBarcodeRef.current) return;
     // Disallow ANY barcode scanning when in Masha step. Masha MUST be recognized via OCR/Text only!
@@ -550,27 +685,7 @@ export default function App() {
     const parsed = parseLabelText(cleanText);
     const snVal = parsed.serialNumber || cleanText.toUpperCase();
 
-    // Show processing feedback matching Masha detection UX
-    setIsProcessingFound(true);
-    setFoundInfoText(`מספר סידורי (S/N): ${snVal}`);
-    setScanningStatus(`⚡ ברקוד נקלט: ${snVal}! מעבד ושומר במערכת...`);
-
-    // Provide haptic feedback if available on mobile
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate(80);
-      } catch (e) {}
-    }
-
-    setScannedSn(snVal);
-
-    // Give user time to see the frozen snapshot and success overlay
-    await new Promise(res => setTimeout(res, 850));
-
-    // Open editable review form before sending
-    setIsProcessingFound(false);
-    setFrozenImage(null);
-    openEditForm(snVal, scannedMashaRef.current, detectedDescRef.current, detectedOwnerRef.current);
+    await checkAndProcessScannedSn(snVal);
 
     isHandlingBarcodeRef.current = false;
   };
@@ -585,19 +700,7 @@ export default function App() {
     }
 
     const cleanSn = sn.trim().toUpperCase();
-    setScannedSn(cleanSn);
-    setScanningStatus(`S/N ${cleanSn} פוענח בהצלחה! מציג טופס לאישור...`);
-
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try { navigator.vibrate(80); } catch (e) {}
-    }
-
-    await new Promise(res => setTimeout(res, 900));
-
-    // Open editable review form before sending
-    setIsProcessingFound(false);
-    setFrozenImage(null);
-    openEditForm(cleanSn, scannedMashaRef.current, detectedDescRef.current, detectedOwnerRef.current);
+    await checkAndProcessScannedSn(cleanSn);
   };
 
   // Shared handler when valid Masha is recognized (via stream, snapshot, or photo upload)
@@ -605,18 +708,20 @@ export default function App() {
     if (!parsed.masha) return;
     stopLiveOcrStream();
 
-    let desc = parsed.productDescription || '';
+    let desc = parsed.productDescription || detectedDescRef.current || '';
     try {
       const lookup = await lookupItem(undefined, parsed.masha);
       if (lookup.found && lookup.item) {
-        desc = lookup.item.description;
+        desc = lookup.item.description || desc;
       }
     } catch (e) {}
 
     setScannedMasha(parsed.masha);
     setDetectedDescription(desc);
-    setDetectedOwner(parsed.stickerOwner || '');
-    setScanningStatus(`מסח"א ${parsed.masha} פוענח בהצלחה! עבור ל-S/N...`);
+    if (parsed.stickerOwner) {
+      setDetectedOwner(parsed.stickerOwner);
+    }
+    setScanningStatus(`מסח"א ${parsed.masha} פוענח בהצלחה! פותח טופס לאישור...`);
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate(80); } catch (e) {}
@@ -625,7 +730,7 @@ export default function App() {
     setTimeout(() => {
       setIsProcessingFound(false);
       setFrozenImage(null);
-      setCurrentStep('scan_sn');
+      openEditForm(scannedSnRef.current || undefined, parsed.masha, desc, parsed.stickerOwner || detectedOwnerRef.current || '');
     }, 1200);
   };
 
@@ -818,20 +923,7 @@ export default function App() {
     }
 
     const parsed = parseLabelText(mockText);
-    setScannedMasha(parsed.masha || '');
-    setDetectedDescription(parsed.productDescription || '');
-    setDetectedOwner(parsed.stickerOwner || '');
-
-    if (parsed.masha) {
-      try {
-        const lookup = await lookupItem(undefined, parsed.masha);
-        if (lookup.found && lookup.item) {
-          setDetectedDescription(lookup.item.description);
-        }
-      } catch (err) {}
-    }
-
-    setCurrentStep('scan_sn');
+    await onMashaRecognized(parsed);
   };
 
   // Open edit form after two steps scan
@@ -850,8 +942,7 @@ export default function App() {
 
   // Simulated CV detection of Manufacturer OEM S/N barcode (Fallback/Demo helper)
   const simulateDetectSn = async (sn: string) => {
-    setScannedSn(sn);
-    openEditForm(sn, scannedMasha, detectedDescription, detectedOwner);
+    await checkAndProcessScannedSn(sn);
   };
 
   const handleEditFormSubmit = async () => {
@@ -909,7 +1000,7 @@ export default function App() {
       }
 
       resetCurrentScan();
-      setCurrentStep('scan_masha');
+      setCurrentStep('scan_sn');
     } catch (err: any) {
       Alert.alert('שגיאה', 'נכשל ברישום הסריקה מול השרת');
     } finally {
@@ -977,18 +1068,252 @@ export default function App() {
         </ScrollView>
       )}
 
-      {/* Screen 2: Human-Initiated Snapshot Step 1 (Masha Scan) */}
+      {/* Screen 2: Guided CV Step 1 (S/N Scan) */}
+      {currentStep === 'scan_sn' && (
+        <View style={styles.scanContainer}>
+          {/* Step 1 Banner: S/N (Compact) */}
+          <View style={styles.stepBannerCompactBlue}>
+            <View style={styles.stepBadgeRow}>
+              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 1 מתוך 2 • S/N (מספר סידורי)</Text>
+              <View style={styles.liveIndicator}>
+                <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#3b82f6' : '#ef4444' }]} />
+                <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.stepTitleCompact}>כוון לברקוד המספר הסידורי (S/N)</Text>
+            <Text style={styles.stepHintCompactBlue}>
+              נמצא בדרך כלל במדבקת היצרן בגב המכשיר או בתחתיתו. אין S/N? לחץ "דלג ללא S/N"
+            </Text>
+          </View>
+
+          {/* Real Camera Viewfinder - Main Focus, No Overlays */}
+          <View style={styles.viewfinderExpanded}>
+            {cameraPermissionError && !frozenImage ? (
+              <View style={styles.cameraPausedView}>
+                <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
+                <TouchableOpacity
+                  style={styles.retryCameraButton}
+                  onPress={startLiveCamera}
+                >
+                  <Text style={styles.retryCameraText}>🔄 אשר גישה ונסה שוב</Text>
+                </TouchableOpacity>
+              </View>
+            ) : frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={styles.frozenImageStyle}
+                resizeMode="cover"
+              />
+            ) : cameraActive ? (
+              <video
+                id="shelv-scanner-video"
+                ref={videoRef as any}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                } as any}
+                autoPlay
+                playsInline
+                muted
+              />
+            ) : (
+              <View style={styles.cameraPausedView}>
+                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Human Snapshot Shutter Button for S/N - shown below the image when camera is live */}
+          {!isProcessingFound && !ocrLoading && !frozenImage && (
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={styles.shutterButtonBlue}
+                onPress={captureAndRecognizeHandwrittenMasha}
+                activeOpacity={0.8}
+              >
+                <View style={styles.shutterInnerCircle} />
+                <Text style={styles.shutterText}>📸 צלם S/N לפענוח</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Retake Button for S/N - shown below the image when image is frozen and not processing */}
+          {!isProcessingFound && !ocrLoading && frozenImage && (
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={[styles.shutterButtonBlue, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
+                onPress={() => {
+                  setFrozenImage(null);
+                  setScanError(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Status & Processing Info Card */}
+          {isProcessingFound ? (
+            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]} {...({ dir: 'rtl' } as any)}>
+              <View style={styles.processingBelowHeaderRow}>
+                <ActivityIndicator size="small" color="#3b82f6" />
+                <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>⚡ בודק נתוני S/N...</Text>
+              </View>
+              <Text style={styles.processingBelowSubtitle}>בודק האם הפריט כבר נסרק במערכת...</Text>
+              {foundInfoText ? (
+                <View style={[styles.processingBelowDetailsBox, { borderColor: 'rgba(59, 130, 246, 0.4)' }]}>
+                  <Text style={styles.processingBelowDetailsText}>{foundInfoText}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : ocrLoading ? (
+            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]} {...({ dir: 'rtl' } as any)}>
+              <View style={styles.processingBelowHeaderRow}>
+                <ActivityIndicator size="small" color="#60a5fa" />
+                <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>⚡ Gemini מפענח S/N...</Text>
+              </View>
+              <Text style={styles.processingBelowSubtitle}>מחלץ מספר סידורי ופרטי יצרן מהתמונה שנלכדה</Text>
+            </View>
+          ) : null}
+
+          {/* User Scan Error Notification Banner */}
+          {scanError ? (
+            <View style={styles.scanErrorNotification} {...({ dir: 'rtl' } as any)}>
+              <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
+              <View style={styles.scanErrorActionsRow}>
+                {frozenImage && (
+                  <TouchableOpacity
+                    style={styles.retakeErrorBtn}
+                    onPress={() => {
+                      setFrozenImage(null);
+                      setScanError(null);
+                    }}
+                  >
+                    <Text style={styles.retakeErrorBtnText}>🔄 צלם שוב</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.dismissScanErrorBtn}
+                  onPress={() => setScanError(null)}
+                >
+                  <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Real-time OCR Text Inspection Panel (Collapsible/Compact) */}
+          {(recognizedLiveText || lastOcrDiagnosis) ? (
+            <View style={[styles.ocrInspectionCardCompact, { borderColor: '#3b82f6' }]}>
+              <View style={styles.ocrInspectionHeader}>
+                <Text style={[styles.ocrInspectionTitle, { color: '#93c5fd' }]}>🔍 פוענח בזמן אמת (S/N):</Text>
+                <TouchableOpacity onPress={() => { setRecognizedLiveText(''); setLastOcrDiagnosis(''); }}>
+                  <Text style={styles.ocrInspectionClear}>נקה ✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {lastOcrDiagnosis ? (
+                <View style={styles.ocrDiagnosisBox}>
+                  <Text style={styles.ocrDiagnosisText} numberOfLines={2}>{lastOcrDiagnosis}</Text>
+                </View>
+              ) : null}
+
+              {recognizedLiveText ? (
+                <ScrollView style={styles.ocrRawTextScrollCompact} nestedScrollEnabled>
+                  <Text style={styles.ocrRawTextContent}>{recognizedLiveText}</Text>
+                </ScrollView>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Controls Dock (Compact) */}
+          <View style={styles.scannerControlsCompact}>
+            <View style={styles.quickToolsRow}>
+              <TouchableOpacity
+                style={styles.quickToolBtn}
+                onPress={() => setCameraActive(prev => !prev)}
+              >
+                <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה' : '▶️ הפעל'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#1e293b' }]}
+                onPress={() => fileInputRef.current?.click()}
+                disabled={ocrLoading}
+              >
+                <Text style={styles.quickToolBtnText}>📷 צילום HD</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#059669', borderWidth: 1, borderColor: '#10b981' }]}
+                onPress={handleSkipSn}
+              >
+                <Text style={[styles.quickToolBtnText, { fontWeight: 'bold' }]}>⏩ דלג ללא S/N</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
+                onPress={() => setCurrentStep('manual_entry')}
+              >
+                <Text style={styles.quickToolBtnText}>⌨️ הקלדה</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Hidden native camera/gallery file input */}
+            <input
+              type="file"
+              ref={fileInputRef as any}
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handlePhotoSelected}
+            />
+          </View>
+
+          {/* Bottom Bar */}
+          <View style={styles.bottomBarCompact}>
+            <Text style={styles.bottomBarText}>נסרקו בסשן זה: {scannedItemsCount}</Text>
+            <TouchableOpacity
+              onPress={() => setCurrentStep('select_room')}
+              style={styles.cancelButtonCompact}
+            >
+              <Text style={styles.cancelButtonText}>סיום סריקה</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Screen 3: Human-Initiated Snapshot Step 2 (Masha Scan) */}
       {currentStep === 'scan_masha' && (
         <View style={styles.scanContainer}>
           {/* Compact Top Banner */}
           <View style={styles.stepBannerCompact}>
             <View style={styles.stepBadgeRow}>
-              <Text style={styles.stepBadge}>שלב 1 מתוך 2 • מסח"א</Text>
+              <Text style={styles.stepBadge}>שלב 2 מתוך 2 • מסח"א</Text>
               <View style={styles.liveIndicator}>
                 <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#10b981' : '#ef4444' }]} />
                 <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
               </View>
             </View>
+
+            <View style={styles.recognizedMiniRow}>
+              <Text style={styles.recognizedTitleCompact} numberOfLines={1}>
+                {scannedSn ? `מספר סידורי: ${scannedSn}` : 'ללא מספר סידורי (דולג)'}
+              </Text>
+              <Text style={[styles.recognizedTagCompact, !scannedSn && { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }]}>
+                {scannedSn ? '✅ S/N נקלט' : '⏩ S/N דולג'}
+              </Text>
+            </View>
+            {detectedDescription ? (
+              <Text style={[styles.recognizedOwnerCompact, { color: '#a7f3d0' }]} numberOfLines={1}>
+                {detectedDescription}
+              </Text>
+            ) : null}
+
             <Text style={styles.stepTitleCompact}>כוון למדבקה ולחץ "צלם מדבקה"</Text>
             <Text style={styles.stepHintCompact}>
               כוון את העדשה כך שמספר המסח"א (Catalog #) יופיע במסגרת, ולחץ על כפתור הצילום לפענוח ע"י Gemini
@@ -1064,7 +1389,7 @@ export default function App() {
             </View>
           )}
 
-          {/* Status & Processing Info Card - Converted from Modal to below the image */}
+          {/* Status & Processing Info Card */}
           {isProcessingFound ? (
             <View style={styles.processingBelowCard} {...({ dir: 'rtl' } as any)}>
               <View style={styles.processingBelowHeaderRow}>
@@ -1162,6 +1487,13 @@ export default function App() {
 
               <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
+                onPress={() => setCurrentStep('scan_sn')}
+              >
+                <Text style={styles.quickToolBtnText}>↩️ חזרה ל-S/N</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
                 onPress={() => setCurrentStep('manual_entry')}
               >
                 <Text style={styles.quickToolBtnText}>⌨️ הקלדה</Text>
@@ -1177,235 +1509,6 @@ export default function App() {
               style={{ display: 'none' }}
               onChange={handlePhotoSelected}
             />
-
-
-          </View>
-
-          {/* Bottom Bar */}
-          <View style={styles.bottomBarCompact}>
-            <Text style={styles.bottomBarText}>נסרקו בסשן זה: {scannedItemsCount}</Text>
-            <TouchableOpacity
-              onPress={() => setCurrentStep('select_room')}
-              style={styles.cancelButtonCompact}
-            >
-              <Text style={styles.cancelButtonText}>סיום סריקה</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Screen 3: Guided CV Step 2 (S/N Scan) */}
-      {currentStep === 'scan_sn' && (
-        <View style={styles.scanContainer}>
-          {/* Recognition Card + Step 2 Banner (Compact) */}
-          <View style={styles.stepBannerCompactBlue}>
-            <View style={styles.stepBadgeRow}>
-              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 2 מתוך 2 • S/N</Text>
-              <View style={styles.liveIndicator}>
-                <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#3b82f6' : '#ef4444' }]} />
-                <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.recognizedMiniRow}>
-              <Text style={styles.recognizedTitleCompact} numberOfLines={1}>
-                {detectedDescription || 'פריט מזוהה'}
-              </Text>
-              <Text style={styles.recognizedTagCompact}>✅ מסח"א: {scannedMasha}</Text>
-            </View>
-            {detectedOwner ? (
-              <Text style={styles.recognizedOwnerCompact}>בעל מצאי: {detectedOwner}</Text>
-            ) : null}
-
-            <Text style={styles.stepTitleCompact}>כעת כוון לברקוד המספר הסידורי (S/N)</Text>
-            <Text style={styles.stepHintCompactBlue}>
-              נמצא בדרך כלל במדבקת היצרן בגב המכשיר או בתחתיתו
-            </Text>
-          </View>
-
-          {/* Real Camera Viewfinder - Main Focus, No Overlays */}
-          <View style={styles.viewfinderExpanded}>
-            {cameraPermissionError && !frozenImage ? (
-              <View style={styles.cameraPausedView}>
-                <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
-                <TouchableOpacity
-                  style={styles.retryCameraButton}
-                  onPress={startLiveCamera}
-                >
-                  <Text style={styles.retryCameraText}>🔄 אשר גישה ונסה שוב</Text>
-                </TouchableOpacity>
-              </View>
-            ) : frozenImage ? (
-              <Image
-                source={{ uri: frozenImage }}
-                style={styles.frozenImageStyle}
-                resizeMode="cover"
-              />
-            ) : cameraActive ? (
-              <video
-                id="shelv-scanner-video"
-                ref={videoRef as any}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: 'block',
-                } as any}
-                autoPlay
-                playsInline
-                muted
-              />
-            ) : (
-              <View style={styles.cameraPausedView}>
-                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Human Snapshot Shutter Button for S/N - shown below the image when camera is live */}
-          {!isProcessingFound && !ocrLoading && !frozenImage && (
-            <View style={styles.shutterContainer}>
-              <TouchableOpacity
-                style={styles.shutterButtonBlue}
-                onPress={captureAndRecognizeHandwrittenMasha}
-                activeOpacity={0.8}
-              >
-                <View style={styles.shutterInnerCircle} />
-                <Text style={styles.shutterText}>📸 צלם S/N לפענוח</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Retake Button for S/N - shown below the image when image is frozen and not processing */}
-          {!isProcessingFound && !ocrLoading && frozenImage && (
-            <View style={styles.shutterContainer}>
-              <TouchableOpacity
-                style={[styles.shutterButtonBlue, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
-                onPress={() => {
-                  setFrozenImage(null);
-                  setScanError(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Status & Processing Info Card - Converted from Modal to below the image */}
-          {isProcessingFound ? (
-            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]} {...({ dir: 'rtl' } as any)}>
-              <View style={styles.processingBelowHeaderRow}>
-                <ActivityIndicator size="small" color="#3b82f6" />
-                <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>✨ S/N נקלט בהצלחה!</Text>
-              </View>
-              <Text style={styles.processingBelowSubtitle}>התמונה הוקפאה, שומר ומעדכן את הפריט במערכת...</Text>
-              {foundInfoText ? (
-                <View style={[styles.processingBelowDetailsBox, { borderColor: 'rgba(59, 130, 246, 0.4)' }]}>
-                  <Text style={styles.processingBelowDetailsText}>{foundInfoText}</Text>
-                </View>
-              ) : null}
-            </View>
-          ) : ocrLoading ? (
-            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]} {...({ dir: 'rtl' } as any)}>
-              <View style={styles.processingBelowHeaderRow}>
-                <ActivityIndicator size="small" color="#60a5fa" />
-                <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>⚡ Gemini מפענח S/N...</Text>
-              </View>
-              <Text style={styles.processingBelowSubtitle}>מחלץ מספר סידורי ופרטי יצרן מהתמונה שנלכדה</Text>
-            </View>
-          ) : null}
-
-          {/* User Scan Error Notification Banner */}
-          {scanError ? (
-            <View style={styles.scanErrorNotification} {...({ dir: 'rtl' } as any)}>
-              <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
-              <View style={styles.scanErrorActionsRow}>
-                {frozenImage && (
-                  <TouchableOpacity
-                    style={styles.retakeErrorBtn}
-                    onPress={() => {
-                      setFrozenImage(null);
-                      setScanError(null);
-                    }}
-                  >
-                    <Text style={styles.retakeErrorBtnText}>🔄 צלם שוב</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.dismissScanErrorBtn}
-                  onPress={() => setScanError(null)}
-                >
-                  <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : null}
-
-          {/* Real-time OCR Text Inspection Panel (Collapsible/Compact) */}
-          {(recognizedLiveText || lastOcrDiagnosis) ? (
-            <View style={[styles.ocrInspectionCardCompact, { borderColor: '#3b82f6' }]}>
-              <View style={styles.ocrInspectionHeader}>
-                <Text style={[styles.ocrInspectionTitle, { color: '#93c5fd' }]}>🔍 פוענח בזמן אמת (S/N):</Text>
-                <TouchableOpacity onPress={() => { setRecognizedLiveText(''); setLastOcrDiagnosis(''); }}>
-                  <Text style={styles.ocrInspectionClear}>נקה ✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              {lastOcrDiagnosis ? (
-                <View style={styles.ocrDiagnosisBox}>
-                  <Text style={styles.ocrDiagnosisText} numberOfLines={2}>{lastOcrDiagnosis}</Text>
-                </View>
-              ) : null}
-
-              {recognizedLiveText ? (
-                <ScrollView style={styles.ocrRawTextScrollCompact} nestedScrollEnabled>
-                  <Text style={styles.ocrRawTextContent}>{recognizedLiveText}</Text>
-                </ScrollView>
-              ) : null}
-
-            </View>
-          ) : null}
-
-          {/* Controls Dock (Compact) */}
-          <View style={styles.scannerControlsCompact}>
-            <View style={styles.quickToolsRow}>
-              <TouchableOpacity
-                style={styles.quickToolBtn}
-                onPress={() => setCameraActive(prev => !prev)}
-              >
-                <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה' : '▶️ הפעל'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.quickToolBtn, { backgroundColor: '#1e293b' }]}
-                onPress={() => fileInputRef.current?.click()}
-                disabled={ocrLoading}
-              >
-                <Text style={styles.quickToolBtnText}>📷 צילום HD</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.quickToolBtn, { backgroundColor: '#059669' }]}
-                onPress={() => openEditForm(undefined, scannedMasha, detectedDescription, detectedOwner)}
-              >
-                <Text style={styles.quickToolBtnText}>⏩ דלג ללא S/N</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
-                onPress={() => setCurrentStep('manual_entry')}
-              >
-                <Text style={styles.quickToolBtnText}>⌨️ הקלדה</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
-                onPress={() => setCurrentStep('scan_masha')}
-              >
-                <Text style={styles.quickToolBtnText}>↩️ חזרה</Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           {/* Bottom Bar */}
@@ -1506,19 +1609,19 @@ export default function App() {
                 style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
                 onPress={() => {
                   resetCurrentScan();
-                  setCurrentStep('scan_masha');
+                  setCurrentStep('scan_sn');
                 }}
               >
-                <Text style={styles.formActionSecondaryText}>🔄 סריקה מחדש (שלב 1)</Text>
+                <Text style={styles.formActionSecondaryText}>🔄 סריקה מחדש (שלב 1 S/N)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
                 onPress={() => {
-                  setCurrentStep('scan_sn');
+                  setCurrentStep('scan_masha');
                 }}
               >
-                <Text style={styles.formActionSecondaryText}>📷 סרוק שוב S/N</Text>
+                <Text style={styles.formActionSecondaryText}>📷 סרוק שוב מסח"א</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1565,7 +1668,7 @@ export default function App() {
 
             <TouchableOpacity
               style={[styles.cancelButton, { marginTop: 12 }]}
-              onPress={() => setCurrentStep('scan_masha')}
+              onPress={() => setCurrentStep('scan_sn')}
             >
               <Text style={styles.cancelButtonText}>חזרה לסורק המצלמה</Text>
             </TouchableOpacity>
@@ -1648,6 +1751,87 @@ export default function App() {
                 }}
               >
                 <Text style={styles.modalSecondaryBtnText}>⌨️ מעבר להזנה ידנית</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Item Already Scanned Notification */}
+      <Modal
+        visible={Boolean(alreadyScannedModalData)}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={dismissAlreadyScanned}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { borderColor: '#f59e0b' }]} {...({ dir: 'rtl' } as any)}>
+            <View style={styles.modalHeader}>
+              <Text style={{ fontSize: 40, marginBottom: 8 }}>⚠️</Text>
+              <Text style={[styles.modalTitle, { color: '#fbbf24' }]}>פריט זה כבר נסרק!</Text>
+              <Text style={styles.modalSubtitle}>
+                המספר הסידורי (S/N) כבר נסרק במערכת - אין צורך לסרוק אותו שוב
+              </Text>
+            </View>
+
+            <View style={styles.alreadyScannedDetailsBox}>
+              <View style={styles.alreadyScannedRow}>
+                <Text style={styles.alreadyScannedLabel}>מספר סידורי (S/N):</Text>
+                <Text style={styles.alreadyScannedValueBold}>{alreadyScannedModalData?.sn}</Text>
+              </View>
+
+              {alreadyScannedModalData?.existingScan?.masha ? (
+                <View style={styles.alreadyScannedRow}>
+                  <Text style={styles.alreadyScannedLabel}>מסח"א משויך:</Text>
+                  <Text style={styles.alreadyScannedValue}>{alreadyScannedModalData.existingScan.masha}</Text>
+                </View>
+              ) : null}
+
+              {alreadyScannedModalData?.existingScan?.productName ? (
+                <View style={styles.alreadyScannedRow}>
+                  <Text style={styles.alreadyScannedLabel}>תיאור פריט:</Text>
+                  <Text style={styles.alreadyScannedValue}>{alreadyScannedModalData.existingScan.productName}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.alreadyScannedRow}>
+                <Text style={styles.alreadyScannedLabel}>נסרק בחדר:</Text>
+                <Text style={[styles.alreadyScannedValue, { color: '#60a5fa', fontWeight: 'bold' }]}>
+                  {alreadyScannedModalData?.existingScan?.roomName || 'חדר'}
+                  {alreadyScannedModalData?.existingScan?.isCurrentRoom ? ' (חדר נוכחי)' : ''}
+                </Text>
+              </View>
+
+              <View style={styles.alreadyScannedRow}>
+                <Text style={styles.alreadyScannedLabel}>נסרק ע"י:</Text>
+                <Text style={styles.alreadyScannedValue}>{alreadyScannedModalData?.existingScan?.scannedBy || 'עובד סריקה'}</Text>
+              </View>
+
+              {alreadyScannedModalData?.existingScan?.scannedAt ? (
+                <View style={styles.alreadyScannedRow}>
+                  <Text style={styles.alreadyScannedLabel}>זמן סריקה:</Text>
+                  <Text style={styles.alreadyScannedValue}>
+                    {new Date(alreadyScannedModalData.existingScan.scannedAt).toLocaleString('he-IL')}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalPrimaryBtn, { backgroundColor: '#10b981' }]}
+                onPress={dismissAlreadyScanned}
+              >
+                <Text style={styles.modalPrimaryBtnText}>✓ הבנתי, עבור לפריט הבא</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalSecondaryBtn, { marginTop: 8 }]}
+                onPress={proceedToMashaAnyway}
+              >
+                <Text style={[styles.modalSecondaryBtnText, { color: '#9ca3af', fontSize: 12 }]}>
+                  המשך בכל זאת למסח"א ⏩
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2619,6 +2803,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     writingDirection: 'rtl',
+  },
+  alreadyScannedDetailsBox: {
+    backgroundColor: '#030712',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+    padding: 14,
+    marginVertical: 14,
+  },
+  alreadyScannedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  alreadyScannedLabel: {
+    color: '#9ca3af',
+    fontSize: 13,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  alreadyScannedValue: {
+    color: '#e5e7eb',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'left',
+  },
+  alreadyScannedValueBold: {
+    color: '#fbbf24',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+    textAlign: 'left',
   },
   scanErrorNotification: {
     backgroundColor: '#7f1d1d',
