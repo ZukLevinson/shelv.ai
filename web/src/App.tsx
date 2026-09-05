@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import type { Room, OfficialItem, AnomalyReport } from './types';
+import type { Room, OfficialItem, AnomalyReport, InventoryHolder } from './types';
 import { RoomGrid } from './components/RoomGrid';
 import { AnomaliesCenter } from './components/AnomaliesCenter';
 import { LiveFeed } from './components/LiveFeed';
@@ -8,7 +8,9 @@ import { InventoryCatalog } from './components/InventoryCatalog';
 import { ExcelUploadModal } from './components/ExcelUploadModal';
 import { MashaRegistryTable } from './components/MashaRegistryTable';
 import { RoomManagementModal } from './components/RoomManagementModal';
-import { ShieldCheck, Upload, RefreshCw, BarChart3, AlertOctagon, CheckCircle2, Tag, Building2 } from 'lucide-react';
+import { HoldersManagement } from './components/HoldersManagement';
+import { ScanManagement } from './components/ScanManagement';
+import { ShieldCheck, Upload, RefreshCw, BarChart3, AlertOctagon, CheckCircle2, Tag, Building2, Users, ClipboardList } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
 export function App() {
@@ -16,24 +18,27 @@ export function App() {
   const [items, setItems] = useState<OfficialItem[]>([]);
   const [anomalies, setAnomalies] = useState<AnomalyReport | null>(null);
   const [mashaList, setMashaList] = useState<any[]>([]);
+  const [holders, setHolders] = useState<InventoryHolder[]>([]);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isRoomModalOpen, setRoomModalOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'overview' | 'masha_registry' | 'items'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'scans' | 'holders' | 'masha_registry' | 'items'>('overview');
   const [loading, setLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [roomsRes, itemsRes, anomaliesRes, mashaRes] = await Promise.all([
+      const [roomsRes, itemsRes, anomaliesRes, mashaRes, holdersRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/inventory/rooms`),
         axios.get(`${API_BASE_URL}/api/inventory/items`),
         axios.get(`${API_BASE_URL}/api/anomalies`),
         axios.get(`${API_BASE_URL}/api/inventory/masha-registry`),
+        axios.get(`${API_BASE_URL}/api/inventory/holders`),
       ]);
       setRooms(roomsRes.data);
       setItems(itemsRes.data);
       setAnomalies(anomaliesRes.data);
       setMashaList(mashaRes.data);
+      setHolders(holdersRes.data);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -55,7 +60,9 @@ export function App() {
           data.type === 'TRANSFER_APPROVED' ||
           data.type === 'INVENTORY_SYNCED' ||
           data.type === 'MASHA_UPDATED' ||
-          data.type === 'ROOMS_UPDATED'
+          data.type === 'ROOMS_UPDATED' ||
+          data.type === 'HOLDERS_UPDATED' ||
+          data.type === 'SCANS_UPDATED'
         ) {
           fetchData();
         }
@@ -96,6 +103,24 @@ export function App() {
               )}
             >
               מבט על וחריגות
+            </button>
+            <button
+              onClick={() => setActiveView('scans')}
+              className={'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+                activeView === 'scans' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
+              )}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>ניהול ותחקור סריקות</span>
+            </button>
+            <button
+              onClick={() => setActiveView('holders')}
+              className={'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+                activeView === 'holders' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
+              )}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>בעלי מצאי ({holders.length})</span>
             </button>
             <button
               onClick={() => setActiveView('masha_registry')}
@@ -206,6 +231,21 @@ export function App() {
 
           <AnomaliesCenter anomalies={anomalies} onRefresh={fetchData} />
         </>
+      )}
+
+      {/* Tab: Scan Management & Investigation */}
+      {activeView === 'scans' && (
+        <ScanManagement rooms={rooms} />
+      )}
+
+      {/* Tab: Holders Management */}
+      {activeView === 'holders' && (
+        <HoldersManagement
+          holders={holders}
+          rooms={rooms}
+          onRefresh={fetchData}
+          onOpenRoomModal={() => setRoomModalOpen(true)}
+        />
       )}
 
       {/* Tab: Masha Registry (Name, Category, Description manager) */}

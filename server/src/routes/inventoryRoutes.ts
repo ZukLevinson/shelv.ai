@@ -148,6 +148,11 @@ inventoryRouter.delete('/rooms/:id', (req, res) => {
 inventoryRouter.get('/holders', (req, res) => {
   const holders = db.prepare(`
     SELECT h.*, 
+           (SELECT COUNT(*) FROM official_inventory i WHERE i.holder_id = h.id) as total_signed_items,
+           (SELECT COUNT(DISTINCT o.serial_number) 
+            FROM sweep_observations o 
+            JOIN rooms r ON o.room_id = r.id 
+            WHERE r.holder_id = h.id) as swept_items_count,
            (SELECT json_group_array(json_object('id', r.id, 'name', r.name, 'code', r.code))
             FROM rooms r WHERE r.holder_id = h.id) as rooms_json
     FROM inventory_holders h
@@ -156,6 +161,8 @@ inventoryRouter.get('/holders', (req, res) => {
 
   const formatted = holders.map((h: any) => ({
     ...h,
+    total_signed_items: Number(h.total_signed_items || 0),
+    swept_items_count: Number(h.swept_items_count || 0),
     rooms: JSON.parse(h.rooms_json || '[]')
   }));
   res.json(formatted);
@@ -178,7 +185,85 @@ inventoryRouter.post('/holders', (req, res) => {
     id, cleanName, email ? email.trim() : null, phone ? phone.trim() : null
   );
 
-  res.status(201).json({ success: true, id, name: cleanName, email, phone });
+  broadcast('HOLDERS_UPDATED', { id, action: 'created', name: cleanName });
+
+  res.status(201).json({ success: true, id, name: cleanName, email: email ? email.trim() : null, phone: phone ? phone.trim() : null });
+});
+
+inventoryRouter.put('/holders/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone } = req.body;
+
+  const existing = db.prepare('SELECT * FROM inventory_holders WHERE id = ?').get(id) as any;
+  if (!existing) {
+    return res.status(404).json({ error: 'בעל המצאי לא נמצא' });
+  }
+
+  const cleanName = (name !== undefined ? name : existing.name).trim();
+  if (!cleanName) {
+    return res.status(400).json({ error: 'שם בעל מצאי אינו יכול להיות ריק' });
+  }
+
+  const duplicate = db.prepare('SELECT id FROM inventory_holders WHERE name = ? COLLATE NOCASE AND id != ?').get(cleanName, id) as any;
+  if (duplicate) {
+    return res.status(400).json({ error: `שם בעל המצאי "${cleanName}" כבר קיים במערכת` });
+  }
+
+  const cleanEmail = email !== undefined ? (email ? email.trim() : null) : existing.email;
+  const cleanPhone = phone !== undefined ? (phone ? phone.trim() : null) : existing.phone;
+
+  db.prepare(`
+    UPDATE inventory_holders
+    SET name = ?, email = ?, phone = ?
+    WHERE id = ?
+  `).run(cleanName, cleanEmail, cleanPhone, id);
+
+  broadcast('HOLDERS_UPDATED', { id, action: 'updated', name: cleanName });
+
+  const updatedHolder = db.prepare(`
+    SELECT h.*, 
+           (SELECT COUNT(*) FROM official_inventory i WHERE i.holder_id = h.id) as total_signed_items,
+           (SELECT COUNT(DISTINCT o.serial_number) 
+            FROM sweep_observations o 
+            JOIN rooms r ON o.room_id = r.id 
+            WHERE r.holder_id = h.id) as swept_items_count,
+           (SELECT json_group_array(json_object('id', r.id, 'name', r.name, 'code', r.code))
+            FROM rooms r WHERE r.holder_id = h.id) as rooms_json
+    FROM inventory_holders h
+    WHERE h.id = ?
+  `).get(id) as any;
+
+  res.json({
+    ...updatedHolder,
+    total_signed_items: Number(updatedHolder.total_signed_items || 0),
+    swept_items_count: Number(updatedHolder.swept_items_count || 0),
+    rooms: JSON.parse(updatedHolder.rooms_json || '[]')
+  });
+});
+
+inventoryRouter.delete('/holders/:id', (req, res) => {
+  const { id } = req.params;
+
+  const existing = db.prepare('SELECT * FROM inventory_holders WHERE id = ?').get(id) as any;
+  if (!existing) {
+    return res.status(404).json({ error: 'בעל המצאי לא נמצא' });
+  }
+
+  // Check if holder has assigned rooms or inventory items
+  const roomsCount = db.prepare('SELECT COUNT(*) as count FROM rooms WHERE holder_id = ?').get(id) as { count: number };
+  const itemsCount = db.prepare('SELECT COUNT(*) as count FROM official_inventory WHERE holder_id = ?').get(id) as { count: number };
+
+  if (roomsCount.count > 0 || itemsCount.count > 0) {
+    return res.status(400).json({
+      error: `לא ניתן למחוק את בעל המצאי "${existing.name}". משויכים אליו ${roomsCount.count} חדרים ו-${itemsCount.count} פריטי מצאי חתומים. יש להעביר או למחוק אותם תחילה.`
+    });
+  }
+
+  db.prepare('DELETE FROM inventory_holders WHERE id = ?').run(id);
+
+  broadcast('HOLDERS_UPDATED', { id, action: 'deleted' });
+
+  res.json({ success: true, message: 'בעל המצאי נמחק בהצלחה' });
 });
 
 inventoryRouter.get('/items', (req, res) => {

@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { recordObservation, startSweepSession, completeSweepSession } from '../services/sweepService.js';
 import { db } from '../db/database.js';
 
@@ -54,4 +54,207 @@ sweepRouter.get('/sessions', (req, res) => {
     LIMIT 20
   `).all();
   res.json(sessions);
+});
+
+// GET /api/sweep/scanners - List distinct operators who performed scans
+sweepRouter.get('/scanners', (req, res) => {
+  try {
+    const scanners = db.prepare(`
+      SELECT DISTINCT scanned_by
+      FROM sweep_observations
+      WHERE scanned_by IS NOT NULL AND TRIM(scanned_by) != ''
+      ORDER BY scanned_by ASC
+    `).all() as Array<{ scanned_by: string }>;
+    res.json(scanners.map((s) => s.scanned_by));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch scanners' });
+  }
+});
+
+// GET /api/sweep/scans - Manage & audit scans with rich filters (who, what, where, when)
+sweepRouter.get('/scans', (req, res) => {
+  const {
+    search,
+    scannedBy,
+    roomId,
+    startDate,
+    endDate,
+    mismatchOnly,
+    limit = '100',
+    offset = '0'
+  } = req.query;
+
+  try {
+    let sql = `
+      SELECT 
+        o.id,
+        o.sweep_id,
+        o.room_id as scanned_room_id,
+        o.serial_number,
+        o.masha,
+        o.scanned_by,
+        o.sticker_owner_text,
+        o.product_name_detected,
+        o.scanned_at,
+        r.name as scanned_room_name,
+        r.code as scanned_room_code,
+        h.id as scanned_holder_id,
+        h.name as scanned_holder_name,
+        i.id as official_item_id,
+        i.room_id as official_room_id,
+        i.holder_id as official_holder_id,
+        off_r.name as official_room_name,
+        off_r.code as official_room_code,
+        off_h.name as official_holder_name,
+        COALESCE(m.name, i.description, o.product_name_detected, 'פריט') as item_description,
+        COALESCE(m.category, i.category, 'PC') as category,
+        CASE
+          WHEN i.serial_number IS NULL THEN 'unregistered'
+          WHEN i.room_id != o.room_id THEN 'mismatch'
+          ELSE 'matched'
+        END as scan_status
+      FROM sweep_observations o
+      JOIN rooms r ON o.room_id = r.id
+      JOIN inventory_holders h ON r.holder_id = h.id
+      LEFT JOIN official_inventory i ON o.serial_number = i.serial_number
+      LEFT JOIN rooms off_r ON i.room_id = off_r.id
+      LEFT JOIN inventory_holders off_h ON i.holder_id = off_h.id
+      LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
+      WHERE 1=1
+    `;
+
+    const params: any[] = [];
+
+    if (search) {
+      const searchPattern = `%${String(search).trim()}%`;
+      sql += ` AND (
+        o.serial_number LIKE ? OR
+        o.masha LIKE ? OR
+        o.product_name_detected LIKE ? OR
+        o.sticker_owner_text LIKE ? OR
+        m.name LIKE ? OR
+        i.description LIKE ?
+      )`;
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+    }
+
+    if (scannedBy) {
+      sql += ` AND o.scanned_by = ?`;
+      params.push(String(scannedBy).trim());
+    }
+
+    if (roomId) {
+      sql += ` AND o.room_id = ?`;
+      params.push(String(roomId).trim());
+    }
+
+    if (startDate) {
+      sql += ` AND date(o.scanned_at) >= date(?)`;
+      params.push(String(startDate));
+    }
+
+    if (endDate) {
+      sql += ` AND date(o.scanned_at) <= date(?)`;
+      params.push(String(endDate));
+    }
+
+    if (mismatchOnly === 'true' || mismatchOnly === '1') {
+      sql += ` AND (i.serial_number IS NULL OR i.room_id != o.room_id)`;
+    }
+
+    // Clone query for counting total matching records
+    const countSql = `SELECT COUNT(*) as total FROM (${sql}) as filtered_scans`;
+    const totalCountRes = db.prepare(countSql).get(...params) as { total: number };
+
+    sql += ` ORDER BY o.scanned_at DESC LIMIT ? OFFSET ?`;
+    params.push(Number(limit), Number(offset));
+
+    const scans = db.prepare(sql).all(...params);
+
+    res.json({
+      total: totalCountRes.total,
+      limit: Number(limit),
+      offset: Number(offset),
+      scans
+    });
+  } catch (error: any) {
+    console.error('[Sweep API] Error fetching scans:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch scans' });
+  }
+});
+
+// GET /api/sweep/scans/investigate/:serialNumber - Drill down all actions for a specific asset
+sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
+  const { serialNumber } = req.params;
+  const cleanSN = serialNumber.trim().toUpperCase();
+
+  try {
+    const officialItem = db.prepare(`
+      SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name,
+             m.name as masha_name, m.category as masha_category, m.description as masha_description
+      FROM official_inventory i
+      JOIN rooms r ON i.room_id = r.id
+      JOIN inventory_holders h ON i.holder_id = h.id
+      LEFT JOIN masha_registry m ON i.masha = m.masha
+      WHERE i.serial_number = ?
+    `).get(cleanSN) as any;
+
+    const observations = db.prepare(`
+      SELECT o.*, r.name as room_name, r.code as room_code, h.name as holder_name
+      FROM sweep_observations o
+      JOIN rooms r ON o.room_id = r.id
+      JOIN inventory_holders h ON r.holder_id = h.id
+      WHERE o.serial_number = ?
+      ORDER BY o.scanned_at DESC
+    `).all(cleanSN);
+
+    const resolutions = db.prepare(`
+      SELECT ar.*, 
+             r1.name as from_room_name, r2.name as to_room_name,
+             h1.name as from_holder_name, h2.name as to_holder_name
+      FROM anomaly_resolutions ar
+      LEFT JOIN rooms r1 ON ar.from_room_id = r1.id
+      LEFT JOIN rooms r2 ON ar.to_room_id = r2.id
+      LEFT JOIN inventory_holders h1 ON ar.from_holder_id = h1.id
+      LEFT JOIN inventory_holders h2 ON ar.to_holder_id = h2.id
+      WHERE ar.serial_number = ?
+      ORDER BY ar.resolved_at DESC
+    `).all(cleanSN);
+
+    res.json({
+      serialNumber: cleanSN,
+      officialItem: officialItem || null,
+      observations,
+      resolutions
+    });
+  } catch (error: any) {
+    console.error('[Sweep API] Error investigating asset:', error);
+    res.status(500).json({ error: error.message || 'Failed to investigate asset' });
+  }
+});
+
+// DELETE /api/sweep/scans/:id - Delete erroneous or test scan observation
+sweepRouter.delete('/scans/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const existing = db.prepare('SELECT * FROM sweep_observations WHERE id = ?').get(id) as any;
+    if (!existing) {
+      return res.status(404).json({ error: 'תצפית סריקה לא נמצאה' });
+    }
+
+    db.prepare('DELETE FROM sweep_observations WHERE id = ?').run(id);
+
+    // Import dynamic/lazy services to avoid circular dependency
+    const { detectAnomalies } = await import('../services/anomalyService.js');
+    const { broadcast } = await import('../sockets/socketServer.js');
+
+    const anomalies = detectAnomalies();
+    broadcast('ANOMALIES_UPDATED', anomalies);
+    broadcast('SCANS_UPDATED', { deletedObservationId: id, serialNumber: existing.serial_number });
+
+    res.json({ success: true, message: 'סריקה נמחקה בהצלחה', deletedId: id });
+  } catch (error: any) {
+    console.error('[Sweep API] Error deleting scan:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete scan' });
+  }
 });
