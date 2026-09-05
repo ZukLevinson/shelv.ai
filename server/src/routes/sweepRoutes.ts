@@ -149,10 +149,10 @@ sweepRouter.get('/scans', (req, res) => {
       FROM sweep_observations o
       JOIN rooms r ON o.room_id = r.id
       JOIN inventory_holders h ON r.holder_id = h.id
-      LEFT JOIN official_inventory i ON (
-        (o.serial_number IS NOT NULL AND o.serial_number != '' AND o.serial_number = i.serial_number)
-        OR
-        ((o.serial_number IS NULL OR o.serial_number = '') AND o.masha = i.masha)
+      LEFT JOIN official_inventory i ON i.id = COALESCE(
+        (SELECT i1.id FROM official_inventory i1 WHERE o.serial_number IS NOT NULL AND o.serial_number != '' AND i1.serial_number = o.serial_number LIMIT 1),
+        (SELECT i2.id FROM official_inventory i2 WHERE i2.masha = o.masha AND i2.holder_id = r.holder_id LIMIT 1),
+        (SELECT i3.id FROM official_inventory i3 WHERE i3.masha = o.masha LIMIT 1)
       )
       LEFT JOIN rooms off_r ON i.room_id = off_r.id
       LEFT JOIN inventory_holders off_h ON i.holder_id = off_h.id

@@ -290,17 +290,17 @@ inventoryRouter.get('/items', (req, res) => {
     FROM sweep_observations o
     JOIN rooms r ON o.room_id = r.id
     JOIN inventory_holders h ON r.holder_id = h.id
-    LEFT JOIN official_inventory i ON (
-      (o.serial_number IS NOT NULL AND o.serial_number != '' AND o.serial_number = i.serial_number)
-      OR
-      ((o.serial_number IS NULL OR o.serial_number = '') AND o.masha = i.masha)
+    LEFT JOIN official_inventory i ON i.id = COALESCE(
+      (SELECT i1.id FROM official_inventory i1 WHERE o.serial_number IS NOT NULL AND o.serial_number != '' AND i1.serial_number = o.serial_number LIMIT 1),
+      (SELECT i2.id FROM official_inventory i2 WHERE i2.masha = o.masha AND i2.holder_id = r.holder_id LIMIT 1),
+      (SELECT i3.id FROM official_inventory i3 WHERE i3.masha = o.masha LIMIT 1)
     )
     LEFT JOIN excel_imports e ON i.import_id = e.id
     LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
     WHERE o.id = (
       SELECT sub.id FROM sweep_observations sub
-      WHERE (sub.serial_number IS NOT NULL AND sub.serial_number = o.serial_number)
-         OR ((sub.serial_number IS NULL OR sub.serial_number = '') AND (o.serial_number IS NULL OR o.serial_number = '') AND sub.masha = o.masha AND sub.room_id = o.room_id)
+      WHERE (sub.serial_number IS NOT NULL AND sub.serial_number != '' AND sub.serial_number = o.serial_number)
+         OR ((sub.serial_number IS NULL OR sub.serial_number = '') AND sub.id = o.id)
       ORDER BY sub.scanned_at DESC LIMIT 1
     )
   `;

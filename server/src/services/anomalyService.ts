@@ -87,12 +87,15 @@ export function detectAnomalies(): AnomalyReport {
     FROM sweep_observations o
     JOIN rooms r ON o.room_id = r.id
     JOIN inventory_holders h ON r.holder_id = h.id
-    WHERE o.id = (
-      SELECT sub.id
-      FROM sweep_observations sub
-      WHERE sub.serial_number = o.serial_number
-      ORDER BY sub.scanned_at DESC, sub.id DESC
-      LIMIT 1
+    WHERE (
+      (o.serial_number IS NOT NULL AND o.serial_number != '' AND o.id = (
+        SELECT sub.id
+        FROM sweep_observations sub
+        WHERE sub.serial_number = o.serial_number
+        ORDER BY sub.scanned_at DESC, sub.id DESC
+        LIMIT 1
+      ))
+      OR (o.serial_number IS NULL OR o.serial_number = '')
     )
   `;
   const latestScans = db.prepare(latestScansQuery).all() as any[];
@@ -131,104 +134,150 @@ export function detectAnomalies(): AnomalyReport {
 
   const scanMap = new Map<string, any>();
   latestScans.forEach((scan) => {
-    scanMap.set(scan.serial_number.toUpperCase().trim(), scan);
+    if (scan.serial_number && String(scan.serial_number).trim()) {
+      scanMap.set(String(scan.serial_number).toUpperCase().trim(), scan);
+    }
   });
 
   const officialItemMap = new Map<string, any>();
   officialItems.forEach((item) => {
-    officialItemMap.set(item.serial_number.toUpperCase().trim(), item);
+    if (item.serial_number && String(item.serial_number).trim()) {
+      officialItemMap.set(String(item.serial_number).toUpperCase().trim(), item);
+    }
   });
+
+  // Map of holderId -> Set of mashas they are signed on
+  const holderSignedMashas = new Map<string, Set<string>>();
+  // Map of masha -> list of holderNames signed on this masha
+  const mashaHoldersMap = new Map<string, string[]>();
+  for (const item of officialItems) {
+    if (!holderSignedMashas.has(item.holder_id)) {
+      holderSignedMashas.set(item.holder_id, new Set());
+    }
+    holderSignedMashas.get(item.holder_id)!.add(item.masha);
+
+    if (!mashaHoldersMap.has(item.masha)) {
+      mashaHoldersMap.set(item.masha, []);
+    }
+    const list = mashaHoldersMap.get(item.masha)!;
+    if (!list.includes(item.official_holder_name)) {
+      list.push(item.official_holder_name);
+    }
+  }
 
   const unauthorizedTransfers: AnomalyReport['unauthorizedTransfers'] = [];
   const internalMoves: AnomalyReport['internalMoves'] = [];
   const missingItems: AnomalyReport['missingItems'] = [];
 
+  // 1. Check official serialized items against physical scans
   for (const item of officialItems) {
-    const snKey = item.serial_number.toUpperCase().trim();
-    const scan = scanMap.get(snKey);
+    if (item.serial_number && String(item.serial_number).trim()) {
+      const snKey = String(item.serial_number).toUpperCase().trim();
+      const scan = scanMap.get(snKey);
 
-    if (!scan) {
-      missingItems.push({
-        serialNumber: item.serial_number,
-        masha: item.masha,
-        description: item.resolved_description || item.description,
-        category: item.resolved_category,
-        officialRoomId: item.room_id,
-        officialRoomName: item.official_room_name,
-        officialHolderId: item.official_holder_id,
-        officialHolderName: item.official_holder_name,
-      });
-    } else {
-      const mashaInfo = resolveMashaInfo(item.masha, item.description, item.category);
-
-      if (scan.scanned_room_holder_id !== item.official_holder_id) {
-        unauthorizedTransfers.push({
+      if (!scan) {
+        missingItems.push({
           serialNumber: item.serial_number,
           masha: item.masha,
-          description: mashaInfo.description,
-          category: mashaInfo.category,
-          scannedRoomId: scan.room_id,
-          scannedRoomName: scan.scanned_room_name,
-          scannedHolderId: scan.scanned_room_holder_id,
-          scannedHolderName: scan.scanned_room_holder_name,
-          supposedHolderId: item.official_holder_id,
-          supposedHolderName: item.official_holder_name,
-          scannedBy: scan.scanned_by,
-          scannedAt: scan.scanned_at,
-          stickerOwnerText: scan.sticker_owner_text || undefined,
+          description: item.resolved_description || item.description,
+          category: item.resolved_category,
           officialRoomId: item.room_id,
           officialRoomName: item.official_room_name,
           officialHolderId: item.official_holder_id,
           officialHolderName: item.official_holder_name,
-          scannedRoomHolderId: scan.scanned_room_holder_id,
-          scannedRoomHolderName: scan.scanned_room_holder_name,
         });
-      } else if (item.room_id && scan.room_id !== item.room_id) {
-        internalMoves.push({
-          serialNumber: item.serial_number,
-          masha: item.masha,
-          description: mashaInfo.description,
-          category: mashaInfo.category,
-          officialRoomId: item.room_id,
-          officialRoomName: item.official_room_name,
-          scannedRoomId: scan.room_id,
-          scannedRoomName: scan.scanned_room_name,
-          holderId: item.official_holder_id,
-          holderName: item.official_holder_name,
-          scannedBy: scan.scanned_by,
-          scannedAt: scan.scanned_at,
-        });
+      } else {
+        const mashaInfo = resolveMashaInfo(item.masha, item.description, item.category);
+
+        if (scan.scanned_room_holder_id !== item.official_holder_id) {
+          unauthorizedTransfers.push({
+            serialNumber: item.serial_number,
+            masha: item.masha,
+            description: mashaInfo.description,
+            category: mashaInfo.category,
+            scannedRoomId: scan.room_id,
+            scannedRoomName: scan.scanned_room_name,
+            scannedHolderId: scan.scanned_room_holder_id,
+            scannedHolderName: scan.scanned_room_holder_name,
+            supposedHolderId: item.official_holder_id,
+            supposedHolderName: item.official_holder_name,
+            scannedBy: scan.scanned_by,
+            scannedAt: scan.scanned_at,
+            stickerOwnerText: scan.sticker_owner_text || undefined,
+            officialRoomId: item.room_id,
+            officialRoomName: item.official_room_name,
+            officialHolderId: item.official_holder_id,
+            officialHolderName: item.official_holder_name,
+            scannedRoomHolderId: scan.scanned_room_holder_id,
+            scannedRoomHolderName: scan.scanned_room_holder_name,
+          });
+        } else if (item.room_id && scan.room_id !== item.room_id) {
+          internalMoves.push({
+            serialNumber: item.serial_number,
+            masha: item.masha,
+            description: mashaInfo.description,
+            category: mashaInfo.category,
+            officialRoomId: item.room_id,
+            officialRoomName: item.official_room_name,
+            scannedRoomId: scan.room_id,
+            scannedRoomName: scan.scanned_room_name,
+            holderId: item.official_holder_id,
+            holderName: item.official_holder_name,
+            scannedBy: scan.scanned_by,
+            scannedAt: scan.scanned_at,
+          });
+        }
       }
     }
   }
 
-  // Scanned items not found in official inventory
+  // 2. Check scanned items that are NOT explicitly matched by S/N above
   for (const scan of latestScans) {
-    const snKey = scan.serial_number.toUpperCase().trim();
-    if (!officialItemMap.has(snKey)) {
-      const effectiveMasha = scan.masha || '';
-      const mashaInfo = resolveMashaInfo(effectiveMasha, scan.product_name_detected);
-      unauthorizedTransfers.push({
-        serialNumber: scan.serial_number,
-        masha: effectiveMasha,
-        description: mashaInfo.description,
-        category: mashaInfo.category,
-        scannedRoomId: scan.room_id,
-        scannedRoomName: scan.scanned_room_name,
-        scannedHolderId: scan.scanned_room_holder_id,
-        scannedHolderName: scan.scanned_room_holder_name,
-        supposedHolderId: '',
-        supposedHolderName: 'לא רשום במצאי',
-        scannedBy: scan.scanned_by,
-        scannedAt: scan.scanned_at,
-        stickerOwnerText: scan.sticker_owner_text || undefined,
-        scannedRoomHolderId: scan.scanned_room_holder_id,
-        scannedRoomHolderName: scan.scanned_room_holder_name,
-      });
+    const snKey = scan.serial_number && String(scan.serial_number).trim()
+      ? String(scan.serial_number).toUpperCase().trim()
+      : null;
+
+    // If already checked as an exact serialized item above, skip
+    if (snKey && officialItemMap.has(snKey)) {
+      continue;
     }
+
+    const effectiveMasha = scan.masha || '';
+    const roomHolderSignedMashas = holderSignedMashas.get(scan.scanned_room_holder_id);
+
+    // If the room's holder is signed on this Masha in Excel, this physical item matches
+    // their signature quota! It is NOT unauthorized.
+    if (effectiveMasha && roomHolderSignedMashas && roomHolderSignedMashas.has(effectiveMasha)) {
+      continue;
+    }
+
+    // Otherwise, the room's holder does NOT hold a signature for this Masha
+    const mashaInfo = resolveMashaInfo(effectiveMasha, scan.product_name_detected);
+    const orgHoldersForMasha = effectiveMasha ? (mashaHoldersMap.get(effectiveMasha) || []) : [];
+    const supposedHolderDisplay = orgHoldersForMasha.length > 0
+      ? `חתימה רשומה אצל: ${orgHoldersForMasha.join(', ')}`
+      : 'לא רשום באקסל החתימות';
+
+    unauthorizedTransfers.push({
+      serialNumber: scan.serial_number || null,
+      masha: effectiveMasha,
+      description: mashaInfo.description,
+      category: mashaInfo.category,
+      scannedRoomId: scan.room_id,
+      scannedRoomName: scan.scanned_room_name,
+      scannedHolderId: scan.scanned_room_holder_id,
+      scannedHolderName: scan.scanned_room_holder_name,
+      supposedHolderId: '',
+      supposedHolderName: supposedHolderDisplay,
+      scannedBy: scan.scanned_by,
+      scannedAt: scan.scanned_at,
+      stickerOwnerText: scan.sticker_owner_text || undefined,
+      scannedRoomHolderId: scan.scanned_room_holder_id,
+      scannedRoomHolderName: scan.scanned_room_holder_name,
+    });
   }
 
-  // Discovered Distribution (physical placements across rooms)
+  // 3. Discovered Distribution (physical placements across rooms)
   const distMap = new Map<string, {
     holderId: string;
     holderName: string;
@@ -241,8 +290,10 @@ export function detectAnomalies(): AnomalyReport {
   }>();
 
   for (const scan of latestScans) {
-    const snKey = scan.serial_number.toUpperCase().trim();
-    const official = officialItemMap.get(snKey);
+    const snKey = scan.serial_number && String(scan.serial_number).trim()
+      ? String(scan.serial_number).toUpperCase().trim()
+      : null;
+    const official = snKey ? officialItemMap.get(snKey) : null;
     const masha = scan.masha || (official ? official.masha : '') || 'ללא מסח"א';
     const mashaInfo = resolveMashaInfo(masha, official?.description || scan.product_name_detected);
 
@@ -270,7 +321,7 @@ export function detectAnomalies(): AnomalyReport {
     return a.masha.localeCompare(b.masha);
   });
 
-  // Quota Discrepancies (signed expected vs discovered in holder's rooms)
+  // 4. Quota Discrepancies (signed expected vs discovered in holder's rooms)
   const quotaExpectedMap = new Map<string, {
     holderId: string;
     holderName: string;
@@ -300,8 +351,10 @@ export function detectAnomalies(): AnomalyReport {
 
   const quotaDiscoveredCountMap = new Map<string, number>();
   for (const scan of latestScans) {
-    const snKey = scan.serial_number.toUpperCase().trim();
-    const official = officialItemMap.get(snKey);
+    const snKey = scan.serial_number && String(scan.serial_number).trim()
+      ? String(scan.serial_number).toUpperCase().trim()
+      : null;
+    const official = snKey ? officialItemMap.get(snKey) : null;
     const masha = scan.masha || (official ? official.masha : '') || '';
     if (masha) {
       const key = `${scan.scanned_room_holder_id}::${masha}`;
@@ -329,6 +382,8 @@ export function detectAnomalies(): AnomalyReport {
 
   quotaDiscrepancies.sort((a, b) => a.holderName.localeCompare(b.holderName, 'he'));
 
+  const totalMissingQuotas = quotaDiscrepancies.reduce((sum, q) => sum + Math.abs(q.difference), 0);
+
   return {
     unauthorizedTransfers,
     quotaDiscrepancies,
@@ -339,7 +394,7 @@ export function detectAnomalies(): AnomalyReport {
       totalExpectedItems: officialItems.length,
       totalDiscoveredItems: latestScans.length,
       unauthorizedCount: unauthorizedTransfers.length,
-      missingCount: missingItems.length,
+      missingCount: Math.max(totalMissingQuotas, missingItems.length),
       totalOfficialItems: officialItems.length,
       totalSweptItems: latestScans.length,
       internalMovesCount: internalMoves.length,
@@ -370,12 +425,15 @@ export function approveTransfer(serialNumber: string, targetRoomId: string, reso
     // If item was scanned but not yet in official inventory, register it under the target room & holder
     const latestObs = db.prepare('SELECT * FROM sweep_observations WHERE serial_number = ? ORDER BY scanned_at DESC LIMIT 1').get(serialNumber) as any;
     const masha = latestObs?.masha || '000000000';
-    const desc = latestObs?.product_name_detected || 'ציוד שנוסף מסריקה';
+    const rawDesc = latestObs?.product_name_detected || 'ציוד שנוסף מסריקה';
+    const mashaRecord = db.prepare('SELECT category, description FROM masha_registry WHERE masha = ?').get(masha) as any;
+    const resolvedCat = mashaRecord?.category || 'Regular Workstation';
+    const resolvedDesc = rawDesc !== 'ציוד שנוסף מסריקה' ? rawDesc : (mashaRecord?.description || rawDesc);
     const itemId = 'item-' + Date.now();
     db.prepare(`
       INSERT INTO official_inventory (id, masha, serial_number, description, category, room_id, holder_id)
-      VALUES (?, ?, ?, ?, 'PC', ?, ?)
-    `).run(itemId, masha, serialNumber, desc, targetRoom.id, targetRoom.holder_id);
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(itemId, masha, serialNumber, resolvedDesc, resolvedCat, targetRoom.id, targetRoom.holder_id);
   }
 
   const auditStmt = db.prepare(`

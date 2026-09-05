@@ -42,8 +42,9 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
     WHERE id = ?
   `);
 
-  const findHolderByName = db.prepare('SELECT id, name FROM inventory_holders WHERE name = ? COLLATE NOCASE');
-  const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name) VALUES (?, ?)');
+  const findHolderByName = db.prepare('SELECT id, name, personal_number FROM inventory_holders WHERE name = ? COLLATE NOCASE');
+  const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name, personal_number) VALUES (?, ?, ?)');
+  const updateHolderPN = db.prepare('UPDATE inventory_holders SET personal_number = ? WHERE id = ?');
   
   const findRoomForHolder = db.prepare('SELECT id FROM rooms WHERE holder_id = ? LIMIT 1');
 
@@ -58,6 +59,15 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
     WHERE serial_number = ?
   `);
 
+  const upsertMasha = db.prepare(`
+    INSERT INTO masha_registry (masha, category, description, updated_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(masha) DO UPDATE SET
+      category = CASE WHEN excluded.category != 'Regular Workstation' THEN excluded.category ELSE masha_registry.category END,
+      description = CASE WHEN excluded.description != '' AND excluded.description != 'ציוד' THEN excluded.description ELSE masha_registry.description END,
+      updated_at = CURRENT_TIMESTAMP
+  `);
+
   const runTransaction = db.transaction(() => {
     insertImportRecord.run(importId, originalFilename, rows.length, 0, 0);
 
@@ -65,8 +75,20 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
       const row = rows[i];
       const rowIdx = i + 2;
 
-      const masha = String(row['Masha'] || row['מסח"א'] || row['Catalog #'] || row['Catalog'] || '').trim();
-      const sn = String(
+      const masha = String(
+        row['Masha'] ||
+        row['מסח"א'] ||
+        row['Catalog #'] ||
+        row['Catalog'] ||
+        row['מק"ט'] ||
+        row['מקט'] ||
+        row['מספר קטלוגי'] ||
+        row['קוד פריט'] ||
+        row['סוג חומר'] ||
+        ''
+      ).trim();
+
+      const rawSn = String(
         row['Serial Number'] ||
         row['Serial No'] ||
         row['Serial No.'] ||
@@ -79,16 +101,59 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
         row['מסד'] ||
         row['סריאלי'] ||
         row['Serial'] ||
+        row['מספר מכשיר'] ||
         ''
       ).trim().toUpperCase();
-      const description = String(row['Description'] || row['תיאור'] || row['Product'] || row['שם פריט'] || 'ציוד').trim();
-      let category = String(row['Category'] || row['קטגוריה'] || 'Regular Workstation').trim();
+      const sn = rawSn !== '' ? rawSn : null;
+
+      const description = String(
+        row['Description'] ||
+        row['תיאור'] ||
+        row['Product'] ||
+        row['שם פריט'] ||
+        row['תיאור פריט'] ||
+        row['תיאור מסח"א'] ||
+        row['שם מוצר'] ||
+        'ציוד'
+      ).trim();
+
+      let category = String(
+        row['Category'] ||
+        row['קטגוריה'] ||
+        row['סוג'] ||
+        row['סוג פריט'] ||
+        'Regular Workstation'
+      ).trim();
       if (category.toLowerCase() === 'pc') {
         category = 'Regular Workstation';
       }
-      const holderName = String(row['Inventory Holder'] || row['בעל מצאי'] || row['Holder'] || '').trim();
+
+      const holderName = String(
+        row['Inventory Holder'] ||
+        row['בעל מצאי'] ||
+        row['Holder'] ||
+        row['שם בעל מצאי'] ||
+        row['מחזיק'] ||
+        row['שם מחזיק'] ||
+        row['אחראי'] ||
+        row['שם אחראי'] ||
+        row['שם חותם'] ||
+        row['חותם'] ||
+        ''
+      ).trim();
+
+      const personalNumber = String(
+        row['Personal Number'] ||
+        row['מספר אישי'] ||
+        row['מ"א'] ||
+        row["מ'א"] ||
+        row['מא'] ||
+        row['ת"ז'] ||
+        row['תעודת זהות'] ||
+        ''
+      ).trim();
       
-      const rawQty = row['Quantity'] || row['כמות'] || row['Count'] || row['Qty'];
+      const rawQty = row['Quantity'] || row['כמות'] || row['Count'] || row['Qty'] || row['כמות במצאי'] || row['כמות רשומה'];
       const parsedQty = rawQty !== undefined && rawQty !== null && String(rawQty).trim() !== '' ? parseInt(String(rawQty).trim(), 10) : 1;
       const quantity = isNaN(parsedQty) || parsedQty < 1 ? 1 : parsedQty;
 
@@ -102,14 +167,24 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
         continue;
       }
 
+      // Sync Masha metadata into masha_registry
+      try {
+        upsertMasha.run(masha, category, description);
+      } catch {
+        // Ignore non-fatal registry error
+      }
+
       // Resolve or auto-register inventory holder
       let holderRecord = findHolderByName.get(holderName) as any;
       let holderId: string;
       if (holderRecord) {
         holderId = holderRecord.id;
+        if (personalNumber && !holderRecord.personal_number) {
+          updateHolderPN.run(personalNumber, holderId);
+        }
       } else {
         holderId = 'holder-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-        insertHolder.run(holderId, holderName);
+        insertHolder.run(holderId, holderName, personalNumber || null);
       }
 
       // Associate with holder's room if configured in the system, otherwise null
@@ -117,7 +192,7 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
       const roomId = holderRoom?.id || null;
 
       if (sn) {
-        // Explicit Serial Number provided
+        // Explicit Serial Number provided in Excel
         const existing = findItemBySN.get(sn) as any;
         if (existing) {
           updateItem.run(masha, description, category, roomId, holderId, importId, sn);
@@ -128,11 +203,10 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
           insertedCount++;
         }
       } else {
-        // No explicit S/N provided -> insert quantity items with generated unique IDs
+        // No explicit S/N provided -> insert signature items with NULL serial_number (NO synthetic S/N)
         for (let q = 0; q < quantity; q++) {
-          const generatedSN = 'NO-SN-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-          const itemId = 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-          insertItem.run(itemId, masha, generatedSN, description, category, roomId, holderId, importId);
+          const itemId = 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6) + '-' + q;
+          insertItem.run(itemId, masha, null, description, category, roomId, holderId, importId);
           insertedCount++;
         }
       }

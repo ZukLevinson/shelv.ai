@@ -169,16 +169,22 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           {activeTab === 'upload' ? (
             <>
               <p className="text-sm text-gray-400 leading-relaxed">
-                העלה קובץ אקסל (.xlsx / .csv) לעדכון רשומות המצאי הרשמיות של הארגון. המערכת תשמור את שם הקובץ ותאפשר לאפס או להסיר את הרשומות הנדרשות בכל עת.
+                העלה קובץ אקסל (.xlsx / .csv) של <strong>חתימות בעלי המצאי</strong> בארגון (דוח מנוהלים / טופס 1004). המערכת שומרת את החתימות כבסיס להשוואה מול הסריקות הפיזיות בחדרים.
               </p>
 
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-xs text-emerald-300 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                <span>
-                  <strong>עמודות חובה:</strong> Catalog # (מסח"א), בעל מצאי.
-                  <br />
-                  <strong>עמודות אופציונליות:</strong> כמות (Quantity), תיאור, Serial Number (S/N), קטגוריה.
-                </span>
+                <div className="space-y-1 leading-relaxed">
+                  <div>
+                    <strong>עמודות חובה:</strong> Catalog # / מסח"א (או מק"ט), בעל מצאי (או שם מחזיק / חותם).
+                  </div>
+                  <div>
+                    <strong>עמודות אופציונליות:</strong> כמות (Quantity), מספר אישי (מ"א), תיאור, קטגוריה, Serial Number (S/N).
+                  </div>
+                  <div className="text-[11px] text-emerald-200/80 pt-0.5">
+                    💡 <strong>שים לב:</strong> אין צורך במספרים סידוריים (S/N) באקסל. פריטים ללא S/N נרשמים כמכסת חתימות רשמית, וה-S/N המקורי ייקלט ישירות בסריקות הפיזיות בשטח.
+                  </div>
+                </div>
               </div>
 
               <div className="border-2 border-dashed border-gray-700 hover:border-emerald-500/50 rounded-xl p-6 text-center transition-colors">

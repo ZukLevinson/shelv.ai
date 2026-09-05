@@ -222,4 +222,14 @@ export function initDatabase() {
   } catch (err) {
     console.error('[DB] Migration error for PC category split:', err);
   }
+
+  // Ensure legacy synthetic 'NO-SN-%' serial numbers are cleared to NULL
+  try {
+    const res = db.prepare("UPDATE official_inventory SET serial_number = NULL WHERE serial_number LIKE 'NO-SN-%'").run();
+    if (res.changes > 0) {
+      console.log(`[DB Migration] Converted ${res.changes} synthetic serial numbers (NO-SN-*) to NULL`);
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for synthetic serial numbers:', err);
+  }
 }

@@ -87,6 +87,21 @@ export function recordObservation(input: RecordScanInput) {
   }
 
   if (!officialItem) {
+    // Check if the scanned room's holder holds a signature on this Masha
+    officialItem = db.prepare(`
+      SELECT i.*, r.name as official_room_name, r.id as official_room_id,
+             h.name as official_holder_name, h.id as official_holder_id
+      FROM official_inventory i
+      LEFT JOIN rooms r ON i.room_id = r.id
+      JOIN inventory_holders h ON i.holder_id = h.id
+      JOIN rooms scan_r ON scan_r.holder_id = i.holder_id
+      WHERE i.masha = ? AND scan_r.id = ?
+      LIMIT 1
+    `).get(cleanMasha, input.roomId) as any;
+  }
+
+  if (!officialItem) {
+    // Fallback: check if any other holder is signed on this Masha
     officialItem = db.prepare(`
       SELECT i.*, r.name as official_room_name, r.id as official_room_id,
              h.name as official_holder_name, h.id as official_holder_id
