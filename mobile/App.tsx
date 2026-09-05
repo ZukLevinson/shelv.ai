@@ -1746,8 +1746,11 @@ const styles = StyleSheet.create({
   },
   scanContainer: {
     flex: 1,
-    padding: 10,
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    width: '100%',
+    maxWidth: 520,
+    alignSelf: 'center',
+    padding: 12,
   },
   stepBannerCompact: {
     backgroundColor: '#064e3b',
@@ -1848,16 +1851,16 @@ const styles = StyleSheet.create({
   },
   viewfinderExpanded: {
     flex: 1,
-    minHeight: 300,
+    width: '100%',
+    minHeight: 320,
     backgroundColor: '#030712',
-    borderRadius: 14,
-    borderWidth: 1.5,
+    borderRadius: 16,
+    borderWidth: 2,
     borderColor: '#1f2937',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 4,
+    marginVertical: 6,
     overflow: 'hidden',
-    position: 'relative',
   },
   viewfinder: {
     height: 380,
@@ -1874,9 +1877,12 @@ const styles = StyleSheet.create({
   cameraPausedView: {
     flex: 1,
     width: '100%',
+    height: '100%',
+    minHeight: 220,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#0f172a',
+    padding: 20,
   },
   cameraPausedText: {
     color: '#94a3b8',
