@@ -12,7 +12,16 @@ import {
   Platform,
   Modal,
   Image,
+  I18nManager,
 } from 'react-native';
+
+// Force RTL layout for Hebrew support
+try {
+  I18nManager.allowRTL(true);
+  I18nManager.forceRTL(true);
+} catch (e) {
+  console.warn('[RTL] Failed to force RTL:', e);
+}
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
@@ -910,7 +919,7 @@ export default function App() {
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} {...({ dir: 'rtl' } as any)}>
       {/* App Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
@@ -974,11 +983,11 @@ export default function App() {
           {/* Compact Top Banner */}
           <View style={styles.stepBannerCompact}>
             <View style={styles.stepBadgeRow}>
+              <Text style={styles.stepBadge}>שלב 1 מתוך 2 • מסח"א</Text>
               <View style={styles.liveIndicator}>
                 <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#10b981' : '#ef4444' }]} />
                 <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
               </View>
-              <Text style={styles.stepBadge}>שלב 1 מתוך 2 • מסח"א</Text>
             </View>
             <Text style={styles.stepTitleCompact}>כוון למדבקה ולחץ "צלם מדבקה"</Text>
             <Text style={styles.stepHintCompact}>
@@ -1057,9 +1066,9 @@ export default function App() {
 
           {/* Status & Processing Info Card - Converted from Modal to below the image */}
           {isProcessingFound ? (
-            <View style={styles.processingBelowCard}>
+            <View style={styles.processingBelowCard} {...({ dir: 'rtl' } as any)}>
               <View style={styles.processingBelowHeaderRow}>
-                <ActivityIndicator size="small" color="#10b981" style={{ marginLeft: 8 }} />
+                <ActivityIndicator size="small" color="#10b981" />
                 <Text style={styles.processingBelowTitle}>✨ זוהה בהצלחה!</Text>
               </View>
               <Text style={styles.processingBelowSubtitle}>התמונה הוקפאה והנתונים נבדקים ומעובדים במערכת...</Text>
@@ -1070,9 +1079,9 @@ export default function App() {
               ) : null}
             </View>
           ) : ocrLoading ? (
-            <View style={styles.processingBelowCard}>
+            <View style={styles.processingBelowCard} {...({ dir: 'rtl' } as any)}>
               <View style={styles.processingBelowHeaderRow}>
-                <ActivityIndicator size="small" color="#38bdf8" style={{ marginLeft: 8 }} />
+                <ActivityIndicator size="small" color="#38bdf8" />
                 <Text style={[styles.processingBelowTitle, { color: '#38bdf8' }]}>⚡ Gemini מפענח מדבקה...</Text>
               </View>
               <Text style={styles.processingBelowSubtitle}>מחלץ מספר מסח"א ופרטי פריט מהתמונה שנלכדה</Text>
@@ -1081,7 +1090,7 @@ export default function App() {
 
           {/* User Scan Error Notification Banner */}
           {scanError ? (
-            <View style={styles.scanErrorNotification}>
+            <View style={styles.scanErrorNotification} {...({ dir: 'rtl' } as any)}>
               <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
               <View style={styles.scanErrorActionsRow}>
                 {frozenImage && (
@@ -1191,18 +1200,18 @@ export default function App() {
           {/* Recognition Card + Step 2 Banner (Compact) */}
           <View style={styles.stepBannerCompactBlue}>
             <View style={styles.stepBadgeRow}>
+              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 2 מתוך 2 • S/N</Text>
               <View style={styles.liveIndicator}>
                 <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#3b82f6' : '#ef4444' }]} />
                 <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
               </View>
-              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 2 מתוך 2 • S/N</Text>
             </View>
 
             <View style={styles.recognizedMiniRow}>
-              <Text style={styles.recognizedTagCompact}>✅ מסח"א: {scannedMasha}</Text>
               <Text style={styles.recognizedTitleCompact} numberOfLines={1}>
                 {detectedDescription || 'פריט מזוהה'}
               </Text>
+              <Text style={styles.recognizedTagCompact}>✅ מסח"א: {scannedMasha}</Text>
             </View>
             {detectedOwner ? (
               <Text style={styles.recognizedOwnerCompact}>בעל מצאי: {detectedOwner}</Text>
@@ -1285,9 +1294,9 @@ export default function App() {
 
           {/* Status & Processing Info Card - Converted from Modal to below the image */}
           {isProcessingFound ? (
-            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]}>
+            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]} {...({ dir: 'rtl' } as any)}>
               <View style={styles.processingBelowHeaderRow}>
-                <ActivityIndicator size="small" color="#3b82f6" style={{ marginLeft: 8 }} />
+                <ActivityIndicator size="small" color="#3b82f6" />
                 <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>✨ S/N נקלט בהצלחה!</Text>
               </View>
               <Text style={styles.processingBelowSubtitle}>התמונה הוקפאה, שומר ומעדכן את הפריט במערכת...</Text>
@@ -1298,9 +1307,9 @@ export default function App() {
               ) : null}
             </View>
           ) : ocrLoading ? (
-            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]}>
+            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]} {...({ dir: 'rtl' } as any)}>
               <View style={styles.processingBelowHeaderRow}>
-                <ActivityIndicator size="small" color="#60a5fa" style={{ marginLeft: 8 }} />
+                <ActivityIndicator size="small" color="#60a5fa" />
                 <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>⚡ Gemini מפענח S/N...</Text>
               </View>
               <Text style={styles.processingBelowSubtitle}>מחלץ מספר סידורי ופרטי יצרן מהתמונה שנלכדה</Text>
@@ -1309,7 +1318,7 @@ export default function App() {
 
           {/* User Scan Error Notification Banner */}
           {scanError ? (
-            <View style={styles.scanErrorNotification}>
+            <View style={styles.scanErrorNotification} {...({ dir: 'rtl' } as any)}>
               <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
               <View style={styles.scanErrorActionsRow}>
                 {frozenImage && (
@@ -1417,8 +1426,8 @@ export default function App() {
         <ScrollView style={styles.content}>
           <View style={styles.formHeaderCard}>
             <View style={styles.formHeaderBadgeRow}>
-              <Text style={styles.formSuccessBadge}>✓ שני שלבי הסריקה הושלמו בהצלחה</Text>
               <Text style={styles.formRoomTag}>חדר: {selectedRoom?.name || ''}</Text>
+              <Text style={styles.formSuccessBadge}>✓ שני שלבי הסריקה הושלמו בהצלחה</Text>
             </View>
             <Text style={styles.formHeaderTitle}>אישור ועריכת נתוני פריט</Text>
             <Text style={styles.formHeaderSubtitle}>
@@ -1496,20 +1505,20 @@ export default function App() {
               <TouchableOpacity
                 style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
                 onPress={() => {
-                  setCurrentStep('scan_sn');
-                }}
-              >
-                <Text style={styles.formActionSecondaryText}>📷 סרוק שוב S/N</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
-                onPress={() => {
                   resetCurrentScan();
                   setCurrentStep('scan_masha');
                 }}
               >
                 <Text style={styles.formActionSecondaryText}>🔄 סריקה מחדש (שלב 1)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
+                onPress={() => {
+                  setCurrentStep('scan_sn');
+                }}
+              >
+                <Text style={styles.formActionSecondaryText}>📷 סרוק שוב S/N</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1572,7 +1581,7 @@ export default function App() {
         onRequestClose={() => setShowScanGuideModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={styles.modalCard} {...({ dir: 'rtl' } as any)}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalIcon}>💡</Text>
               <Text style={styles.modalTitle}>איך לסרוק נכון ומדויק?</Text>
@@ -1666,11 +1675,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    writingDirection: 'rtl',
   },
   headerSubtitle: {
     fontSize: 12,
     color: '#10b981',
     marginTop: 2,
+    writingDirection: 'rtl',
   },
   content: {
     flex: 1,
@@ -1689,6 +1700,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 6,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   input: {
     backgroundColor: '#030712',
@@ -1700,6 +1712,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 12,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   sectionTitle: {
     fontSize: 15,
@@ -1707,6 +1720,7 @@ const styles = StyleSheet.create({
     color: '#e5e7eb',
     marginBottom: 12,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   roomItem: {
     backgroundColor: '#111827',
@@ -1724,12 +1738,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   roomHolder: {
     fontSize: 12,
     color: '#9ca3af',
     marginTop: 2,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   roomBadge: {
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -1743,6 +1759,7 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   scanContainer: {
     flex: 1,
@@ -1775,6 +1792,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   stepTitleCompact: {
     color: '#fff',
@@ -1782,18 +1800,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 2,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   stepHintCompact: {
     color: '#a7f3d0',
     fontSize: 10,
     marginTop: 2,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   stepHintCompactBlue: {
     color: '#bfdbfe',
     fontSize: 10,
     marginTop: 2,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   recognizedMiniRow: {
     flexDirection: 'row',
@@ -1804,11 +1825,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
     marginTop: 4,
+    gap: 8,
   },
   recognizedTagCompact: {
     color: '#10b981',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   recognizedTitleCompact: {
     color: '#fff',
@@ -1816,13 +1839,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'right',
-    marginRight: 6,
+    writingDirection: 'rtl',
   },
   recognizedOwnerCompact: {
     color: '#fbbf24',
     fontSize: 10,
     textAlign: 'right',
     marginTop: 2,
+    writingDirection: 'rtl',
   },
   stepBadgeRow: {
     flexDirection: 'row',
@@ -1837,17 +1861,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
+    gap: 5,
   },
   liveDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    marginRight: 5,
   },
   liveText: {
     color: '#e5e7eb',
     fontSize: 10,
     fontWeight: '500',
+    writingDirection: 'rtl',
   },
   viewfinderExpanded: {
     flex: 1,
@@ -2094,6 +2119,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     flex: 1,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   suspicionConfidenceBadge: {
     backgroundColor: 'rgba(56, 189, 248, 0.18)',
@@ -2105,6 +2131,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 0.5,
     borderColor: '#38bdf8',
+    writingDirection: 'rtl',
   },
   suspicionChip: {
     flexDirection: 'row',
@@ -2121,6 +2148,7 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 11,
     fontWeight: '600',
+    writingDirection: 'rtl',
   },
   suspicionChipValue: {
     color: '#f8fafc',
@@ -2134,6 +2162,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'right',
     fontWeight: '500',
+    writingDirection: 'rtl',
   },
   floatingStatusPill: {
     position: 'absolute',
@@ -2159,6 +2188,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
+    writingDirection: 'rtl',
   },
   cameraErrorBanner: {
     position: 'absolute',
@@ -2175,6 +2205,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     fontWeight: '600',
+    writingDirection: 'rtl',
   },
   retryCameraButton: {
     marginTop: 6,
@@ -2187,6 +2218,7 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   ocrInspectionCardCompact: {
     backgroundColor: '#0f172a',
@@ -2230,6 +2262,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   simControlsCompact: {
     marginTop: 2,
@@ -2262,6 +2295,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   recognizedTitle: {
     color: '#fff',
@@ -2269,17 +2303,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'right',
     marginTop: 2,
+    writingDirection: 'rtl',
   },
   recognizedMasha: {
     color: '#9ca3af',
     fontSize: 12,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   recognizedOwner: {
     color: '#fbbf24',
     fontSize: 11,
     textAlign: 'right',
     marginTop: 2,
+    writingDirection: 'rtl',
   },
   simControls: {
     marginTop: 4,
@@ -2292,6 +2329,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginBottom: 6,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   quickSimRow: {
     flexDirection: 'row',
@@ -2310,6 +2348,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   bottomBar: {
     flexDirection: 'row',
@@ -2320,6 +2359,7 @@ const styles = StyleSheet.create({
   bottomBarText: {
     color: '#9ca3af',
     fontSize: 12,
+    writingDirection: 'rtl',
   },
   cancelButton: {
     padding: 8,
@@ -2328,6 +2368,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#ef4444',
     fontSize: 12,
+    writingDirection: 'rtl',
   },
   submitButton: {
     backgroundColor: '#10b981',
@@ -2339,6 +2380,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   ocrButtonsContainer: {
     marginBottom: 8,
@@ -2418,6 +2460,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   ocrInspectionClear: {
     color: '#94a3b8',
@@ -2430,8 +2473,8 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#38bdf8',
+    borderRightWidth: 3,
+    borderRightColor: '#38bdf8',
   },
   ocrDiagnosisText: {
     color: '#f1f5f9',
@@ -2439,6 +2482,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
     lineHeight: 18,
+    writingDirection: 'rtl',
   },
   ocrRawTextScroll: {
     maxHeight: 110,
@@ -2461,6 +2505,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'right',
     lineHeight: 16,
+    writingDirection: 'rtl',
   },
   modalOverlay: {
     flex: 1,
@@ -2513,7 +2558,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tipItem: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#1e293b',
     borderRadius: 12,
@@ -2521,10 +2566,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRightWidth: 3,
     borderRightColor: '#38bdf8',
+    gap: 10,
   },
   tipNumber: {
     fontSize: 20,
-    marginLeft: 10,
     marginTop: 2,
   },
   tipContent: {
@@ -2536,12 +2581,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'right',
     marginBottom: 4,
+    writingDirection: 'rtl',
   },
   tipDesc: {
     color: '#cbd5e1',
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   modalActions: {
     gap: 10,
@@ -2559,6 +2606,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   modalSecondaryBtn: {
     backgroundColor: '#334155',
@@ -2570,6 +2618,7 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 13,
     fontWeight: '600',
+    writingDirection: 'rtl',
   },
   scanErrorNotification: {
     backgroundColor: '#7f1d1d',
@@ -2582,6 +2631,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
   },
   scanErrorNotificationText: {
     color: '#fecaca',
@@ -2589,24 +2639,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'right',
+    writingDirection: 'rtl',
   },
   dismissScanErrorBtn: {
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    marginLeft: 8,
   },
   dismissScanErrorText: {
     color: '#fca5a5',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   scanErrorActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginLeft: 8,
   },
   retakeErrorBtn: {
     backgroundColor: '#ffffff',
@@ -2618,6 +2668,7 @@ const styles = StyleSheet.create({
     color: '#b91c1c',
     fontSize: 11,
     fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   processingBelowCard: {
     backgroundColor: '#064e3b',
@@ -2644,18 +2695,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
+    gap: 8,
   },
   processingBelowTitle: {
     color: '#34d399',
     fontSize: 15,
     fontWeight: 'bold',
     textAlign: 'center',
+    writingDirection: 'rtl',
   },
   processingBelowSubtitle: {
     color: '#d1fae5',
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 16,
+    writingDirection: 'rtl',
   },
   processingBelowDetailsBox: {
     marginTop: 8,
@@ -2672,6 +2726,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+    writingDirection: 'rtl',
   },
   frozenImageStyle: {
     width: '100%',
@@ -2718,12 +2773,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 6,
     textAlign: 'center',
+    writingDirection: 'rtl',
   },
   processingSubtitle: {
     color: '#9ca3af',
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
+    writingDirection: 'rtl',
   },
   processingDetailsBox: {
     marginTop: 12,
@@ -2740,6 +2797,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
+    writingDirection: 'rtl',
   },
   formHeaderCard: {
     backgroundColor: '#064e3b',
@@ -2765,11 +2823,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#10b981',
+    writingDirection: 'rtl',
   },
   formRoomTag: {
     color: '#a7f3d0',
     fontSize: 12,
     fontWeight: '600',
+    writingDirection: 'rtl',
   },
   formHeaderTitle: {
     color: '#ffffff',
@@ -2778,12 +2838,14 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 4,
     marginBottom: 2,
+    writingDirection: 'rtl',
   },
   formHeaderSubtitle: {
     color: '#d1fae5',
     fontSize: 12,
     textAlign: 'right',
     lineHeight: 18,
+    writingDirection: 'rtl',
   },
   formFieldGroup: {
     marginBottom: 4,
@@ -2810,6 +2872,7 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 12,
     fontWeight: '600',
+    writingDirection: 'rtl',
   },
   shutterContainer: {
     alignItems: 'center',
@@ -2820,6 +2883,7 @@ const styles = StyleSheet.create({
   shutterButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#059669',
     paddingVertical: 14,
     paddingHorizontal: 26,
@@ -2831,10 +2895,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 8,
+    gap: 10,
   },
   shutterButtonBlue: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#1d4ed8',
     paddingVertical: 14,
     paddingHorizontal: 26,
@@ -2846,6 +2912,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 8,
+    gap: 10,
   },
   shutterInnerCircle: {
     width: 22,
@@ -2853,7 +2920,6 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 2,
     borderColor: '#ffffff',
-    marginRight: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   shutterText: {
@@ -2861,6 +2927,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 0.5,
+    writingDirection: 'rtl',
   },
   shutterHint: {
     color: '#a7f3d0',
@@ -2870,6 +2937,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+    writingDirection: 'rtl',
   },
   shutterHintBlue: {
     color: '#bfdbfe',
@@ -2879,5 +2947,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+    writingDirection: 'rtl',
   },
 });

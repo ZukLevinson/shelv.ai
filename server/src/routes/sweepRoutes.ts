@@ -37,6 +37,73 @@ sweepRouter.post('/gemini-scan', async (req, res) => {
   }
 });
 
+// GET /api/sweep/check-sn - Immediately check if an S/N has already been scanned
+sweepRouter.get('/check-sn', (req, res) => {
+  const { sn, roomId } = req.query;
+  if (!sn) {
+    return res.status(400).json({ error: 'sn query parameter is required' });
+  }
+
+  const cleanSN = String(sn).trim().toUpperCase();
+
+  try {
+    // Check if this S/N was already scanned in sweep_observations
+    const existingObservation = db.prepare(`
+      SELECT o.*, 
+             r.name as scanned_room_name, 
+             r.code as scanned_room_code,
+             h.name as scanned_holder_name
+      FROM sweep_observations o
+      JOIN rooms r ON o.room_id = r.id
+      JOIN inventory_holders h ON r.holder_id = h.id
+      WHERE o.serial_number = ? COLLATE NOCASE
+      ORDER BY o.scanned_at DESC
+      LIMIT 1
+    `).get(cleanSN) as any;
+
+    if (existingObservation) {
+      return res.json({
+        alreadyScanned: true,
+        existingScan: {
+          id: existingObservation.id,
+          roomId: existingObservation.room_id,
+          roomName: existingObservation.scanned_room_name,
+          roomCode: existingObservation.scanned_room_code,
+          holderName: existingObservation.scanned_holder_name,
+          scannedBy: existingObservation.scanned_by,
+          scannedAt: existingObservation.scanned_at,
+          masha: existingObservation.masha,
+          productName: existingObservation.product_name_detected,
+          isCurrentRoom: Boolean(roomId && existingObservation.room_id === roomId),
+        },
+      });
+    }
+
+    // If not scanned, also check official inventory for convenience (to pre-fill description or masha)
+    const officialItem = db.prepare(`
+      SELECT i.*, 
+             r.name as official_room_name, 
+             r.code as official_room_code,
+             h.name as official_holder_name,
+             m.description as masha_description
+      FROM official_inventory i
+      LEFT JOIN rooms r ON i.room_id = r.id
+      LEFT JOIN inventory_holders h ON i.holder_id = h.id
+      LEFT JOIN masha_registry m ON i.masha = m.masha
+      WHERE i.serial_number = ? COLLATE NOCASE
+      LIMIT 1
+    `).get(cleanSN) as any;
+
+    return res.json({
+      alreadyScanned: false,
+      officialItem: officialItem || null,
+    });
+  } catch (error: any) {
+    console.error('[Sweep API] Error checking S/N:', error);
+    res.status(500).json({ error: error.message || 'Failed to check S/N' });
+  }
+});
+
 sweepRouter.post('/scan', (req, res) => {
   const { sweepId, roomId, serialNumber, masha, scannedBy, stickerOwnerText, productNameDetected } = req.body;
 

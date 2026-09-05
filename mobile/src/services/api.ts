@@ -33,6 +33,45 @@ export async function lookupItem(sn?: string, masha?: string) {
   return res.json();
 }
 
+export interface ExistingScanInfo {
+  id: string;
+  roomId: string;
+  roomName: string;
+  roomCode: string;
+  holderName?: string;
+  scannedBy: string;
+  scannedAt: string;
+  masha: string;
+  productName?: string;
+  isCurrentRoom: boolean;
+}
+
+export interface CheckSnResponse {
+  alreadyScanned: boolean;
+  existingScan?: ExistingScanInfo;
+  officialItem?: {
+    id: string;
+    masha: string;
+    serial_number: string;
+    description: string;
+    category: string;
+    room_id?: string;
+    holder_id: string;
+    official_room_name?: string;
+    official_holder_name?: string;
+    masha_description?: string;
+  } | null;
+  error?: string;
+}
+
+export async function checkSnAlreadyScanned(sn: string, roomId?: string): Promise<CheckSnResponse> {
+  const params = new URLSearchParams();
+  params.append('sn', sn.trim().toUpperCase());
+  if (roomId) params.append('roomId', roomId);
+  const res = await fetch(`${SERVER_URL}/api/sweep/check-sn?${params.toString()}`);
+  return res.json();
+}
+
 export async function startSweepSession(roomId: string, sweptBy: string) {
   const res = await fetch(`${SERVER_URL}/api/sweep/sessions/start`, {
     method: 'POST',
