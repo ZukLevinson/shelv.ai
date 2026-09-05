@@ -50,7 +50,8 @@ app.post('/api/upload-excel', upload.single('file'), (req, res) => {
   }
 
   try {
-    const result = importOfficialInventoryFromExcel(req.file.buffer);
+    const filename = req.file.originalname ? Buffer.from(req.file.originalname, 'latin1').toString('utf8') : 'inventory.xlsx';
+    const result = importOfficialInventoryFromExcel(req.file.buffer, filename);
     const anomalies = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('INVENTORY_SYNCED', result);

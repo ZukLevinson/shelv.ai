@@ -284,7 +284,9 @@ inventoryRouter.get('/items', (req, res) => {
       h.name as holder_name,
       COALESCE(o.scanned_at, i.created_at) as last_seen_at,
       COALESCE(o.scanned_by, 'מערכת') as last_scanned_by,
-      o.sticker_owner_text
+      o.sticker_owner_text,
+      i.import_id,
+      e.filename as import_filename
     FROM sweep_observations o
     JOIN rooms r ON o.room_id = r.id
     JOIN inventory_holders h ON r.holder_id = h.id
@@ -293,6 +295,7 @@ inventoryRouter.get('/items', (req, res) => {
       OR
       ((o.serial_number IS NULL OR o.serial_number = '') AND o.masha = i.masha)
     )
+    LEFT JOIN excel_imports e ON i.import_id = e.id
     LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
     WHERE o.id = (
       SELECT sub.id FROM sweep_observations sub
@@ -332,10 +335,12 @@ inventoryRouter.get('/items', (req, res) => {
              COALESCE(m.name, i.description) as description,
              COALESCE(m.category, i.category) as category,
              r.id as room_id, r.name as room_name, r.code as room_code, h.name as holder_name,
-             i.created_at as last_seen_at, 'בסיס נתונים' as last_scanned_by, NULL as sticker_owner_text
+             i.created_at as last_seen_at, 'בסיס נתונים' as last_scanned_by, NULL as sticker_owner_text,
+             i.import_id, e.filename as import_filename
       FROM official_inventory i
       LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
+      LEFT JOIN excel_imports e ON i.import_id = e.id
       LEFT JOIN masha_registry m ON i.masha = m.masha
       WHERE 1=1
     `;
@@ -455,4 +460,57 @@ inventoryRouter.post('/masha-registry/update', (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to update masha' });
   }
-});
+});
+
+// Excel Imports & Baseline Reset Endpoints
+inventoryRouter.get('/excel-imports', async (req, res) => {
+  try {
+    const { getExcelImports } = await import('../services/excelImportService.js');
+    const imports = getExcelImports();
+    res.json(imports);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch excel imports' });
+  }
+});
+
+inventoryRouter.delete('/excel-imports/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { deleteExcelImport } = await import('../services/excelImportService.js');
+    const { detectAnomalies } = await import('../services/anomalyService.js');
+    const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+
+    const result = deleteExcelImport(id);
+    const anomalies = detectAnomalies();
+
+    broadcast('ANOMALIES_UPDATED', anomalies);
+    broadcast('INVENTORY_SYNCED', { deletedImportId: id, action: 'deleted' });
+    scheduleDebouncedBackup(1000);
+
+    res.json({ success: true, message: `קובץ האקסל "${result.filename}" ו-${result.deletedItemsCount} פריטי מצאי נדרשים נמחקו בהצלחה`, result });
+  } catch (err: any) {
+    console.error('[Inventory API] Error deleting excel import:', err);
+    res.status(500).json({ error: err.message || 'Failed to delete excel import' });
+  }
+});
+
+inventoryRouter.post('/baseline/reset', async (req, res) => {
+  try {
+    const { resetAllOfficialInventory } = await import('../services/excelImportService.js');
+    const { detectAnomalies } = await import('../services/anomalyService.js');
+    const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+
+    const result = resetAllOfficialInventory();
+    const anomalies = detectAnomalies();
+
+    broadcast('ANOMALIES_UPDATED', anomalies);
+    broadcast('INVENTORY_SYNCED', { action: 'reset_all' });
+    scheduleDebouncedBackup(1000);
+
+    res.json({ success: true, message: `אופסו בהצלחה כל ${result.deletedItemsCount} הפריטים הנדרשים ו-${result.deletedImportsCount} רישומי אקסל`, result });
+  } catch (err: any) {
+    console.error('[Inventory API] Error resetting baseline:', err);
+    res.status(500).json({ error: err.message || 'Failed to reset official inventory baseline' });
+  }
+});
+

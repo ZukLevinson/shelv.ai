@@ -21,6 +21,16 @@ export interface InventoryHolder {
 }
 
 
+export interface ExcelImportRecord {
+  id: string;
+  filename: string;
+  uploaded_at: string;
+  total_rows: number;
+  inserted_count: number;
+  updated_count: number;
+  active_items_count: number;
+}
+
 export interface OfficialItem {
   serial_number?: string | null;
   masha: string;
@@ -33,6 +43,8 @@ export interface OfficialItem {
   last_seen_at: string;
   last_scanned_by: string;
   sticker_owner_text?: string;
+  import_id?: string | null;
+  import_filename?: string | null;
 }
 
 export interface AnomalyReport {

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { OfficialItem } from '../types';
-import { Search, Database, Monitor, Laptop, Printer, Tv, Fingerprint, Box } from 'lucide-react';
+import { Search, Database, Monitor, Laptop, Printer, Tv, Fingerprint, Box, FileSpreadsheet } from 'lucide-react';
 
 interface Props {
   items: OfficialItem[];
@@ -9,6 +9,15 @@ interface Props {
 export const InventoryCatalog: React.FC<Props> = ({ items }) => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedExcel, setSelectedExcel] = useState<string>('all');
+
+  const uniqueExcelFiles = useMemo(() => {
+    const files = new Set<string>();
+    items.forEach(i => {
+      if (i.import_filename) files.add(i.import_filename);
+    });
+    return Array.from(files);
+  }, [items]);
 
   const filtered = items.filter((item) => {
     const matchesSearch =
@@ -16,11 +25,13 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
       (item.masha && item.masha.includes(search)) ||
       (item.description || '').toLowerCase().includes(search.toLowerCase()) ||
       (item.holder_name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (item.room_name || '').toLowerCase().includes(search.toLowerCase());
+      (item.room_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (item.import_filename || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesExcel = selectedExcel === 'all' || (item.import_filename || 'unknown') === selectedExcel;
 
-    return matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory && matchesExcel;
   });
 
   const getCategoryIcon = (category: string) => {
@@ -47,7 +58,7 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
             <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="חפש לפי S/N, מסח״א, תיאור או בעלים..."
+              placeholder="חפש לפי S/N, מסח״א, תיאור, מקור אקסל..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-gray-950 border border-gray-800 rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-full"
@@ -68,16 +79,31 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
             <option value="TV">טלוויזיות</option>
             <option value="Scanner">סורקי טביעת אצבע</option>
           </select>
+
+          {uniqueExcelFiles.length > 0 && (
+            <select
+              value={selectedExcel}
+              onChange={(e) => setSelectedExcel(e.target.value)}
+              className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 w-full sm:w-auto"
+            >
+              <option value="all">כל קבצי האקסל ({uniqueExcelFiles.length})</option>
+              {uniqueExcelFiles.map((fn) => (
+                <option key={fn} value={fn}>
+                  {fn}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-500 text-xs">
-          טרם נסרקו פריטים. בצע סריקה ראשונה באפליקציית הטלפון כדי לראות כאן את הפריטים והמספרים הסידוריים.
+          טרם נסרקו פריטים או שלא נמצאו תוצאות לחיפוש.
         </div>
       ) : (
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-right text-sm min-w-[700px]">
+          <table className="w-full text-right text-sm min-w-[750px]">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
                 <th className="pb-3 pr-2">סוג</th>
@@ -85,7 +111,8 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
                 <th className="pb-3">מסח\"א (Catalog #)</th>
                 <th className="pb-3">מספר סידורי (S/N)</th>
                 <th className="pb-3">חדר נוכחי</th>
-                <th className="pb-3">בעל מצאי החדר</th>
+                <th className="pb-3">בעל מצאי</th>
+                <th className="pb-3">מקור אקסל</th>
                 <th className="pb-3 pl-2">סריקה אחרונה</th>
               </tr>
             </thead>
@@ -112,6 +139,16 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
                   </td>
                   <td className="py-3 text-xs font-medium text-emerald-300">
                     {item.holder_name}
+                  </td>
+                  <td className="py-3 text-xs">
+                    {item.import_filename ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-mono text-[11px]" title={`מקור: ${item.import_filename}`}>
+                        <FileSpreadsheet className="w-3 h-3 text-emerald-400" />
+                        <span className="max-w-[140px] truncate">{item.import_filename}</span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-600 text-[11px] italic">מערכת / סריקה ישירה</span>
+                    )}
                   </td>
                   <td className="py-3 pl-2 text-xs text-gray-400">
                     <div>{new Date(item.last_seen_at).toLocaleDateString('he-IL')}</div>

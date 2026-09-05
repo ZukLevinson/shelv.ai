@@ -118,7 +118,26 @@ export function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS excel_imports (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      total_rows INTEGER NOT NULL DEFAULT 0,
+      inserted_count INTEGER NOT NULL DEFAULT 0,
+      updated_count INTEGER NOT NULL DEFAULT 0
+    );
   `);
+
+  // Ensure import_id column exists on official_inventory
+  try {
+    const officialCols = db.prepare("PRAGMA table_info(official_inventory)").all() as Array<{ name: string }>;
+    if (!officialCols.some(col => col.name === 'import_id')) {
+      db.exec("ALTER TABLE official_inventory ADD COLUMN import_id TEXT REFERENCES excel_imports(id) ON DELETE SET NULL");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for import_id:', err);
+  }
 
   // Ensure personal_number column exists for existing databases
   try {
