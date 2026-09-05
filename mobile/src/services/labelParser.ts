@@ -31,7 +31,7 @@ export function parseLabelText(rawText: string): ParsedItemData {
   // Pass 1: Prioritize explicit "Catalog #" or Hebrew equivalents "מסח"א", "מס קטלוגי", "מק"ט", etc.
   // The user explicitly specified:
   // "if there is white label with Catalog # - do not scan the barcode. no barcodes should be scanned at all. only the numbers after the Catalog #: ..."
-  const catalogRegex = /(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*קטלוגי|\s*מצאי|\s*סידורי\s*של)?|מק"?ט)\s*[:#\-.\s]+([0-9A-Za-z\s\-]{6,16})/i;
+  const catalogRegex = /(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*יי?א|\s*קטלוגי|\s*מצאי|\s*סידורי\s*של)?|מק"?ט)\s*[:#\-.\s]+([0-9A-Za-z\s\-]{6,16})/i;
 
   for (const line of lines) {
     const cleanLine = line.replace(/[|\[\]{}~_]/g, ' ').trim();
@@ -48,7 +48,7 @@ export function parseLabelText(rawText: string): ParsedItemData {
 
   // Pass 1.5: If not found per line, check across entire text block (in case "Catalog #" and digits were split by newline)
   if (!result.masha) {
-    const multilineMatch = rawText.match(/(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*קטלוגי|\s*מצאי)?|מק"?ט)[\s:#\-.\n]+([0-9A-Za-z\s]{6,16})/i);
+    const multilineMatch = rawText.match(/(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*יי?א|\s*קטלוגי|\s*מצאי)?|מק"?ט)[\s:#\-.\n]+([0-9A-Za-z\s]{6,16})/i);
     if (multilineMatch) {
       const candidateDigits = normalizeDigits(multilineMatch[1]).replace(/[^0-9]/g, '');
       if (candidateDigits.length >= 6 && candidateDigits.length <= 14) {

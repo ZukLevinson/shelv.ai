@@ -47,11 +47,12 @@ export default function App() {
   const [manualSn, setManualSn] = useState('');
   const [manualDesc, setManualDesc] = useState('');
 
-  // Video and barcode reader refs
+  // Video, camera, and file input refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const controlsRef = useRef<any>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isHandlingBarcodeRef = useRef<boolean>(false);
 
   // Keep a ref of the current step for barcode callback
@@ -178,8 +179,10 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          // @ts-ignore
+          advanced: [{ focusMode: 'continuous' }],
         },
         audio: false,
       });
@@ -247,31 +250,17 @@ export default function App() {
     isHandlingBarcodeRef.current = false;
   };
 
-  // Multi-angle & contrast-enhanced OCR capture for handwritten or printed label text
-  const captureAndRecognizeHandwrittenMasha = async () => {
-    if (!videoRef.current) {
-      Alert.alert('שגיאה', 'המצלמה אינה פעילה');
-      return;
-    }
-
+  // Process any image source (canvas or image element) with Tesseract across multiple angles
+  const processImageForOcr = async (sourceCanvas: HTMLCanvasElement) => {
     try {
       setOcrLoading(true);
-      setScanningStatus('מבצע צילום ופענוח OCR רב-כיווני (0°, 90°, 180°, 270°)...');
+      setScanningStatus('מבצע פענוח OCR מתקדם רב-כיווני...');
 
-      const video = videoRef.current;
-      const srcWidth = video.videoWidth || 1280;
-      const srcHeight = video.videoHeight || 720;
+      const srcWidth = sourceCanvas.width;
+      const srcHeight = sourceCanvas.height;
 
-      // Base canvas
-      const baseCanvas = document.createElement('canvas');
-      baseCanvas.width = srcWidth;
-      baseCanvas.height = srcHeight;
-      const baseCtx = baseCanvas.getContext('2d');
-      if (!baseCtx) throw new Error('Failed to get 2D context');
-      baseCtx.drawImage(video, 0, 0, srcWidth, srcHeight);
-
-      // Helper to generate rotated & preprocessed canvas
-      const createPreprocessedCanvas = (angleDeg: number) => {
+      // Helper to generate rotated canvas keeping clean original pixels (no destructive thresholding)
+      const createRotatedCanvas = (angleDeg: number, enhanceContrast: boolean = false) => {
         const rotCanvas = document.createElement('canvas');
         const is90or270 = angleDeg === 90 || angleDeg === 270;
         const targetW = is90or270 ? srcHeight : srcWidth;
@@ -284,39 +273,52 @@ export default function App() {
         ctx.save();
         ctx.translate(targetW / 2, targetH / 2);
         ctx.rotate((angleDeg * Math.PI) / 180);
-        ctx.drawImage(baseCanvas, -srcWidth / 2, -srcHeight / 2);
+        ctx.drawImage(sourceCanvas, -srcWidth / 2, -srcHeight / 2);
         ctx.restore();
 
-        // Image enhancement: grayscale + high contrast for handwriting / printed digits
-        const imgData = ctx.getImageData(0, 0, targetW, targetH);
-        const d = imgData.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          // Contrast stretch
-          const contrast = (lum - 128) * 1.8 + 128;
-          const finalVal = Math.min(255, Math.max(0, contrast));
-          d[i] = finalVal;
-          d[i + 1] = finalVal;
-          d[i + 2] = finalVal;
+        if (enhanceContrast) {
+          const imgData = ctx.getImageData(0, 0, targetW, targetH);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            // Gentle contrast stretch only as fallback
+            const contrast = (lum - 128) * 1.3 + 128;
+            const finalVal = Math.min(255, Math.max(0, contrast));
+            d[i] = finalVal;
+            d[i + 1] = finalVal;
+            d[i + 2] = finalVal;
+          }
+          ctx.putImageData(imgData, 0, 0);
         }
-        ctx.putImageData(imgData, 0, 0);
+
         return rotCanvas;
       };
 
-      // Create OCR worker
+      // Create OCR worker with Hebrew and English
       const worker = await createWorker(['eng', 'heb']);
 
-      const angles = [0, 90, 270, 180];
       let bestParsed: ReturnType<typeof parseLabelText> | null = null;
       let allRecognizedTexts: string[] = [];
 
-      for (const angle of angles) {
-        setScanningStatus(`מפענח טקסט בזווית ${angle}°...`);
-        const processedCanvas = createPreprocessedCanvas(angle);
-        const ret = await worker.recognize(processedCanvas);
+      // Test 0° first (clean/original) - covers >90% of normal photos
+      // Then 90°, 270°, 180°
+      const testPasses = [
+        { angle: 0, enhance: false },
+        { angle: 90, enhance: false },
+        { angle: 270, enhance: false },
+        { angle: 180, enhance: false },
+        { angle: 0, enhance: true }, // fallback with contrast stretch
+      ];
+
+      for (const pass of testPasses) {
+        setScanningStatus(`מפענח טקסט בזווית ${pass.angle}°...`);
+        const rotCanvas = createRotatedCanvas(pass.angle, pass.enhance);
+        const ret = await worker.recognize(rotCanvas);
         const recognizedText = ret.data.text || '';
-        console.log(`[OCR Result ${angle}°]:`, recognizedText);
-        allRecognizedTexts.push(`[${angle}°]: ${recognizedText.trim()}`);
+        console.log(`[OCR Result ${pass.angle}° (enhance=${pass.enhance})]:`, recognizedText);
+        if (recognizedText.trim()) {
+          allRecognizedTexts.push(`[${pass.angle}°]: ${recognizedText.trim()}`);
+        }
 
         const parsed = parseLabelText(recognizedText);
         if (parsed.masha) {
@@ -349,20 +351,83 @@ export default function App() {
           setCurrentStep('scan_sn');
         }, 600);
       } else {
-        setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או הקלד ידנית');
-        const summaryText = allRecognizedTexts.filter(t => t.length > 8).join('\n');
+        setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או צלם במצלמת המכשיר');
+        const summaryText = allRecognizedTexts.filter(t => t.length > 5).join('\n\n');
         Alert.alert(
-          'זיהוי טקסט (OCR)',
+          'זיהוי מדבקה (OCR)',
           summaryText
-            ? `הטקסט שנקלט בזוויות השונות:\n${summaryText.substring(0, 250)}\n\nלא אותר מספר מסח"א (7-10 ספרות). ודא שהמספר ברור ומואר היטב.`
-            : 'לא זוהה טקסט בפריים. קרב את המצלמה למדבקה ונסה שוב.'
+            ? `הטקסט שנקלט מהמדבקה:\n${summaryText.substring(0, 300)}\n\nלא אותר מספר מסח"א או Catalog # ברור (6-12 ספרות).\nטיפ: השתמש בכפתור "צילום תמונה חדה מהמצלמה" לאיכות מקסימלית.`
+            : 'לא זוהה טקסט בפריים. קרב את המצלמה למדבקה או השתמש בצילום תמונה חדה.'
         );
       }
     } catch (err: any) {
       console.error('OCR error:', err);
       setScanningStatus('שגיאה במהלך פענוח OCR');
-      Alert.alert('שגיאה בסריקת כתב יד', err.message || 'פענוח OCR נכשל');
+      Alert.alert('שגיאה בסריקה', err.message || 'פענוח OCR נכשל');
     } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  // Multi-angle capture directly from live video frame
+  const captureAndRecognizeHandwrittenMasha = async () => {
+    if (!videoRef.current) {
+      Alert.alert('שגיאה', 'המצלמה אינה פעילה');
+      return;
+    }
+
+    try {
+      const video = videoRef.current;
+      const srcWidth = video.videoWidth || 1920;
+      const srcHeight = video.videoHeight || 1080;
+
+      const baseCanvas = document.createElement('canvas');
+      baseCanvas.width = srcWidth;
+      baseCanvas.height = srcHeight;
+      const baseCtx = baseCanvas.getContext('2d');
+      if (!baseCtx) throw new Error('Failed to get 2D context');
+      baseCtx.drawImage(video, 0, 0, srcWidth, srcHeight);
+
+      await processImageForOcr(baseCanvas);
+    } catch (err: any) {
+      console.error('Video capture error:', err);
+      Alert.alert('שגיאה בצילום פריים', err.message || 'לא ניתן לצלם מהמצלמה החיה');
+    }
+  };
+
+  // High-Resolution Native Camera / Photo File Handler
+  const handlePhotoSelected = async (event: any) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+
+    try {
+      setOcrLoading(true);
+      setScanningStatus('טוען תמונת HD מהמכשיר...');
+
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.src = objectUrl;
+
+      await new Promise((resolve, reject) => {
+        img.onload = () => resolve(true);
+        img.onerror = (e) => reject(new Error('טעינת התמונה נכשלה'));
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas context unavailable');
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(objectUrl);
+
+      // Reset file input value so user can take another photo if needed
+      if (event.target) event.target.value = '';
+
+      await processImageForOcr(canvas);
+    } catch (err: any) {
+      console.error('File photo error:', err);
+      Alert.alert('שגיאה בטעינת תמונה', err.message || 'לא ניתן לעבד את התמונה');
       setOcrLoading(false);
     }
   };
@@ -570,21 +635,41 @@ export default function App() {
             <Text style={styles.statusPillText}>{scanningStatus}</Text>
           </View>
 
-          {/* Prominent OCR Action Button for Handwritten Stickers */}
-          <TouchableOpacity
-            style={[styles.ocrCaptureButton, ocrLoading && styles.ocrCaptureButtonDisabled]}
-            onPress={captureAndRecognizeHandwrittenMasha}
-            disabled={ocrLoading}
-          >
-            {ocrLoading ? (
-              <View style={styles.ocrLoadingRow}>
-                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.ocrCaptureButtonText}>מפענח טקסט וכתב יד מתוך הפריים (OCR)...</Text>
-              </View>
-            ) : (
-              <Text style={styles.ocrCaptureButtonText}>✍️ צלם וזהה מסח"א כתוב ידנית (OCR)</Text>
-            )}
-          </TouchableOpacity>
+          {/* OCR Action Buttons for Handwritten / Printed Masha Stickers */}
+          <View style={styles.ocrButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.ocrCaptureButton, ocrLoading && styles.ocrCaptureButtonDisabled]}
+              onPress={captureAndRecognizeHandwrittenMasha}
+              disabled={ocrLoading}
+            >
+              {ocrLoading ? (
+                <View style={styles.ocrLoadingRow}>
+                  <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.ocrCaptureButtonText}>מפענח טקסט וכתב יד מתוך הפריים (OCR)...</Text>
+                </View>
+              ) : (
+                <Text style={styles.ocrCaptureButtonText}>⚡ סרוק מסח"א מהמסך החי (OCR)</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.nativeCameraButton, ocrLoading && styles.ocrCaptureButtonDisabled]}
+              onPress={() => fileInputRef.current?.click()}
+              disabled={ocrLoading}
+            >
+              <Text style={styles.nativeCameraText}>📸 צילום חד ברזולוציה גבוהה (מצלמת המכשיר)</Text>
+            </TouchableOpacity>
+
+            {/* Hidden native camera/gallery file input */}
+            <input
+              type="file"
+              ref={fileInputRef as any}
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handlePhotoSelected}
+            />
+          </View>
 
           {/* Real Scanner Controls + Fallback Tools */}
           <View style={styles.scannerControls}>
@@ -1175,20 +1260,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+  ocrButtonsContainer: {
+    marginBottom: 8,
+    gap: 6,
+  },
   ocrCaptureButton: {
     backgroundColor: '#0d9488',
-    paddingVertical: 12,
+    paddingVertical: 11,
     paddingHorizontal: 16,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#14b8a6',
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
+  },
+  nativeCameraButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#60a5fa',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  nativeCameraText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 'bold',
   },
   ocrCaptureButtonDisabled: {
     backgroundColor: '#134e4a',
