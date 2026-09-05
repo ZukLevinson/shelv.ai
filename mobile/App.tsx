@@ -986,80 +986,10 @@ export default function App() {
             </Text>
           </View>
 
-          {/* Real Camera Viewfinder - Expanded to take maximum space */}
+          {/* Real Camera Viewfinder - Main Focus, No Overlays */}
           <View style={styles.viewfinderExpanded}>
-            {cameraActive ? (
-              <video
-                id="shelv-scanner-video"
-                ref={videoRef as any}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: cameraActive ? 'block' : 'none',
-                } as any}
-                autoPlay
-                playsInline
-                muted
-              />
-            ) : !frozenImage ? (
-              <View style={styles.cameraPausedView}>
-                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
-              </View>
-            ) : null}
-
-            {/* Frozen captured snapshot overlay - freezes the image behind */}
-            {frozenImage ? (
-              <Image
-                source={{ uri: frozenImage }}
-                style={[StyleSheet.absoluteFillObject, styles.frozenImageStyle]}
-                resizeMode="cover"
-              />
-            ) : null}
-
-            {/* Viewfinder Reticle Overlay - only visible when actively aiming live camera */}
-            {!frozenImage && !ocrLoading && !isProcessingFound && (
-              <View style={styles.reticleOverlay} pointerEvents="none">
-                <View style={styles.reticle} />
-                <View style={styles.scanLaser} />
-              </View>
-            )}
-
-            {/* Gemini Suspicion Target Bounding Box Overlay */}
-            {activeBoundingBox && activeBoundingBox.box_2d && (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.boundingBoxContainer,
-                  {
-                    top: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[0] / 1000) * 100))}%` as any,
-                    left: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[1] / 1000) * 100))}%` as any,
-                    height: `${Math.max(8, Math.min(94, ((activeBoundingBox.box_2d[2] - activeBoundingBox.box_2d[0]) / 1000) * 100))}%` as any,
-                    width: `${Math.max(12, Math.min(94, ((activeBoundingBox.box_2d[3] - activeBoundingBox.box_2d[1]) / 1000) * 100))}%` as any,
-                    borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8',
-                  },
-                ]}
-              >
-                {/* HUD Corner Accents */}
-                <View style={[styles.cornerTL, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
-                <View style={[styles.cornerTR, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
-                <View style={[styles.cornerBL, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
-                <View style={[styles.cornerBR, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
-
-                {/* Floating Tag over the suspected item */}
-                <View style={[
-                  styles.boundingBoxBadge,
-                  { backgroundColor: scanStage === 'success' ? 'rgba(16, 185, 129, 0.92)' : 'rgba(14, 165, 233, 0.92)' }
-                ]}>
-                  <Text style={styles.boundingBoxBadgeText}>
-                    {activeBoundingBox.label || '🎯 מדבקה'}
-                  </Text>
-                </View>
-              </View>
-            )}
-
             {cameraPermissionError && !frozenImage ? (
-              <View style={styles.cameraErrorBanner}>
+              <View style={styles.cameraPausedView}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
                 <TouchableOpacity
                   style={styles.retryCameraButton}
@@ -1068,7 +998,31 @@ export default function App() {
                   <Text style={styles.retryCameraText}>🔄 אשר גישה ונסה שוב</Text>
                 </TouchableOpacity>
               </View>
-            ) : null}
+            ) : frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={styles.frozenImageStyle}
+                resizeMode="cover"
+              />
+            ) : cameraActive ? (
+              <video
+                id="shelv-scanner-video"
+                ref={videoRef as any}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                } as any}
+                autoPlay
+                playsInline
+                muted
+              />
+            ) : (
+              <View style={styles.cameraPausedView}>
+                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
+              </View>
+            )}
           </View>
 
           {/* Human Snapshot Shutter Button - shown below the image when camera is live */}
@@ -1260,77 +1214,10 @@ export default function App() {
             </Text>
           </View>
 
-          {/* Real Camera Viewfinder - Expanded */}
+          {/* Real Camera Viewfinder - Main Focus, No Overlays */}
           <View style={styles.viewfinderExpanded}>
-            {cameraActive ? (
-              <video
-                id="shelv-scanner-video"
-                ref={videoRef as any}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: cameraActive ? 'block' : 'none',
-                } as any}
-                autoPlay
-                playsInline
-                muted
-              />
-            ) : !frozenImage ? (
-              <View style={styles.cameraPausedView}>
-                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
-              </View>
-            ) : null}
-
-            {/* Frozen captured snapshot overlay - freezes the image behind */}
-            {frozenImage ? (
-              <Image
-                source={{ uri: frozenImage }}
-                style={[StyleSheet.absoluteFillObject, styles.frozenImageStyle]}
-                resizeMode="cover"
-              />
-            ) : null}
-
-            {/* Viewfinder Reticle Overlay - only visible when actively aiming live camera */}
-            {!frozenImage && !ocrLoading && !isProcessingFound && (
-              <View style={styles.reticleOverlay} pointerEvents="none">
-                <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
-                <View style={[styles.scanLaser, { backgroundColor: '#3b82f6' }]} />
-              </View>
-            )}
-
-            {/* Gemini Suspicion Target Bounding Box Overlay for S/N */}
-            {activeBoundingBox && activeBoundingBox.box_2d && (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.boundingBoxContainer,
-                  {
-                    top: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[0] / 1000) * 100))}%` as any,
-                    left: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[1] / 1000) * 100))}%` as any,
-                    height: `${Math.max(8, Math.min(94, ((activeBoundingBox.box_2d[2] - activeBoundingBox.box_2d[0]) / 1000) * 100))}%` as any,
-                    width: `${Math.max(12, Math.min(94, ((activeBoundingBox.box_2d[3] - activeBoundingBox.box_2d[1]) / 1000) * 100))}%` as any,
-                    borderColor: '#38bdf8',
-                  },
-                ]}
-              >
-                {/* HUD Corner Accents */}
-                <View style={[styles.cornerTL, { borderColor: '#38bdf8' }]} />
-                <View style={[styles.cornerTR, { borderColor: '#38bdf8' }]} />
-                <View style={[styles.cornerBL, { borderColor: '#38bdf8' }]} />
-                <View style={[styles.cornerBR, { borderColor: '#38bdf8' }]} />
-
-                {/* Floating Tag over suspected S/N */}
-                <View style={[styles.boundingBoxBadge, { backgroundColor: 'rgba(2, 132, 199, 0.92)' }]}>
-                  <Text style={styles.boundingBoxBadgeText}>
-                    {activeBoundingBox.label || '🎯 זוהה אזור S/N'}
-                  </Text>
-                </View>
-              </View>
-            )}
-
             {cameraPermissionError && !frozenImage ? (
-              <View style={styles.cameraErrorBanner}>
+              <View style={styles.cameraPausedView}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
                 <TouchableOpacity
                   style={styles.retryCameraButton}
@@ -1339,7 +1226,31 @@ export default function App() {
                   <Text style={styles.retryCameraText}>🔄 אשר גישה ונסה שוב</Text>
                 </TouchableOpacity>
               </View>
-            ) : null}
+            ) : frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={styles.frozenImageStyle}
+                resizeMode="cover"
+              />
+            ) : cameraActive ? (
+              <video
+                id="shelv-scanner-video"
+                ref={videoRef as any}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                } as any}
+                autoPlay
+                playsInline
+                muted
+              />
+            ) : (
+              <View style={styles.cameraPausedView}>
+                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
+              </View>
+            )}
           </View>
 
           {/* Human Snapshot Shutter Button for S/N - shown below the image when camera is live */}
