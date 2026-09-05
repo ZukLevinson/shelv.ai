@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  Image,
 } from 'react-native';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
@@ -39,6 +40,9 @@ export default function App() {
   const [geminiAttempts, setGeminiAttempts] = useState(0);
   const [showScanGuideModal, setShowScanGuideModal] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [frozenImage, setFrozenImage] = useState<string | null>(null);
+  const [isProcessingFound, setIsProcessingFound] = useState(false);
+  const [foundInfoText, setFoundInfoText] = useState<string>('');
   const geminiAttemptsRef = useRef(0);
 
   // Scan state
@@ -126,6 +130,9 @@ export default function App() {
     setRecognizedLiveText('');
     setLastOcrDiagnosis('');
     setScanError(null);
+    setFrozenImage(null);
+    setIsProcessingFound(false);
+    setFoundInfoText('');
     setGeminiAttempts(0);
     geminiAttemptsRef.current = 0;
     isHandlingBarcodeRef.current = false;
@@ -333,7 +340,12 @@ export default function App() {
         }
 
         if (geminiRes.masha) {
-          setScanningStatus(`⚡ Gemini זיהה מסח"א: ${geminiRes.masha}!`);
+          // Freeze the live frame immediately!
+          setFrozenImage(base64Jpg);
+          setIsProcessingFound(true);
+          setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
+          stopLiveOcrStream();
+          setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
           setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}`);
 
           await onMashaRecognized({
@@ -378,7 +390,42 @@ export default function App() {
     if (!cleanText) return;
 
     isHandlingBarcodeRef.current = true;
-    setScanningStatus(`ברקוד נקלט: ${cleanText}`);
+    
+    // Stop barcode decoding while processing
+    if (controlsRef.current) {
+      try {
+        controlsRef.current.stop();
+      } catch (e) {}
+      controlsRef.current = null;
+    }
+
+    // Capture frozen frame snapshot of the video feed for smooth UX feedback
+    if (videoRef.current) {
+      try {
+        const video = videoRef.current;
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+        const canvas = document.createElement('canvas');
+        canvas.width = vw;
+        canvas.height = vh;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, vw, vh);
+          setFrozenImage(canvas.toDataURL('image/jpeg', 0.85));
+        }
+      } catch (e) {
+        console.warn('Could not capture freeze frame for SN:', e);
+      }
+    }
+
+    // Parse serial number from scanned barcode
+    const parsed = parseLabelText(cleanText);
+    const snVal = parsed.serialNumber || cleanText.toUpperCase();
+
+    // Show processing feedback matching Masha detection UX
+    setIsProcessingFound(true);
+    setFoundInfoText(`מספר סידורי (S/N): ${snVal}`);
+    setScanningStatus(`⚡ ברקוד נקלט: ${snVal}! מעבד ושומר במערכת...`);
 
     // Provide haptic feedback if available on mobile
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -387,12 +434,10 @@ export default function App() {
       } catch (e) {}
     }
 
-    // Step 2: S/N scan
-    const parsed = parseLabelText(cleanText);
-    const snVal = parsed.serialNumber || cleanText.toUpperCase();
-
     setScannedSn(snVal);
-    setScanningStatus(`S/N ${snVal} נסרק! שומר במערכת...`);
+
+    // Give user time to see the frozen snapshot and success overlay
+    await new Promise(res => setTimeout(res, 850));
 
     await handleCompleteItemScan(
       snVal,
@@ -427,8 +472,10 @@ export default function App() {
     }
 
     setTimeout(() => {
+      setIsProcessingFound(false);
+      setFrozenImage(null);
       setCurrentStep('scan_sn');
-    }, 500);
+    }, 1200);
   };
 
   // Process any image source (canvas or image element) with Tesseract across multiple angles
@@ -457,6 +504,11 @@ export default function App() {
       }
 
       if (geminiRes.masha) {
+        setFrozenImage(base64Jpg);
+        setIsProcessingFound(true);
+        setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
+        stopLiveOcrStream();
+        setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
         setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}${geminiRes.stickerOwner ? ` | בעלים: ${geminiRes.stickerOwner}` : ''}`);
         await onMashaRecognized({
           masha: geminiRes.masha,
@@ -716,7 +768,13 @@ export default function App() {
 
           {/* Real Camera Viewfinder */}
           <View style={styles.viewfinder}>
-            {cameraActive ? (
+            {frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={styles.frozenImageStyle}
+                resizeMode="cover"
+              />
+            ) : cameraActive ? (
               <video
                 id="shelv-scanner-video"
                 ref={videoRef as any}
@@ -736,13 +794,31 @@ export default function App() {
               </View>
             )}
 
-            {/* Viewfinder Reticle Overlay */}
-            <View style={styles.reticleOverlay} pointerEvents="none">
-              <View style={styles.reticle} />
-              <View style={styles.scanLaser} />
-            </View>
+            {/* Processing Overlay when Gemini finds something */}
+            {isProcessingFound ? (
+              <View style={styles.processingOverlay}>
+                <View style={styles.processingModalCard}>
+                  <View style={styles.processingPulseBadge}>
+                    <ActivityIndicator size="large" color="#10b981" />
+                  </View>
+                  <Text style={styles.processingTitle}>✨ זוהה בהצלחה!</Text>
+                  <Text style={styles.processingSubtitle}>התמונה הוקפאה והנתונים נבדקים ומעובדים במערכת...</Text>
+                  {foundInfoText ? (
+                    <View style={styles.processingDetailsBox}>
+                      <Text style={styles.processingDetailsText}>{foundInfoText}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : (
+              /* Viewfinder Reticle Overlay */
+              <View style={styles.reticleOverlay} pointerEvents="none">
+                <View style={styles.reticle} />
+                <View style={styles.scanLaser} />
+              </View>
+            )}
 
-            {cameraPermissionError ? (
+            {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
                 <TouchableOpacity
@@ -1778,5 +1854,73 @@ const styles = StyleSheet.create({
     color: '#fca5a5',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  frozenImageStyle: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(3, 7, 18, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 16,
+    zIndex: 20,
+  },
+  processingModalCard: {
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#10b981',
+    paddingVertical: 20,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    width: '90%',
+    maxWidth: 320,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+  },
+  processingPulseBadge: {
+    marginBottom: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderRadius: 50,
+    padding: 10,
+  },
+  processingTitle: {
+    color: '#34d399',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  processingSubtitle: {
+    color: '#9ca3af',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  processingDetailsBox: {
+    marginTop: 12,
+    backgroundColor: '#1f2937',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#374151',
+    width: '100%',
+  },
+  processingDetailsText: {
+    color: '#e5e7eb',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
