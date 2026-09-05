@@ -19,7 +19,7 @@ import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
 import { fetchRooms, submitScan, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification } from './src/services/api';
 
-type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'manual_entry' | 'summary';
+type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'edit_form' | 'manual_entry' | 'summary';
 export type ScanPipelineStage = 'idle' | 'searching' | 'qualified' | 'deciphering' | 'success';
 
 export default function App() {
@@ -63,6 +63,12 @@ export default function App() {
   const [manualMasha, setManualMasha] = useState('');
   const [manualSn, setManualSn] = useState('');
   const [manualDesc, setManualDesc] = useState('');
+
+  // Editable form state after scan completion
+  const [editMasha, setEditMasha] = useState('');
+  const [editSn, setEditSn] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editOwner, setEditOwner] = useState('');
 
   // Video, camera, and file input refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -550,12 +556,10 @@ export default function App() {
     // Give user time to see the frozen snapshot and success overlay
     await new Promise(res => setTimeout(res, 850));
 
-    await handleCompleteItemScan(
-      snVal,
-      scannedMashaRef.current,
-      detectedDescRef.current,
-      detectedOwnerRef.current
-    );
+    // Open editable review form before sending
+    setIsProcessingFound(false);
+    setFrozenImage(null);
+    openEditForm(snVal, scannedMashaRef.current, detectedDescRef.current, detectedOwnerRef.current);
 
     isHandlingBarcodeRef.current = false;
   };
@@ -571,7 +575,7 @@ export default function App() {
 
     const cleanSn = sn.trim().toUpperCase();
     setScannedSn(cleanSn);
-    setScanningStatus(`S/N ${cleanSn} פוענח בהצלחה! שומר במערכת...`);
+    setScanningStatus(`S/N ${cleanSn} פוענח בהצלחה! מציג טופס לאישור...`);
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try { navigator.vibrate(80); } catch (e) {}
@@ -579,12 +583,10 @@ export default function App() {
 
     await new Promise(res => setTimeout(res, 900));
 
-    await handleCompleteItemScan(
-      cleanSn,
-      scannedMashaRef.current,
-      detectedDescRef.current,
-      detectedOwnerRef.current
-    );
+    // Open editable review form before sending
+    setIsProcessingFound(false);
+    setFrozenImage(null);
+    openEditForm(cleanSn, scannedMashaRef.current, detectedDescRef.current, detectedOwnerRef.current);
   };
 
   // Shared handler when valid Masha is recognized (via stream, snapshot, or photo upload)
@@ -812,10 +814,37 @@ export default function App() {
     setCurrentStep('scan_sn');
   };
 
+  // Open edit form after two steps scan
+  const openEditForm = (
+    sn: string | undefined,
+    masha: string,
+    description: string,
+    ownerText: string
+  ) => {
+    setEditMasha(masha || '');
+    setEditSn(sn || '');
+    setEditDesc(description || '');
+    setEditOwner(ownerText || '');
+    setCurrentStep('edit_form');
+  };
+
   // Simulated CV detection of Manufacturer OEM S/N barcode (Fallback/Demo helper)
   const simulateDetectSn = async (sn: string) => {
     setScannedSn(sn);
-    await handleCompleteItemScan(sn, scannedMasha, detectedDescription, detectedOwner);
+    openEditForm(sn, scannedMasha, detectedDescription, detectedOwner);
+  };
+
+  const handleEditFormSubmit = async () => {
+    if (!editMasha || !editMasha.trim()) {
+      Alert.alert('שגיאה', 'יש למלא מספר מסח"א (שדה חובה)');
+      return;
+    }
+    await handleCompleteItemScan(
+      editSn.trim() || undefined,
+      editMasha.trim(),
+      editDesc.trim(),
+      editOwner.trim()
+    );
   };
 
   const handleManualSubmit = async () => {
@@ -1502,7 +1531,7 @@ export default function App() {
 
               <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#059669' }]}
-                onPress={() => handleCompleteItemScan(undefined, scannedMasha, detectedDescription, detectedOwner)}
+                onPress={() => openEditForm(undefined, scannedMasha, detectedDescription, detectedOwner)}
               >
                 <Text style={styles.quickToolBtnText}>⏩ דלג ללא S/N</Text>
               </TouchableOpacity>
@@ -1527,7 +1556,111 @@ export default function App() {
         </View>
       )}
 
-      {/* Screen 4: Manual Entry Form */}
+      {/* Screen 4: Edit & Confirm Form after 2-Step Scanning */}
+      {currentStep === 'edit_form' && (
+        <ScrollView style={styles.content}>
+          <View style={styles.formHeaderCard}>
+            <View style={styles.formHeaderBadgeRow}>
+              <Text style={styles.formSuccessBadge}>✓ שני שלבי הסריקה הושלמו בהצלחה</Text>
+              <Text style={styles.formRoomTag}>חדר: {selectedRoom?.name || ''}</Text>
+            </View>
+            <Text style={styles.formHeaderTitle}>אישור ועריכת נתוני פריט</Text>
+            <Text style={styles.formHeaderSubtitle}>
+              באפשרותך לערוך או לתקן את השדות לפני שליחה ושמירה במאגר
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.formFieldGroup}>
+              <Text style={styles.label}>
+                מסח"א (Catalog #) - חובה *:
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: editMasha ? '#10b981' : '#ef4444' }]}
+                value={editMasha}
+                onChangeText={setEditMasha}
+                placeholder="הזן מסחא..."
+                placeholderTextColor="#666"
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.formFieldGroup}>
+              <Text style={styles.label}>
+                מספר סידורי (S/N) - אופציונלי:
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: editSn ? '#3b82f6' : '#374151' }]}
+                value={editSn}
+                onChangeText={setEditSn}
+                placeholder="הזן S/N (אם קיים)..."
+                placeholderTextColor="#666"
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.formFieldGroup}>
+              <Text style={styles.label}>
+                תיאור דגם / מוצר:
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                placeholder="לדוגמה: HP EliteDesk 800 G6"
+                placeholderTextColor="#666"
+              />
+            </View>
+
+            <View style={styles.formFieldGroup}>
+              <Text style={styles.label}>
+                בעל מצאי (ממדבקה / איתור):
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={editOwner}
+                onChangeText={setEditOwner}
+                placeholder="שם בעל המצאי (אופציונלי)..."
+                placeholderTextColor="#666"
+              />
+            </View>
+
+            {loading ? (
+              <ActivityIndicator size="large" color="#10b981" style={{ marginVertical: 12 }} />
+            ) : (
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleEditFormSubmit}
+              >
+                <Text style={styles.submitButtonText}>💾 שלח ושמור פריט במאגר</Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.formSecondaryActionsRow}>
+              <TouchableOpacity
+                style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
+                onPress={() => {
+                  setCurrentStep('scan_sn');
+                }}
+              >
+                <Text style={styles.formActionSecondaryText}>📷 סרוק שוב S/N</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.formActionSecondaryBtn, { backgroundColor: '#1e293b' }]}
+                onPress={() => {
+                  resetCurrentScan();
+                  setCurrentStep('scan_masha');
+                }}
+              >
+                <Text style={styles.formActionSecondaryText}>🔄 סריקה מחדש (שלב 1)</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      )}
+
+      {/* Screen 5: Manual Entry Form */}
       {currentStep === 'manual_entry' && (
         <ScrollView style={styles.content}>
           <Text style={styles.sectionTitle}>הזנה ידנית של פריט</Text>
@@ -2674,5 +2807,75 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  formHeaderCard: {
+    backgroundColor: '#064e3b',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#10b981',
+    padding: 14,
+    marginBottom: 14,
+  },
+  formHeaderBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  formSuccessBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    color: '#34d399',
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  formRoomTag: {
+    color: '#a7f3d0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  formHeaderTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  formHeaderSubtitle: {
+    color: '#d1fae5',
+    fontSize: 12,
+    textAlign: 'right',
+    lineHeight: 18,
+  },
+  formFieldGroup: {
+    marginBottom: 4,
+  },
+  formSecondaryActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1f2937',
+  },
+  formActionSecondaryBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  formActionSecondaryText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
