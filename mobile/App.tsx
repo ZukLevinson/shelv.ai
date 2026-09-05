@@ -33,6 +33,8 @@ export default function App() {
   const [scanningStatus, setScanningStatus] = useState<string>('סורק פעיל וממתין לברקוד...');
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [recognizedLiveText, setRecognizedLiveText] = useState<string>('');
+  const [lastOcrDiagnosis, setLastOcrDiagnosis] = useState<string>('');
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -112,6 +114,8 @@ export default function App() {
     setScannedSn('');
     setDetectedDescription('');
     setDetectedOwner('');
+    setRecognizedLiveText('');
+    setLastOcrDiagnosis('');
     isHandlingBarcodeRef.current = false;
   };
 
@@ -316,14 +320,19 @@ export default function App() {
         const ret = await worker.recognize(rotCanvas);
         const recognizedText = ret.data.text || '';
         console.log(`[OCR Result ${pass.angle}° (enhance=${pass.enhance})]:`, recognizedText);
+        
         if (recognizedText.trim()) {
           allRecognizedTexts.push(`[${pass.angle}°]: ${recognizedText.trim()}`);
+          setRecognizedLiveText(recognizedText.trim());
         }
 
         const parsed = parseLabelText(recognizedText);
         if (parsed.masha) {
           bestParsed = parsed;
+          setLastOcrDiagnosis(`✅ אותר בהצלחה מסח"א / Catalog #: ${parsed.masha}${parsed.productDescription ? ` | ${parsed.productDescription}` : ''}${parsed.stickerOwner ? ` | בעלים: ${parsed.stickerOwner}` : ''}`);
           break; // Found valid Masha!
+        } else {
+          setLastOcrDiagnosis(`⚠️ נקלט טקסט בזווית ${pass.angle}°, אך לא נמצא רצף ספרות מסח"א/Catalog # תקין (6-14 ספרות)`);
         }
       }
 
@@ -352,18 +361,14 @@ export default function App() {
         }, 600);
       } else {
         setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או צלם במצלמת המכשיר');
-        const summaryText = allRecognizedTexts.filter(t => t.length > 5).join('\n\n');
-        Alert.alert(
-          'זיהוי מדבקה (OCR)',
-          summaryText
-            ? `הטקסט שנקלט מהמדבקה:\n${summaryText.substring(0, 300)}\n\nלא אותר מספר מסח"א או Catalog # ברור (6-12 ספרות).\nטיפ: השתמש בכפתור "צילום תמונה חדה מהמצלמה" לאיכות מקסימלית.`
-            : 'לא זוהה טקסט בפריים. קרב את המצלמה למדבקה או השתמש בצילום תמונה חדה.'
-        );
+        if (!allRecognizedTexts.length) {
+          setLastOcrDiagnosis('❌ לא נקלט אף טקסט בפריים. ודא תאורה טובה וקרב את העדשה למדבקה');
+        }
       }
     } catch (err: any) {
       console.error('OCR error:', err);
       setScanningStatus('שגיאה במהלך פענוח OCR');
-      Alert.alert('שגיאה בסריקה', err.message || 'פענוח OCR נכשל');
+      setLastOcrDiagnosis(`❌ שגיאה בפענוח: ${err.message || 'פענוח OCR נכשל'}`);
     } finally {
       setOcrLoading(false);
     }
@@ -670,6 +675,34 @@ export default function App() {
               onChange={handlePhotoSelected}
             />
           </View>
+
+          {/* Real-time OCR Text Inspection Panel */}
+          {(recognizedLiveText || lastOcrDiagnosis) ? (
+            <View style={styles.ocrInspectionCard}>
+              <View style={styles.ocrInspectionHeader}>
+                <Text style={styles.ocrInspectionTitle}>🔍 טקסט שפוענח מהמדבקה בזמן אמת:</Text>
+                <TouchableOpacity onPress={() => { setRecognizedLiveText(''); setLastOcrDiagnosis(''); }}>
+                  <Text style={styles.ocrInspectionClear}>נקה ✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {lastOcrDiagnosis ? (
+                <View style={styles.ocrDiagnosisBox}>
+                  <Text style={styles.ocrDiagnosisText}>{lastOcrDiagnosis}</Text>
+                </View>
+              ) : null}
+
+              {recognizedLiveText ? (
+                <ScrollView style={styles.ocrRawTextScroll} nestedScrollEnabled>
+                  <Text style={styles.ocrRawTextContent}>{recognizedLiveText}</Text>
+                </ScrollView>
+              ) : null}
+
+              <Text style={styles.ocrInspectionTip}>
+                💡 אם המסח"א לא מזוהה: ודא שהמספר ברור ומואר, או לחץ על כפתור הצילום הכחול כדי לצלם תמונת HD חדה.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Real Scanner Controls + Fallback Tools */}
           <View style={styles.scannerControls}>
@@ -1318,5 +1351,68 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 6,
     alignItems: 'center',
+  },
+  ocrInspectionCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    padding: 12,
+    marginBottom: 10,
+  },
+  ocrInspectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  ocrInspectionTitle: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  ocrInspectionClear: {
+    color: '#94a3b8',
+    fontSize: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  ocrDiagnosisBox: {
+    backgroundColor: '#1e293b',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#38bdf8',
+  },
+  ocrDiagnosisText: {
+    color: '#f1f5f9',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'right',
+    lineHeight: 18,
+  },
+  ocrRawTextScroll: {
+    maxHeight: 110,
+    backgroundColor: '#020617',
+    borderRadius: 6,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  ocrRawTextContent: {
+    color: '#a5f3fc',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    textAlign: 'left',
+    lineHeight: 16,
+  },
+  ocrInspectionTip: {
+    color: '#94a3b8',
+    fontSize: 11,
+    marginTop: 8,
+    textAlign: 'right',
+    lineHeight: 16,
   },
 });
