@@ -39,7 +39,21 @@ export function importOfficialInventoryFromExcel(buffer: Buffer): ImportResult {
       const rowIdx = i + 2;
 
       const masha = String(row['Masha'] || row['מסח"א'] || row['Catalog #'] || row['Catalog'] || '').trim();
-      const sn = String(row['Serial Number'] || row['S/N'] || row['מספר סידורי'] || row['Serial'] || '').trim().toUpperCase();
+      const sn = String(
+        row['Serial Number'] ||
+        row['Serial No'] ||
+        row['Serial No.'] ||
+        row['Serial #'] ||
+        row['S/N'] ||
+        row['SN'] ||
+        row['מספר סידורי'] ||
+        row['מס"ד'] ||
+        row["מס'ד"] ||
+        row['מסד'] ||
+        row['סריאלי'] ||
+        row['Serial'] ||
+        ''
+      ).trim().toUpperCase();
       const description = String(row['Description'] || row['תיאור'] || row['Product'] || row['שם פריט'] || 'ציוד').trim();
       const category = String(row['Category'] || row['קטגוריה'] || 'PC').trim();
       const holderName = String(row['Inventory Holder'] || row['בעל מצאי'] || row['Holder'] || '').trim();

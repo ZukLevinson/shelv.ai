@@ -69,8 +69,8 @@ export function parseLabelText(rawText: string): ParsedItemData {
   for (const line of lines) {
     const cleanLine = line.replace(/[|\[\]{}~_]/g, ' ').trim();
 
-    // S/N matching
-    const snMatch = cleanLine.match(/(?:Serial\s*(?:No\.?|#)?|S\/N|מספר סידורי|מס"ד|סריאלי)\s*[:#\-.]?\s*([A-Z0-9]{6,18})/i);
+    // S/N matching with robust prefix variations (S/N, Serial No., Serial #, Serial, SN, מס"ד, מספר סידורי, סריאלי, etc.)
+    const snMatch = cleanLine.match(/(?:Serial\s*(?:Number|No\.?|Num\.?|#)?|S\s*[\/\\.\-_:]\s*N|S\/N|S\.N\.|S_N|SN\b|מספר\s*סידורי|מס["'״]?ד|סריאלי)\s*[:#\-.]?\s*([A-Z0-9]{6,18})/i);
     if (snMatch && !result.serialNumber) {
       result.serialNumber = snMatch[1].toUpperCase();
     } else {

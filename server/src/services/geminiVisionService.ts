@@ -56,8 +56,9 @@ Look specifically for:
    - A sequence of 7 to 10 digits (sometimes 6-12 digits).
    - Might follow "Catalog #", "Cat #", "מסח"א", "מק"ט", "מספר קטלוגי", or written directly in handwriting/label numbers.
    - Do NOT confuse it with phone numbers, dates, or order numbers.
-2. "serialNumber" (S/N / מס"ד / Serial Number):
+2. "serialNumber" (S/N / Serial No. / Serial # / Serial Number / מס"ד / מספר סידורי / SN):
    - Manufacturer hardware serial number (e.g., HP/Lenovo format like 2UA..., PF..., 5CD..., or alphanumeric barcode value).
+   - Often preceded by labels like "S/N", "Serial No.", "Serial No", "Serial #", "SN:", "מספר סידורי", "מס"ד", etc.
 3. "productDescription":
    - Hardware model / description visible on the label (e.g., "HP Elite Mini 800 G9", "Lenovo ThinkPad", "Dell OptiPlex", "מסך 24 אינץ'").
 4. "stickerOwner" (בעל מצאי / אחראי):
