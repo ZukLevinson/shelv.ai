@@ -10,7 +10,7 @@ import { MashaRegistryTable } from './components/MashaRegistryTable';
 import { RoomManagementModal } from './components/RoomManagementModal';
 import { HoldersManagement } from './components/HoldersManagement';
 import { ScanManagement } from './components/ScanManagement';
-import { ShieldCheck, Upload, RefreshCw, BarChart3, AlertOctagon, CheckCircle2, Tag, Building2, Users, ClipboardList } from 'lucide-react';
+import { ShieldCheck, Upload, RefreshCw, BarChart3, AlertOctagon, CheckCircle2, Tag, Building2, Users, ClipboardList, Smartphone } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
 export function App() {
@@ -165,6 +165,17 @@ export function App() {
             <Upload className="w-4 h-4" />
             <span>ייבוא אקסל חתימות</span>
           </button>
+
+          <a
+            href="/scanner"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all"
+            title="פתח סורק נייד בסמארטפון או בדפדפן"
+          >
+            <Smartphone className="w-4 h-4 text-cyan-400" />
+            <span>סורק נייד (PWA)</span>
+          </a>
         </div>
       </header>
 
