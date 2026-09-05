@@ -752,22 +752,23 @@ export default function App() {
       {/* Screen 2: Guided CV Step 1 (Masha Scan) */}
       {currentStep === 'scan_masha' && (
         <View style={styles.scanContainer}>
-          <View style={styles.stepBanner}>
+          {/* Compact Top Banner */}
+          <View style={styles.stepBannerCompact}>
             <View style={styles.stepBadgeRow}>
               <View style={styles.liveIndicator}>
                 <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#10b981' : '#ef4444' }]} />
-                <Text style={styles.liveText}>{cameraActive ? 'מצלמה חיה פעילה' : 'מצלמה כבויה'}</Text>
+                <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
               </View>
-              <Text style={styles.stepBadge}>שלב 1 מתוך 2</Text>
+              <Text style={styles.stepBadge}>שלב 1 מתוך 2 • מסח"א</Text>
             </View>
-            <Text style={styles.stepTitle}>כוון את המצלמה למדבקה (סריקה אוטומטית)</Text>
-            <Text style={styles.stepHint}>
-              זיהוי רציף אוטומטי ללא לחיצה: כוון את העדשה למסח"א / Catalog #, המערכת תזהה ותעבור מיד לשלב הבא!
+            <Text style={styles.stepTitleCompact}>כוון למדבקה (סריקה אוטומטית של טקסט / Catalog #)</Text>
+            <Text style={styles.stepHintCompact}>
+              זיהוי רציף אוטומטי ללא לחיצה: כוון לעדשה, המערכת תזהה ותעבור מיד לשלב הבא!
             </Text>
           </View>
 
-          {/* Real Camera Viewfinder */}
-          <View style={styles.viewfinder}>
+          {/* Real Camera Viewfinder - Expanded to take maximum space */}
+          <View style={styles.viewfinderExpanded}>
             {frozenImage ? (
               <Image
                 source={{ uri: frozenImage }}
@@ -782,7 +783,6 @@ export default function App() {
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
-                  borderRadius: 14,
                 } as any}
                 autoPlay
                 playsInline
@@ -818,6 +818,16 @@ export default function App() {
               </View>
             )}
 
+            {/* Floating Status Pill inside camera bottom */}
+            <View style={styles.floatingStatusPill}>
+              {ocrLoading ? (
+                <ActivityIndicator size="small" color="#34d399" style={{ marginRight: 6 }} />
+              ) : (
+                <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 6 }]} />
+              )}
+              <Text style={styles.statusPillTextCompact} numberOfLines={1}>{scanningStatus}</Text>
+            </View>
+
             {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
@@ -844,25 +854,59 @@ export default function App() {
             </View>
           ) : null}
 
-          {/* Live Scanner Real-time Status Badge */}
-          <View style={styles.statusPill}>
-            {ocrLoading ? (
-              <ActivityIndicator size="small" color="#34d399" style={{ marginRight: 8 }} />
-            ) : (
-              <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 8 }]} />
-            )}
-            <Text style={styles.statusPillText}>{scanningStatus}</Text>
-          </View>
+          {/* Real-time OCR Text Inspection Panel (Collapsible/Compact) */}
+          {(recognizedLiveText || lastOcrDiagnosis) ? (
+            <View style={styles.ocrInspectionCardCompact}>
+              <View style={styles.ocrInspectionHeader}>
+                <Text style={styles.ocrInspectionTitle}>🔍 פוענח בזמן אמת:</Text>
+                <TouchableOpacity onPress={() => { setRecognizedLiveText(''); setLastOcrDiagnosis(''); }}>
+                  <Text style={styles.ocrInspectionClear}>נקה ✕</Text>
+                </TouchableOpacity>
+              </View>
 
-          {/* OCR Action Buttons (Secondary backup if needed) */}
-          <View style={styles.ocrButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.nativeCameraButton, { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1 }]}
-              onPress={() => fileInputRef.current?.click()}
-              disabled={ocrLoading}
-            >
-              <Text style={[styles.nativeCameraText, { color: '#94a3b8' }]}>📷 גיבוי: צילום תמונת HD ידנית</Text>
-            </TouchableOpacity>
+              {lastOcrDiagnosis ? (
+                <View style={styles.ocrDiagnosisBox}>
+                  <Text style={styles.ocrDiagnosisText} numberOfLines={2}>{lastOcrDiagnosis}</Text>
+                </View>
+              ) : null}
+
+              {recognizedLiveText ? (
+                <ScrollView style={styles.ocrRawTextScrollCompact} nestedScrollEnabled>
+                  <Text style={styles.ocrRawTextContent}>{recognizedLiveText}</Text>
+                </ScrollView>
+              ) : null}
+
+              <Text style={styles.ocrInspectionTip}>
+                💡 אם המסח"א לא מזוהה: ודא שהמספר ברור ומואר, או השתמש בצילום HD ידני.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Scanner Controls + Quick Tools (Compact dock) */}
+          <View style={styles.scannerControlsCompact}>
+            <View style={styles.quickToolsRow}>
+              <TouchableOpacity
+                style={styles.quickToolBtn}
+                onPress={() => setCameraActive(prev => !prev)}
+              >
+                <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה' : '▶️ הפעל'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#1e293b' }]}
+                onPress={() => fileInputRef.current?.click()}
+                disabled={ocrLoading}
+              >
+                <Text style={styles.quickToolBtnText}>📷 צילום HD</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
+                onPress={() => setCurrentStep('manual_entry')}
+              >
+                <Text style={styles.quickToolBtnText}>⌨️ הקלדה</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Hidden native camera/gallery file input */}
             <input
@@ -873,80 +917,32 @@ export default function App() {
               style={{ display: 'none' }}
               onChange={handlePhotoSelected}
             />
-          </View>
 
-          {/* Real-time OCR Text Inspection Panel */}
-          {(recognizedLiveText || lastOcrDiagnosis) ? (
-            <View style={styles.ocrInspectionCard}>
-              <View style={styles.ocrInspectionHeader}>
-                <Text style={styles.ocrInspectionTitle}>🔍 טקסט שפוענח מהמדבקה בזמן אמת:</Text>
-                <TouchableOpacity onPress={() => { setRecognizedLiveText(''); setLastOcrDiagnosis(''); }}>
-                  <Text style={styles.ocrInspectionClear}>נקה ✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              {lastOcrDiagnosis ? (
-                <View style={styles.ocrDiagnosisBox}>
-                  <Text style={styles.ocrDiagnosisText}>{lastOcrDiagnosis}</Text>
-                </View>
-              ) : null}
-
-              {recognizedLiveText ? (
-                <ScrollView style={styles.ocrRawTextScroll} nestedScrollEnabled>
-                  <Text style={styles.ocrRawTextContent}>{recognizedLiveText}</Text>
-                </ScrollView>
-              ) : null}
-
-              <Text style={styles.ocrInspectionTip}>
-                💡 אם המסח"א לא מזוהה: ודא שהמספר ברור ומואר, או לחץ על כפתור הצילום הכחול כדי לצלם תמונת HD חדה.
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Real Scanner Controls + Fallback Tools */}
-          <View style={styles.scannerControls}>
-            <View style={styles.quickToolsRow}>
-              <TouchableOpacity
-                style={styles.quickToolBtn}
-                onPress={() => setCameraActive(prev => !prev)}
-              >
-                <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה מצלמה' : '▶️ הפעל מצלמה'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
-                onPress={() => setCurrentStep('manual_entry')}
-              >
-                <Text style={styles.quickToolBtnText}>⌨️ הקלדה ידנית</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Quick Demo Helpers if testing in desktop browser without barcode labels */}
-            <View style={styles.simControls}>
-              <Text style={styles.simLabel}>דוגמאות מהירות לבדיקה בלחיצה אחת:</Text>
+            {/* Quick Demo Helpers in compact row */}
+            <View style={styles.simControlsCompact}>
               <View style={styles.quickSimRow}>
                 <TouchableOpacity
                   style={styles.simButtonCompact}
                   onPress={() => simulateDetectMasha(1)}
                 >
-                  <Text style={styles.simButtonText}>🏷️ 943123265 (HP Mini)</Text>
+                  <Text style={styles.simButtonText}>🏷️ דוגמה 1 (HP Mini)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.simButtonCompact}
                   onPress={() => simulateDetectMasha(2)}
                 >
-                  <Text style={styles.simButtonText}>🏷️ 943121160 (ניסים)</Text>
+                  <Text style={styles.simButtonText}>🏷️ דוגמה 2 (ניסים)</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
 
-          {/* Bottom Live Bar */}
-          <View style={styles.bottomBar}>
-            <Text style={styles.bottomBarText}>סה"כ נסרקו בסשן זה: {scannedItemsCount}</Text>
+          {/* Bottom Bar */}
+          <View style={styles.bottomBarCompact}>
+            <Text style={styles.bottomBarText}>נסרקו בסשן זה: {scannedItemsCount}</Text>
             <TouchableOpacity
               onPress={() => setCurrentStep('select_room')}
-              style={styles.cancelButton}
+              style={styles.cancelButtonCompact}
             >
               <Text style={styles.cancelButtonText}>סיום סריקה</Text>
             </TouchableOpacity>
@@ -957,34 +953,34 @@ export default function App() {
       {/* Screen 3: Guided CV Step 2 (S/N Scan) */}
       {currentStep === 'scan_sn' && (
         <View style={styles.scanContainer}>
-          {/* Recognition Pill showing Step 1 Result */}
-          <View style={styles.recognizedCard}>
-            <Text style={styles.recognizedTag}>✅ מסח"א זוהה בהצלחה</Text>
-            <Text style={styles.recognizedTitle}>
-              {detectedDescription || 'פריט מזוהה'}
-            </Text>
-            <Text style={styles.recognizedMasha}>מסח"א: {scannedMasha}</Text>
-            {detectedOwner ? (
-              <Text style={styles.recognizedOwner}>בעל מצאי מקורי: {detectedOwner}</Text>
-            ) : null}
-          </View>
-
-          <View style={[styles.stepBanner, { backgroundColor: '#1e3a8a' }]}>
+          {/* Recognition Card + Step 2 Banner (Compact) */}
+          <View style={styles.stepBannerCompactBlue}>
             <View style={styles.stepBadgeRow}>
               <View style={styles.liveIndicator}>
                 <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#3b82f6' : '#ef4444' }]} />
-                <Text style={styles.liveText}>{cameraActive ? 'מצלמה חיה פעילה' : 'מצלמה כבויה'}</Text>
+                <Text style={styles.liveText}>{cameraActive ? 'מצלמה פעילה' : 'מצלמה כבויה'}</Text>
               </View>
-              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 2 מתוך 2</Text>
+              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 2 מתוך 2 • S/N</Text>
             </View>
-            <Text style={styles.stepTitle}>כעת כוון לברקוד המספר הסידורי (S/N)</Text>
-            <Text style={[styles.stepHint, { color: '#bfdbfe' }]}>
+
+            <View style={styles.recognizedMiniRow}>
+              <Text style={styles.recognizedTagCompact}>✅ מסח"א: {scannedMasha}</Text>
+              <Text style={styles.recognizedTitleCompact} numberOfLines={1}>
+                {detectedDescription || 'פריט מזוהה'}
+              </Text>
+            </View>
+            {detectedOwner ? (
+              <Text style={styles.recognizedOwnerCompact}>בעל מצאי: {detectedOwner}</Text>
+            ) : null}
+
+            <Text style={styles.stepTitleCompact}>כעת כוון לברקוד המספר הסידורי (S/N)</Text>
+            <Text style={styles.stepHintCompactBlue}>
               נמצא בדרך כלל במדבקת היצרן בגב המכשיר או בתחתיתו
             </Text>
           </View>
 
-          {/* Real Camera Viewfinder */}
-          <View style={styles.viewfinder}>
+          {/* Real Camera Viewfinder - Expanded */}
+          <View style={styles.viewfinderExpanded}>
             {frozenImage ? (
               <Image
                 source={{ uri: frozenImage }}
@@ -999,7 +995,6 @@ export default function App() {
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
-                  borderRadius: 14,
                 } as any}
                 autoPlay
                 playsInline
@@ -1034,6 +1029,12 @@ export default function App() {
               </View>
             )}
 
+            {/* Floating Status inside camera bottom */}
+            <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
+              <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 6 }]} />
+              <Text style={[styles.statusPillTextCompact, { color: '#93c5fd' }]} numberOfLines={1}>{scanningStatus}</Text>
+            </View>
+
             {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
@@ -1060,14 +1061,8 @@ export default function App() {
             </View>
           ) : null}
 
-          {/* Live Scanner Real-time Status */}
-          <View style={[styles.statusPill, { borderColor: '#3b82f6', flexDirection: 'row', justifyContent: 'center' }]}>
-            <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 8 }]} />
-            <Text style={[styles.statusPillText, { color: '#93c5fd' }]}>{scanningStatus}</Text>
-          </View>
-
-          {/* Real Scanner Controls + Fallback Tools */}
-          <View style={styles.scannerControls}>
+          {/* Controls Dock (Compact) */}
+          <View style={styles.scannerControlsCompact}>
             <View style={styles.quickToolsRow}>
               <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
@@ -1084,8 +1079,7 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.simControls}>
-              <Text style={styles.simLabel}>דוגמאות S/N לבדיקה בלחיצה:</Text>
+            <View style={styles.simControlsCompact}>
               <View style={styles.quickSimRow}>
                 <TouchableOpacity
                   style={[styles.simButtonCompact, { backgroundColor: '#2563eb' }]}
@@ -1335,15 +1329,26 @@ const styles = StyleSheet.create({
   },
   scanContainer: {
     flex: 1,
-    padding: 16,
+    padding: 10,
     justifyContent: 'space-between',
   },
-  stepBanner: {
+  stepBannerCompact: {
     backgroundColor: '#064e3b',
-    padding: 14,
-    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#059669',
+    marginBottom: 6,
+  },
+  stepBannerCompactBlue: {
+    backgroundColor: '#1e3a8a',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    marginBottom: 6,
   },
   stepBadge: {
     color: '#34d399',
@@ -1351,43 +1356,91 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'right',
   },
-  stepTitle: {
+  stepTitleCompact: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: 'bold',
     marginTop: 2,
     textAlign: 'right',
   },
-  stepHint: {
+  stepHintCompact: {
     color: '#a7f3d0',
-    fontSize: 11,
-    marginTop: 4,
+    fontSize: 10,
+    marginTop: 2,
     textAlign: 'right',
+  },
+  stepHintCompactBlue: {
+    color: '#bfdbfe',
+    fontSize: 10,
+    marginTop: 2,
+    textAlign: 'right',
+  },
+  recognizedMiniRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  recognizedTagCompact: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  recognizedTitleCompact: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+    marginRight: 6,
+  },
+  recognizedOwnerCompact: {
+    color: '#fbbf24',
+    fontSize: 10,
+    textAlign: 'right',
+    marginTop: 2,
   },
   stepBadgeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 5,
   },
   liveText: {
     color: '#e5e7eb',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '500',
+  },
+  viewfinderExpanded: {
+    flex: 1,
+    minHeight: 380,
+    backgroundColor: '#030712',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#1f2937',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 4,
+    overflow: 'hidden',
+    position: 'relative',
   },
   viewfinder: {
     height: 380,
@@ -1422,19 +1475,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reticle: {
-    width: 290,
-    height: 170,
+    width: '78%',
+    maxWidth: 320,
+    height: 190,
     borderWidth: 2.5,
     borderColor: '#10b981',
     borderRadius: 16,
-    backgroundColor: 'rgba(16, 185, 129, 0.04)',
+    backgroundColor: 'rgba(16, 185, 129, 0.03)',
   },
   scanLaser: {
     position: 'absolute',
-    width: 260,
+    width: '70%',
+    maxWidth: 290,
     height: 2,
     backgroundColor: '#10b981',
     opacity: 0.85,
+  },
+  floatingStatusPill: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.9)',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+  },
+  statusPillTextCompact: {
+    color: '#34d399',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   cameraErrorBanner: {
     position: 'absolute',
@@ -1464,53 +1544,66 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
-  statusPill: {
-    backgroundColor: 'rgba(17, 24, 39, 0.95)',
-    borderWidth: 1.5,
-    borderColor: '#10b981',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+  ocrInspectionCardCompact: {
+    backgroundColor: '#0f172a',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    padding: 8,
+    marginVertical: 4,
   },
-  statusPillText: {
-    color: '#34d399',
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
+  ocrRawTextScrollCompact: {
+    maxHeight: 60,
+    backgroundColor: '#020617',
+    borderRadius: 6,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
-  scannerControls: {
+  scannerControlsCompact: {
     backgroundColor: '#111827',
-    padding: 12,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#1f2937',
+    marginTop: 4,
   },
   quickToolsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 6,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   quickToolBtn: {
     flex: 1,
     backgroundColor: '#1f2937',
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 6,
-    borderRadius: 8,
+    borderRadius: 6,
     alignItems: 'center',
   },
   quickToolBtnText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  simControlsCompact: {
+    marginTop: 2,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#1f2937',
+  },
+  bottomBarCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingHorizontal: 4,
+  },
+  cancelButtonCompact: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignItems: 'center',
   },
   recognizedCard: {
     backgroundColor: '#111827',
