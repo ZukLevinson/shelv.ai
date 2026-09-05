@@ -6,10 +6,11 @@ interface ScanEvent {
   observationId: string;
   serialNumber: string;
   masha?: string;
-  scannedRoom: { name: string; code: string; holder_name: string };
+  scannedRoom: { name: string; code: string; holder_id: string; holder_name: string };
   officialItem?: {
     description: string;
-    official_room_name: string;
+    official_room_name?: string;
+    official_holder_id: string;
     official_holder_name: string;
   };
   scannedBy: string;
@@ -60,7 +61,7 @@ export const LiveFeed: React.FC = () => {
           </div>
         ) : (
           events.map((ev) => {
-            const isMismatch = ev.officialItem && ev.officialItem.official_room_name !== ev.scannedRoom.name;
+            const isMismatch = ev.officialItem && ev.officialItem.official_holder_id !== ev.scannedRoom.holder_id;
 
             return (
               <div

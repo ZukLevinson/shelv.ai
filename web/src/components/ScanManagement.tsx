@@ -438,7 +438,7 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                 <th className="py-3 px-3">מי סרק</th>
                 <th className="py-3 px-3">מה נסרק (S/N ומסח״א)</th>
                 <th className="py-3 px-3">איפה נסרק בפועל</th>
-                <th className="py-3 px-3">מיקום ובעלים רשמיים באקסל</th>
+                <th className="py-3 px-3">בעל מצאי רשמי (חתימה)</th>
                 <th className="py-3 px-3">סטטוס התאמה</th>
                 <th className="py-3 px-4 text-center">פעולות תחקור</th>
               </tr>
@@ -531,20 +531,22 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                         </div>
                       </td>
 
-                      {/* מיקום ובעלים רשמיים באקסל */}
+                      {/* בעל מצאי רשמי באקסל */}
                       <td className="py-3.5 px-3 whitespace-nowrap">
-                        {scan.official_room_name ? (
+                        {scan.official_holder_name ? (
                           <div>
-                            <div className={`font-medium ${isMismatch ? 'text-rose-400 font-bold' : 'text-gray-300'}`}>
-                              {scan.official_room_name} ({scan.official_room_code})
+                            <div className={`font-semibold ${isMismatch ? 'text-rose-400 font-bold' : 'text-gray-200'}`}>
+                              {scan.official_holder_name}
                             </div>
-                            <div className="text-[11px] text-gray-400 mt-0.5">
-                              בעל מצאי: {scan.official_holder_name}
-                            </div>
+                            {scan.official_room_name && (
+                              <div className="text-[11px] text-gray-400 mt-0.5">
+                                חדר ראשי: {scan.official_room_name} ({scan.official_room_code})
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-gray-500 italic text-[11px]">
-                            לא הוגדר באקסל החתימות
+                            לא רשום באקסל
                           </div>
                         )}
                       </td>

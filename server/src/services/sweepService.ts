@@ -1,4 +1,4 @@
-﻿import { db } from '../db/database.js';
+import { db } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { detectAnomalies } from './anomalyService.js';
 
@@ -32,7 +32,7 @@ export function recordObservation(input: RecordScanInput) {
     const officialItem = db.prepare(`
       SELECT i.*, r.name as official_room_name, h.name as official_holder_name
       FROM official_inventory i
-      JOIN rooms r ON i.room_id = r.id
+      LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
       WHERE i.serial_number = ?
     `).get(cleanSN) as any;
@@ -69,7 +69,7 @@ export function recordObservation(input: RecordScanInput) {
     SELECT i.*, r.name as official_room_name, r.id as official_room_id,
            h.name as official_holder_name, h.id as official_holder_id
     FROM official_inventory i
-    JOIN rooms r ON i.room_id = r.id
+    LEFT JOIN rooms r ON i.room_id = r.id
     JOIN inventory_holders h ON i.holder_id = h.id
     WHERE i.serial_number = ?
   `).get(cleanSN) as any;

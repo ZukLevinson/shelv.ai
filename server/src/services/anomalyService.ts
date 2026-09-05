@@ -106,7 +106,7 @@ export function detectAnomalies(): AnomalyReport {
            COALESCE(m.name, i.description) as masha_name,
            COALESCE(m.category, i.category, 'PC') as resolved_category
     FROM official_inventory i
-    JOIN rooms r ON i.room_id = r.id
+    LEFT JOIN rooms r ON i.room_id = r.id
     JOIN inventory_holders h ON i.holder_id = h.id
     LEFT JOIN masha_registry m ON i.masha = m.masha
   `;
@@ -184,7 +184,7 @@ export function detectAnomalies(): AnomalyReport {
           scannedRoomHolderId: scan.scanned_room_holder_id,
           scannedRoomHolderName: scan.scanned_room_holder_name,
         });
-      } else if (scan.room_id !== item.room_id) {
+      } else if (item.room_id && scan.room_id !== item.room_id) {
         internalMoves.push({
           serialNumber: item.serial_number,
           masha: item.masha,

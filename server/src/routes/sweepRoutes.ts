@@ -110,7 +110,7 @@ sweepRouter.get('/scans', (req, res) => {
         COALESCE(m.category, i.category, 'PC') as category,
         CASE
           WHEN i.serial_number IS NULL THEN 'unregistered'
-          WHEN i.room_id != o.room_id THEN 'mismatch'
+          WHEN i.holder_id != r.holder_id THEN 'mismatch'
           ELSE 'matched'
         END as scan_status
       FROM sweep_observations o
@@ -159,7 +159,7 @@ sweepRouter.get('/scans', (req, res) => {
     }
 
     if (mismatchOnly === 'true' || mismatchOnly === '1') {
-      sql += ` AND (i.serial_number IS NULL OR i.room_id != o.room_id)`;
+      sql += ` AND (i.serial_number IS NULL OR i.holder_id != r.holder_id)`;
     }
 
     // Clone query for counting total matching records
@@ -193,7 +193,7 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
       SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name,
              m.name as masha_name, m.category as masha_category, m.description as masha_description
       FROM official_inventory i
-      JOIN rooms r ON i.room_id = r.id
+      LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
       LEFT JOIN masha_registry m ON i.masha = m.masha
       WHERE i.serial_number = ?

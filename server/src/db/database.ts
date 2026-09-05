@@ -66,7 +66,7 @@ export function initDatabase() {
       serial_number TEXT UNIQUE NOT NULL,
       description TEXT NOT NULL,
       category TEXT NOT NULL,
-      room_id TEXT NOT NULL,
+      room_id TEXT,
       holder_id TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -130,4 +130,33 @@ export function initDatabase() {
     console.error('[DB] Migration error for personal_number:', err);
   }
 
+  // Ensure room_id is nullable in official_inventory for existing databases
+  try {
+    const officialInfo = db.prepare("PRAGMA table_info(official_inventory)").all() as Array<{ name: string; notnull: number }>;
+    const roomCol = officialInfo.find(c => c.name === 'room_id');
+    if (roomCol && roomCol.notnull === 1) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE official_inventory_temp (
+          id TEXT PRIMARY KEY,
+          masha TEXT NOT NULL,
+          serial_number TEXT UNIQUE NOT NULL,
+          description TEXT NOT NULL,
+          category TEXT NOT NULL,
+          room_id TEXT,
+          holder_id TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+          FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE CASCADE
+        );
+        INSERT INTO official_inventory_temp SELECT * FROM official_inventory;
+        DROP TABLE official_inventory;
+        ALTER TABLE official_inventory_temp RENAME TO official_inventory;
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for official_inventory nullable room_id:', err);
+  }
 }

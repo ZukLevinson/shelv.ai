@@ -61,14 +61,14 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           <p className="text-sm text-gray-400 leading-relaxed">
             העלה קובץ אקסל (.xlsx / .csv) לעדכון רשומות המצאי הרשמיות של הארגון.
-            עמודות חובה: <strong>Catalog # (מסח"א)</strong>, <strong>תיאור</strong>, <strong>חדר</strong>.
-            עמודות אופציונליות: <strong>Serial Number (S/N)</strong>, <strong>בעל מצאי</strong>, <strong>קטגוריה</strong>.
+            עמודות חובה: <strong>Catalog # (מסח"א)</strong>, <strong>בעל מצאי</strong>.
+            עמודות אופציונליות: <strong>כמות (Quantity)</strong>, <strong>תיאור</strong>, <strong>Serial Number (S/N)</strong>, <strong>קטגוריה</strong>.
           </p>
 
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-xs text-emerald-300 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
             <span>
-              <strong>שימו לב:</strong> רשימת החדרים נוצרת ומנוהלת ישירות בדשבורד (באמצעות כפתור "ניהול והוספת חדרים"). שמות החדרים בקובץ האקסל חייבים להתאים לחדרים שהוגדרו. חדרים אינם נוצרים מאקסל.
+              <strong>שימו לב:</strong> קובץ האקסל מגדיר איזה בעל מצאי מחזיק במסח"א (וכמות). <strong>חדרים אינם נדרשים באקסל</strong> — שיוך החדרים לבעלי המצאי מנוהל ישירות במערכת בדשבורד (בכפתור "ניהול והוספת חדרים").
             </span>
           </div>
 

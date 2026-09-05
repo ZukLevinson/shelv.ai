@@ -329,7 +329,7 @@ inventoryRouter.get('/items', (req, res) => {
              r.id as room_id, r.name as room_name, r.code as room_code, h.name as holder_name,
              i.created_at as last_seen_at, 'בסיס נתונים' as last_scanned_by, NULL as sticker_owner_text
       FROM official_inventory i
-      JOIN rooms r ON i.room_id = r.id
+      LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
       LEFT JOIN masha_registry m ON i.masha = m.masha
       WHERE 1=1
@@ -366,7 +366,7 @@ inventoryRouter.get('/lookup', (req, res) => {
     item = db.prepare(`
       SELECT i.*, r.name as room_name, h.name as holder_name
       FROM official_inventory i
-      JOIN rooms r ON i.room_id = r.id
+      LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
       WHERE i.serial_number = ? COLLATE NOCASE
     `).get(String(sn).trim().toUpperCase());
@@ -376,7 +376,7 @@ inventoryRouter.get('/lookup', (req, res) => {
     item = db.prepare(`
       SELECT i.*, r.name as room_name, h.name as holder_name
       FROM official_inventory i
-      JOIN rooms r ON i.room_id = r.id
+      LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
       WHERE i.masha = ?
       LIMIT 1
