@@ -131,7 +131,7 @@ export default function App() {
     setSelectedRoom(room);
     setCurrentStep('scan_masha');
     resetCurrentScan();
-    setScanningStatus('סורק פעיל וממתין לברקוד מסח"א...');
+    setScanningStatus('כוון את המצלמה למדבקת מסח"א ולחץ על "צלם מדבקה"...');
   };
 
   const resetCurrentScan = () => {
@@ -185,7 +185,7 @@ export default function App() {
     }
 
     setCameraPermissionError(null);
-    setScanningStatus(currentStep === 'scan_sn' ? 'מכוון לברקוד סידורי (S/N)...' : 'מכוון למדבקת מסח"א / Catalog # (זיהוי טקסט בלבד)...');
+    setScanningStatus(currentStep === 'scan_sn' ? 'מכוון לברקוד סידורי (S/N)...' : 'כוון את המצלמה למדבקה ולחץ "צלם מדבקה"...');
 
     try {
       stopLiveCamera();
@@ -257,8 +257,9 @@ export default function App() {
         controlsRef.current = controls;
         startLiveTextStreamScanner();
       } else if (currentStep === 'scan_masha') {
-        // Continuous Gemini Vision Stream Detector
-        startLiveTextStreamScanner();
+        // Human-initiated snapshot mode: camera provides live framing; user taps snapshot button to extract with Gemini
+        stopLiveOcrStream();
+        setScanStage('idle');
       }
     } catch (err: any) {
       console.warn('Camera access error:', err);
@@ -660,27 +661,28 @@ export default function App() {
       }
 
       if (step === 'scan_masha') {
-        if (geminiRes.masha) {
+        const detectedMasha = geminiRes.masha || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).masha : undefined);
+        if (detectedMasha) {
+          setScanError(null);
+          setScanStage('success');
           setFrozenImage(base64Jpg);
           setIsProcessingFound(true);
-          setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
+          setFoundInfoText(`מסח"א ${detectedMasha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
           stopLiveOcrStream();
-          setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
-          setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}${geminiRes.stickerOwner ? ` | בעלים: ${geminiRes.stickerOwner}` : ''}`);
+          setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${detectedMasha}...`);
+          setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${detectedMasha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}${geminiRes.stickerOwner ? ` | בעלים: ${geminiRes.stickerOwner}` : ''}`);
           await onMashaRecognized({
-            masha: geminiRes.masha,
+            masha: detectedMasha,
             productDescription: geminiRes.productDescription,
             stickerOwner: geminiRes.stickerOwner,
             serialNumber: geminiRes.serialNumber,
           });
         } else {
-          setScanningStatus(`לא זוהה מסח"א ברור (${attemptNum}/10). נסה שוב או קרב את העדשה למדבקה`);
-          setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
-          if (geminiAttemptsRef.current >= 10) {
-            stopLiveOcrStream();
-            setCameraActive(false);
-            setShowScanGuideModal(true);
-          }
+          const failMsg = geminiRes.errorMessage || 'לא אותר מספר מסח"א (Catalog #) בתמונה. יש לקרב את המצלמה למדבקה, לוודא שהיא מוארת היטב ולצלם שוב.';
+          setScanError(failMsg);
+          setScanStage('idle');
+          setScanningStatus('⚠️ לא אותר מסח"א בתמונה - לחץ "צלם שוב" או נסה צילום HD');
+          setLastOcrDiagnosis(`⚠️ תוכן שנקלט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
         }
       } else if (step === 'scan_sn') {
         const detectedSn = geminiRes.serialNumber || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).serialNumber : undefined);
@@ -957,7 +959,7 @@ export default function App() {
         </ScrollView>
       )}
 
-      {/* Screen 2: Guided CV Step 1 (Masha Scan) */}
+      {/* Screen 2: Human-Initiated Snapshot Step 1 (Masha Scan) */}
       {currentStep === 'scan_masha' && (
         <View style={styles.scanContainer}>
           {/* Compact Top Banner */}
@@ -969,9 +971,9 @@ export default function App() {
               </View>
               <Text style={styles.stepBadge}>שלב 1 מתוך 2 • מסח"א</Text>
             </View>
-            <Text style={styles.stepTitleCompact}>כוון למדבקה (סריקה אוטומטית של טקסט / Catalog #)</Text>
+            <Text style={styles.stepTitleCompact}>כוון למדבקה ולחץ "צלם מדבקה"</Text>
             <Text style={styles.stepHintCompact}>
-              זיהוי רציף אוטומטי ללא לחיצה: כוון לעדשה, המערכת תזהה ותעבור מיד לשלב הבא!
+              כוון את העדשה כך שמספר המסח"א (Catalog #) יופיע במסגרת, ולחץ על כפתור הצילום לפענוח ע"י Gemini
             </Text>
           </View>
 
@@ -1002,82 +1004,7 @@ export default function App() {
               </View>
             )}
 
-            {/* Multi-Stage Scan Pipeline Indicator */}
-            <View style={styles.pipelineStageCard}>
-              <View style={styles.pipelineStepsRow}>
-                {/* Stage 1: Searching */}
-                <View style={[
-                  styles.pipelineStepItem,
-                  scanStage === 'searching' && styles.pipelineStepActive,
-                  (scanStage === 'qualified' || scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepDone,
-                ]}>
-                  <Text style={styles.pipelineStepIcon}>
-                    {scanStage === 'searching' ? '🔍' : '✓'}
-                  </Text>
-                  <Text style={[
-                    styles.pipelineStepText,
-                    scanStage === 'searching' && styles.pipelineStepTextActive,
-                    (scanStage === 'qualified' || scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepTextDone,
-                  ]}>
-                    איתור
-                  </Text>
-                </View>
-
-                <View style={[
-                  styles.pipelineDivider,
-                  (scanStage === 'qualified' || scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineDividerActive
-                ]} />
-
-                {/* Stage 2: Locked / Qualified */}
-                <View style={[
-                  styles.pipelineStepItem,
-                  scanStage === 'qualified' && styles.pipelineStepActive,
-                  (scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepDone,
-                ]}>
-                  <Text style={styles.pipelineStepIcon}>
-                    {scanStage === 'qualified' ? '🎯' : (scanStage === 'deciphering' || scanStage === 'success') ? '✓' : '🎯'}
-                  </Text>
-                  <Text style={[
-                    styles.pipelineStepText,
-                    scanStage === 'qualified' && styles.pipelineStepTextActive,
-                    (scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepTextDone,
-                  ]}>
-                    נעילת מדבקה
-                  </Text>
-                </View>
-
-                <View style={[
-                  styles.pipelineDivider,
-                  (scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineDividerActive
-                ]} />
-
-                {/* Stage 3: Deciphering */}
-                <View style={[
-                  styles.pipelineStepItem,
-                  scanStage === 'deciphering' && styles.pipelineStepActive,
-                  scanStage === 'success' && styles.pipelineStepDone,
-                ]}>
-                  <Text style={styles.pipelineStepIcon}>
-                    {scanStage === 'deciphering' ? '⚡' : scanStage === 'success' ? '✓' : '⚡'}
-                  </Text>
-                  <Text style={[
-                    styles.pipelineStepText,
-                    scanStage === 'deciphering' && styles.pipelineStepTextActive,
-                    scanStage === 'success' && styles.pipelineStepTextDone,
-                  ]}>
-                    פענוח עמוק
-                  </Text>
-                </View>
-              </View>
-
-              {lastQualificationHint && scanStage !== 'success' ? (
-                <View style={styles.stageHintRow}>
-                  <Text style={styles.stageHintText}>💬 {lastQualificationHint}</Text>
-                </View>
-              ) : null}
-            </View>
-
-            {/* Processing Overlay when Gemini finds something */}
+            {/* Processing Overlay when Gemini is analyzing or found something */}
             {isProcessingFound ? (
               <View style={styles.processingOverlay}>
                 <View style={styles.processingModalCard}>
@@ -1093,19 +1020,21 @@ export default function App() {
                   ) : null}
                 </View>
               </View>
+            ) : ocrLoading ? (
+              <View style={styles.processingOverlay}>
+                <View style={styles.processingModalCard}>
+                  <View style={styles.processingPulseBadge}>
+                    <ActivityIndicator size="large" color="#38bdf8" />
+                  </View>
+                  <Text style={[styles.processingTitle, { color: '#38bdf8' }]}>⚡ Gemini מפענח מדבקה...</Text>
+                  <Text style={styles.processingSubtitle}>מחלץ מספר מסח"א ופרטי פריט מהתמונה שנלכדה</Text>
+                </View>
+              </View>
             ) : (
-              /* Viewfinder Reticle Overlay with dynamic color according to scanStage */
+              /* Viewfinder Reticle Overlay */
               <View style={styles.reticleOverlay} pointerEvents="none">
-                <View style={[
-                  styles.reticle,
-                  scanStage === 'qualified' && styles.reticleQualified,
-                  scanStage === 'deciphering' && styles.reticleDeciphering,
-                ]} />
-                <View style={[
-                  styles.scanLaser,
-                  scanStage === 'qualified' && { backgroundColor: '#f59e0b' },
-                  scanStage === 'deciphering' && { backgroundColor: '#38bdf8' },
-                ]} />
+                <View style={styles.reticle} />
+                <View style={styles.scanLaser} />
               </View>
             )}
 
@@ -1120,73 +1049,44 @@ export default function App() {
                     left: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[1] / 1000) * 100))}%` as any,
                     height: `${Math.max(8, Math.min(94, ((activeBoundingBox.box_2d[2] - activeBoundingBox.box_2d[0]) / 1000) * 100))}%` as any,
                     width: `${Math.max(12, Math.min(94, ((activeBoundingBox.box_2d[3] - activeBoundingBox.box_2d[1]) / 1000) * 100))}%` as any,
-                    borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b',
+                    borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8',
                   },
                 ]}
               >
                 {/* HUD Corner Accents */}
-                <View style={[styles.cornerTL, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
-                <View style={[styles.cornerTR, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
-                <View style={[styles.cornerBL, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
-                <View style={[styles.cornerBR, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
+                <View style={[styles.cornerTL, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
+                <View style={[styles.cornerTR, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
+                <View style={[styles.cornerBL, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
+                <View style={[styles.cornerBR, { borderColor: scanStage === 'success' ? '#10b981' : '#38bdf8' }]} />
 
                 {/* Floating Tag over the suspected item */}
                 <View style={[
                   styles.boundingBoxBadge,
-                  { backgroundColor: scanStage === 'success' ? 'rgba(16, 185, 129, 0.92)' : scanStage === 'deciphering' ? 'rgba(14, 165, 233, 0.92)' : 'rgba(245, 158, 11, 0.92)' }
+                  { backgroundColor: scanStage === 'success' ? 'rgba(16, 185, 129, 0.92)' : 'rgba(14, 165, 233, 0.92)' }
                 ]}>
                   <Text style={styles.boundingBoxBadgeText}>
-                    {activeBoundingBox.label || '🎯 זוהתה מדבקה'}
+                    {activeBoundingBox.label || '🎯 מדבקה'}
                   </Text>
                 </View>
               </View>
             )}
 
-
-            {/* Real-time Gemini Suspicion HUD: Floating badge displaying active hypotheses */}
-            {!isProcessingFound && liveSuspicions && (liveSuspicions.mashaCandidate || liveSuspicions.productCandidate || liveSuspicions.serialCandidate) ? (
-              <View style={styles.geminiSuspicionHud}>
-                <View style={styles.suspicionHeaderRow}>
-                  <View style={[
-                    styles.suspicionIndicatorDot,
-                    { backgroundColor: liveSuspicions.confidence === 'high' ? '#10b981' : liveSuspicions.confidence === 'medium' ? '#f59e0b' : '#38bdf8' }
-                  ]} />
-                  <Text style={styles.suspicionTitle}>Gemini חושד בזמן אמת</Text>
-                  {liveSuspicions.confidence ? (
-                    <Text style={styles.suspicionConfidenceBadge}>
-                      {liveSuspicions.confidence === 'high' ? 'וודאות גבוהה' : liveSuspicions.confidence === 'medium' ? 'ממקד...' : 'בבדיקה'}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {liveSuspicions.mashaCandidate ? (
-                  <View style={styles.suspicionChip}>
-                    <Text style={styles.suspicionChipLabel}>מסח"א אפשרי:</Text>
-                    <Text style={styles.suspicionChipValue}>{liveSuspicions.mashaCandidate}</Text>
-                  </View>
-                ) : null}
-
-                {liveSuspicions.productCandidate ? (
-                  <View style={styles.suspicionChip}>
-                    <Text style={styles.suspicionChipLabel}>דגם/מוצר:</Text>
-                    <Text style={styles.suspicionChipValue} numberOfLines={1}>{liveSuspicions.productCandidate}</Text>
-                  </View>
-                ) : null}
-
-                {liveSuspicions.serialCandidate ? (
-                  <View style={styles.suspicionChip}>
-                    <Text style={styles.suspicionChipLabel}>S/N משוער:</Text>
-                    <Text style={styles.suspicionChipValue}>{liveSuspicions.serialCandidate}</Text>
-                  </View>
-                ) : null}
-
-                {liveSuspicions.hint ? (
-                  <Text style={styles.suspicionHintText}>💡 {liveSuspicions.hint}</Text>
-                ) : null}
+            {/* Human Snapshot Shutter Button Overlay */}
+            {!isProcessingFound && !ocrLoading && (
+              <View style={styles.shutterContainer}>
+                <TouchableOpacity
+                  style={styles.shutterButton}
+                  onPress={captureAndRecognizeHandwrittenMasha}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.shutterInnerCircle} />
+                  <Text style={styles.shutterText}>📸 צלם מדבקה לפענוח</Text>
+                </TouchableOpacity>
+                <Text style={styles.shutterHint}>ייצב מול המדבקה ולחץ לצילום</Text>
               </View>
-            ) : null}
+            )}
 
-            {/* Floating Status Pill inside camera bottom */}
+            {/* Floating Status Pill inside camera top/bottom */}
             <View style={styles.floatingStatusPill}>
               {ocrLoading ? (
                 <ActivityIndicator size="small" color="#34d399" style={{ marginRight: 6 }} />
@@ -2877,5 +2777,53 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 12,
     fontWeight: '600',
+  },
+  shutterContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 15,
+  },
+  shutterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 14,
+    paddingHorizontal: 26,
+    borderRadius: 36,
+    borderWidth: 2.5,
+    borderColor: '#34d399',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  shutterInnerCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    marginRight: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  shutterText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  shutterHint: {
+    color: '#a7f3d0',
+    fontSize: 11,
+    marginTop: 6,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

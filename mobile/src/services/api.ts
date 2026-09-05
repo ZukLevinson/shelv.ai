@@ -74,6 +74,7 @@ export interface GeminiScanResponse {
   productDescription?: string;
   stickerOwner?: string;
   rawText?: string;
+  errorMessage?: string;
   suspicions?: GeminiSuspicions;
   box_2d?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0..1000
 }

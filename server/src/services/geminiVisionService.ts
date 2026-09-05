@@ -133,6 +133,7 @@ export interface GeminiLabelInspectionResult {
   stickerOwner?: string;
   rawText?: string;
   detected: boolean;
+  errorMessage?: string;
   box_2d?: [number, number, number, number] | null;
   suspicions?: GeminiSuspicions;
 }
@@ -170,6 +171,7 @@ Return JSON only in this exact format:
   "productDescription": "complete string or null",
   "stickerOwner": "string or null",
   "rawText": "brief summary of detected label text",
+  "errorMessage": null,
   "box_2d": [ymin, xmin, ymax, xmax],
   "suspicions": {
     "mashaCandidate": "partial or tentative digits if spotted (e.g. '94312...' or '943121160') or null",
@@ -190,6 +192,7 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
   "productDescription": null,
   "stickerOwner": null,
   "rawText": "",
+  "errorMessage": "${targetMode === 'sn' ? 'לא זוהה מספר סידורי (S/N) בתמונה. ודא שמדבקת היצרן ברורה ומוארת ונסה שוב.' : 'לא זוהה מספר מסח\"א בתמונה. ודא שמדבקת המסח\"א (Catalog #) מוארת, בפוקוס וממלאת את המסגרת, ונסה שוב.'}",
   "box_2d": null,
   "suspicions": {
     "mashaCandidate": null,
@@ -226,7 +229,12 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
   const textResponse = response.response?.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!textResponse) {
-    return { detected: false, rawText: '', box_2d: null };
+    return {
+      detected: false,
+      rawText: '',
+      box_2d: null,
+      errorMessage: targetMode === 'sn' ? 'לא התקבלה תשובה מ-Gemini עבור S/N' : 'לא זוהה מסח"א בתמונה'
+    };
   }
 
   try {
@@ -235,18 +243,33 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
       ? parsed.box_2d
       : (Array.isArray(parsed.suspicions?.box_2d) && parsed.suspicions.box_2d.length === 4 ? parsed.suspicions.box_2d : null);
 
+    const isDetected = Boolean(parsed.masha || parsed.serialNumber);
+
+    let errMsg = parsed.errorMessage;
+    if (!isDetected && !errMsg) {
+      errMsg = targetMode === 'sn'
+        ? 'לא אותר מספר סידורי (S/N) בתמונה. נסה לצלם שוב בזווית ישרה ובתאורה טובה.'
+        : 'לא אותר מספר מסח"א (Catalog #) בתמונה. יש לקרב את המצלמה למדבקה ולצלם שוב.';
+    }
+
     return {
-      detected: Boolean(parsed.masha || parsed.serialNumber),
+      detected: isDetected,
       masha: parsed.masha || undefined,
       serialNumber: parsed.serialNumber || undefined,
       productDescription: parsed.productDescription || undefined,
       stickerOwner: parsed.stickerOwner || undefined,
       rawText: parsed.rawText || '',
+      errorMessage: !isDetected ? errMsg : undefined,
       box_2d: box2d,
       suspicions: parsed.suspicions ? { ...parsed.suspicions, box_2d: parsed.suspicions.box_2d || box2d } : undefined,
     };
   } catch (err) {
     console.error('[Gemini Vision] Failed to parse JSON response:', textResponse);
-    return { detected: false, rawText: textResponse, box_2d: null };
+    return {
+      detected: false,
+      rawText: textResponse,
+      box_2d: null,
+      errorMessage: targetMode === 'sn' ? 'שגיאה בפענוח נתוני S/N' : 'לא זוהה מסח"א ברור בתמונה'
+    };
   }
 }
