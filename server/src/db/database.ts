@@ -107,39 +107,4 @@ export function initDatabase() {
     console.error('[DB] Migration error for personal_number:', err);
   }
 
-  seedDefaultDataIfEmpty();
-}
-
-function seedDefaultDataIfEmpty() {
-  const holderCount = db.prepare('SELECT count(*) as count FROM inventory_holders').get() as { count: number };
-  if (holderCount.count === 0) {
-    console.log('[DB] Seeding initial holders, rooms, and official inventory...');
-
-    const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name, personal_number, phone) VALUES (?, ?, ?, ?)');
-    insertHolder.run('holder-1', 'ניסים כהן', '8123456', '050-1234567');
-    insertHolder.run('holder-2', 'שלום מזרחי', '8234567', '052-7654321');
-    insertHolder.run('holder-3', 'דוד אג"ן', '8345678', '054-9988776');
-
-    const insertRoom = db.prepare('INSERT INTO rooms (id, name, code, holder_id) VALUES (?, ?, ?, ?)');
-    insertRoom.run('room-101', 'חדר מחשבים 101', 'R-101', 'holder-1');
-    insertRoom.run('room-102', 'מעבדת חומרה 102', 'R-102', 'holder-1');
-    insertRoom.run('room-201', 'משרד הנהלה 201', 'R-201', 'holder-2');
-    insertRoom.run('room-301', 'חדר תקשורת 301', 'R-301', 'holder-3');
-
-    const insertItem = db.prepare(`
-      INSERT INTO official_inventory (id, masha, serial_number, description, category, room_id, holder_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    insertItem.run('item-1', '943121160', '2UA80920XS', 'HP EliteDesk 800 G3 SFF Business PC', 'PC', 'room-101', 'holder-1');
-    insertItem.run('item-2', '943123265', '2UA4192N4X', 'HP Elite Mini 800 G9 i712700 8GB/256', 'PC', 'room-101', 'holder-1');
-    insertItem.run('item-3', '943116103', '3CQ7290K11', 'HP EliteDesk 800 G6 DM i7-10700 16GB/512GB', 'PC', 'room-101', 'holder-1');
-    insertItem.run('item-4', '943155882', 'CN47921980', 'HP LaserJet Pro M404dn', 'Printer', 'room-101', 'holder-1');
-    insertItem.run('item-5', '943166200', '6CM84201PL', 'Dell UltraSharp 27 4K Screen', 'Screen', 'room-101', 'holder-1');
-    insertItem.run('item-6', '943177119', '2UA11929BB', 'HP EliteDesk 800 G5 Tower', 'PC', 'room-102', 'holder-1');
-    insertItem.run('item-7', '943188334', '5CD931889M', 'Lenovo ThinkPad P16s G2', 'Laptop', 'room-201', 'holder-2');
-    insertItem.run('item-8', '943199441', '8CC110992K', 'Dell 24 Display Switch P2419H', 'Screen', 'room-201', 'holder-2');
-
-    console.log('[DB] Seeding completed.');
-  }
 }
