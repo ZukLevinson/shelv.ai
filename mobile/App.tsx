@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
@@ -35,6 +36,9 @@ export default function App() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [recognizedLiveText, setRecognizedLiveText] = useState<string>('');
   const [lastOcrDiagnosis, setLastOcrDiagnosis] = useState<string>('');
+  const [geminiAttempts, setGeminiAttempts] = useState(0);
+  const [showScanGuideModal, setShowScanGuideModal] = useState(false);
+  const geminiAttemptsRef = useRef(0);
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -120,6 +124,8 @@ export default function App() {
     setDetectedOwner('');
     setRecognizedLiveText('');
     setLastOcrDiagnosis('');
+    setGeminiAttempts(0);
+    geminiAttemptsRef.current = 0;
     isHandlingBarcodeRef.current = false;
   };
 
@@ -273,6 +279,13 @@ export default function App() {
         return;
       }
 
+      if (geminiAttemptsRef.current >= 10) {
+        stopLiveOcrStream();
+        setCameraActive(false);
+        setShowScanGuideModal(true);
+        return;
+      }
+
       const video = videoRef.current;
       if (video.readyState < 2 || video.paused || video.ended) {
         return;
@@ -304,7 +317,11 @@ export default function App() {
         streamCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
         const base64Jpg = streamCanvas.toDataURL('image/jpeg', 0.82);
 
-        setScanningStatus('✨ Gemini סורק בזמן אמת...');
+        geminiAttemptsRef.current += 1;
+        const attemptNum = geminiAttemptsRef.current;
+        setGeminiAttempts(attemptNum);
+
+        setScanningStatus(`✨ Gemini סורק (${attemptNum}/10)...`);
         const geminiRes = await scanWithGemini(base64Jpg);
 
         if (currentStepRef.current !== 'scan_masha') return;
@@ -327,7 +344,15 @@ export default function App() {
         } else if (geminiRes.rawText) {
           setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
         } else {
-          setScanningStatus('סורק פעיל - כוון את המצלמה למדבקה / מסח"א...');
+          setScanningStatus(`סורק פעיל (${attemptNum}/10) - כוון למדבקה / מסח"א...`);
+        }
+
+        // If after this attempt we hit 10 and still haven't recognized
+        if (geminiAttemptsRef.current >= 10) {
+          stopLiveOcrStream();
+          setCameraActive(false);
+          setShowScanGuideModal(true);
+          return;
         }
       } catch (streamErr: any) {
         console.warn('Live Gemini scan tick warning:', streamErr.message);
@@ -404,9 +429,20 @@ export default function App() {
   // Process any image source (canvas or image element) with Tesseract across multiple angles
   // Process any image source (canvas or image element) with Gemini Vision
   const processImageForOcr = async (sourceCanvas: HTMLCanvasElement) => {
+    if (geminiAttemptsRef.current >= 10) {
+      stopLiveOcrStream();
+      setCameraActive(false);
+      setShowScanGuideModal(true);
+      return;
+    }
+
     try {
       setOcrLoading(true);
-      setScanningStatus('✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision...');
+      geminiAttemptsRef.current += 1;
+      const attemptNum = geminiAttemptsRef.current;
+      setGeminiAttempts(attemptNum);
+
+      setScanningStatus(`✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision (${attemptNum}/10)...`);
 
       const base64Jpg = sourceCanvas.toDataURL('image/jpeg', 0.88);
       const geminiRes = await scanWithGemini(base64Jpg);
@@ -424,8 +460,13 @@ export default function App() {
           serialNumber: geminiRes.serialNumber,
         });
       } else {
-        setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או קרב את העדשה למדבקה');
+        setScanningStatus(`לא זוהה מסח"א ברור (${attemptNum}/10). נסה שוב או קרב את העדשה למדבקה`);
         setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
+        if (geminiAttemptsRef.current >= 10) {
+          stopLiveOcrStream();
+          setCameraActive(false);
+          setShowScanGuideModal(true);
+        }
       }
     } catch (err: any) {
       console.error('Gemini Vision scan error:', err);
@@ -434,6 +475,14 @@ export default function App() {
     } finally {
       setOcrLoading(false);
     }
+  };
+
+  const handleResumeScanning = () => {
+    setShowScanGuideModal(false);
+    geminiAttemptsRef.current = 0;
+    setGeminiAttempts(0);
+    setCameraActive(true);
+    setScanningStatus('מאתחל סריקה... כוון את המצלמה למדבקה');
   };
 
   // Multi-angle capture directly from live video frame
@@ -982,6 +1031,87 @@ export default function App() {
           </View>
         </ScrollView>
       )}
+
+      {/* Modal: Teaching User How To Scan Correctly (Triggered after 10 failed Gemini calls) */}
+      <Modal
+        visible={showScanGuideModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowScanGuideModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalIcon}>💡</Text>
+              <Text style={styles.modalTitle}>איך לסרוק נכון ומדויק?</Text>
+              <Text style={styles.modalSubtitle}>
+                הסריקה האוטומטית נעצרה לאחר 10 ניסיונות לחיסכון בעלויות AI
+              </Text>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.tipItem}>
+                <Text style={styles.tipNumber}>1️⃣</Text>
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>תאורה טובה וללא השתקפות</Text>
+                  <Text style={styles.tipDesc}>
+                    ודא שהמדבקה מוארת היטב. הימנע מהשתקפות ישירה של פלורסנט או פלאש שמסתירה את הספרות.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.tipItem}>
+                <Text style={styles.tipNumber}>2️⃣</Text>
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>קרב את המצלמה למדבקה (10-15 ס"מ)</Text>
+                  <Text style={styles.tipDesc}>
+                    קרב את העדשה כך שמספר המסח"א (Catalog #) יתפוס את מרכז המסגרת ויהיה בפוקוס חד.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.tipItem}>
+                <Text style={styles.tipNumber}>3️⃣</Text>
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>החזק את המכשיר יציב לשנייה אחת</Text>
+                  <Text style={styles.tipDesc}>
+                    טשטוש תנועה מונע מבינת ה-AI לפענח את המספר. עצור את התנועה לרגע מול המדבקה.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.tipItem}>
+                <Text style={styles.tipNumber}>4️⃣</Text>
+                <View style={styles.tipContent}>
+                  <Text style={styles.tipTitle}>מדבקה שחוקה או מטושטשת?</Text>
+                  <Text style={styles.tipDesc}>
+                    אם המדבקה פגומה, ניתן תמיד להשתמש בכפתור "הקלדה ידנית" במקום להמשיך לסרוק.
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalPrimaryBtn}
+                onPress={handleResumeScanning}
+              >
+                <Text style={styles.modalPrimaryBtnText}>🔄 הבנתי, הפעל מצלמה ונסה שוב</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSecondaryBtn}
+                onPress={() => {
+                  setShowScanGuideModal(false);
+                  setCurrentStep('manual_entry');
+                }}
+              >
+                <Text style={styles.modalSecondaryBtnText}>⌨️ מעבר להזנה ידנית</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1473,5 +1603,114 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'right',
     lineHeight: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '85%',
+    padding: 20,
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+    paddingBottom: 14,
+  },
+  modalIcon: {
+    fontSize: 40,
+    marginBottom: 8,
+  },
+  modalTitle: {
+    color: '#f8fafc',
+    fontSize: 19,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: '#f59e0b',
+    fontSize: 13,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  modalBody: {
+    marginBottom: 16,
+  },
+  tipItem: {
+    flexDirection: 'row-reverse',
+    alignItems: 'flex-start',
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderRightWidth: 3,
+    borderRightColor: '#38bdf8',
+  },
+  tipNumber: {
+    fontSize: 20,
+    marginLeft: 10,
+    marginTop: 2,
+  },
+  tipContent: {
+    flex: 1,
+  },
+  tipTitle: {
+    color: '#38bdf8',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginBottom: 4,
+  },
+  tipDesc: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'right',
+  },
+  modalActions: {
+    gap: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#1e293b',
+  },
+  modalPrimaryBtn: {
+    backgroundColor: '#0284c7',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalPrimaryBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  modalSecondaryBtn: {
+    backgroundColor: '#334155',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalSecondaryBtnText: {
+    color: '#cbd5e1',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
