@@ -1,4 +1,5 @@
-﻿export const SERVER_URL = 'http://localhost:4000'; // or local network IP for physical device
+const host = typeof window !== 'undefined' && window.location?.hostname ? window.location.hostname : '192.168.1.11';
+export const SERVER_URL = `http://${host}:4000`;
 
 export async function fetchRooms() {
   const res = await fetch(`${SERVER_URL}/api/inventory/rooms`);

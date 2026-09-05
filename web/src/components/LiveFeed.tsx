@@ -1,5 +1,6 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Activity, Radio, CheckCircle, AlertTriangle } from 'lucide-react';
+import { WS_URL } from '../config';
 
 interface ScanEvent {
   observationId: string;
@@ -20,7 +21,7 @@ export const LiveFeed: React.FC = () => {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:4000/ws');
+    const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);

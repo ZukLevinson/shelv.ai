@@ -1,4 +1,4 @@
-﻿import xlsx from 'xlsx';
+import xlsx from 'xlsx';
 import { db } from '../db/database.js';
 
 export interface ImportResult {
@@ -21,7 +21,6 @@ export function importOfficialInventoryFromExcel(buffer: Buffer): ImportResult {
   const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name) VALUES (?, ?)');
   
   const findRoomByNameOrCode = db.prepare('SELECT id, holder_id FROM rooms WHERE name = ? COLLATE NOCASE OR code = ? COLLATE NOCASE');
-  const insertRoom = db.prepare('INSERT INTO rooms (id, name, code, holder_id) VALUES (?, ?, ?, ?)');
 
   const findItemBySN = db.prepare('SELECT id FROM official_inventory WHERE serial_number = ?');
   const insertItem = db.prepare(`
@@ -59,7 +58,16 @@ export function importOfficialInventoryFromExcel(buffer: Buffer): ImportResult {
         continue;
       }
 
-      let holderId = '';
+      // Room must be created in the dashboard beforehand, not via Excel
+      const roomRecord = findRoomByNameOrCode.get(roomName, roomName) as any;
+      if (!roomRecord) {
+        errors.push(`שורה ${rowIdx}: החדר "${roomName}" אינו קיים במערכת. יש להגדיר חדרים בדשבורד לפני ייבוא אקסל.`);
+        continue;
+      }
+
+      const roomId = roomRecord.id;
+      let holderId = roomRecord.holder_id;
+
       if (holderName) {
         const holderRecord = findHolderByName.get(holderName) as any;
         if (holderRecord) {
@@ -68,21 +76,6 @@ export function importOfficialInventoryFromExcel(buffer: Buffer): ImportResult {
           holderId = 'holder-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
           insertHolder.run(holderId, holderName);
         }
-      }
-
-      let roomId = '';
-      const roomRecord = findRoomByNameOrCode.get(roomName, roomName) as any;
-      if (roomRecord) {
-        roomId = roomRecord.id;
-        if (!holderId) holderId = roomRecord.holder_id;
-      } else {
-        roomId = 'room-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-        const code = roomName.replace(/\s+/g, '-').toUpperCase();
-        if (!holderId) {
-          const defaultHolder = db.prepare('SELECT id FROM inventory_holders LIMIT 1').get() as any;
-          holderId = defaultHolder ? defaultHolder.id : 'holder-default';
-        }
-        insertRoom.run(roomId, roomName, code, holderId);
       }
 
       const existing = findItemBySN.get(sn) as any;

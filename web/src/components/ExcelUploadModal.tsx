@@ -1,6 +1,7 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { UploadCloud, FileSpreadsheet, X, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 interface Props {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     formData.append('file', file);
 
     try {
-      const res = await axios.post('http://localhost:4000/api/upload-excel', formData);
+      const res = await axios.post(`${API_BASE_URL}/api/upload-excel`, formData);
       setResult(res.data.result);
       setTimeout(() => {
         onSuccess();
@@ -63,6 +64,13 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
             העמודות הנדרשות: <strong>Catalog # (מסח"א)</strong>, <strong>Serial Number (S/N)</strong>, <strong>תיאור</strong>, <strong>חדר</strong>, <strong>בעל מצאי</strong>.
           </p>
 
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <span>
+              <strong>שימו לב:</strong> רשימת החדרים נוצרת ומנוהלת ישירות בדשבורד (באמצעות כפתור "ניהול והוספת חדרים"). שמות החדרים בקובץ האקסל חייבים להתאים לחדרים שהוגדרו. חדרים אינם נוצרים מאקסל.
+            </span>
+          </div>
+
           <div className="border-2 border-dashed border-gray-700 hover:border-emerald-500/50 rounded-xl p-6 text-center transition-colors">
             <input
               type="file"
@@ -83,7 +91,7 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           <div className="flex items-center justify-between text-xs text-gray-400 bg-gray-800/40 px-4 py-2.5 rounded-lg border border-gray-800">
             <span>רוצה לראות פורמט לדוגמה?</span>
             <a
-              href="http://localhost:4000/api/sample-excel"
+              href={`${API_BASE_URL}/api/sample-excel`}
               download
               className="flex items-center gap-1 text-emerald-400 hover:underline font-medium"
             >
@@ -100,9 +108,22 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
           )}
 
           {result && (
-            <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
-              <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <span>עודכן בהצלחה! נוספו {result.insertedCount} פריטים, עודכנו {result.updatedCount}.</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <span>הייבוא הסתיים: נוספו {result.insertedCount} פריטים, עודכנו {result.updatedCount}.</span>
+              </div>
+
+              {result.errors && result.errors.length > 0 && (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-3 space-y-1.5 max-h-32 overflow-y-auto text-xs text-rose-300">
+                  <div className="font-semibold text-rose-400">שגיאות בשורות שלא נקלטו ({result.errors.length}):</div>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    {result.errors.map((errStr: string, idx: number) => (
+                      <li key={idx}>{errStr}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import multer from 'multer';
@@ -46,7 +46,7 @@ app.post('/api/upload-excel', upload.single('file'), (req, res) => {
 app.get('/api/sample-excel', (req, res) => {
   try {
     const buffer = generateSampleExcelBuffer();
-    res.setHeader('Content-Disposition', 'attachment; filename="shelv_inventory_sample.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="shelv_signatures_sample.xlsx"');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buffer);
   } catch (error: any) {
@@ -54,11 +54,30 @@ app.get('/api/sample-excel', (req, res) => {
   }
 });
 
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-server.listen(PORT, () => {
-  console.log(`shelv.ai server running on http://localhost:${PORT}`);
-  console.log(`WebSocket stream available on ws://localhost:${PORT}/ws`);
+// Serve frontend static files if client build exists (production container)
+const clientBuildPath = process.env.CLIENT_BUILD_PATH || path.join(__dirname, '../../web/dist');
+if (fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+      return next();
+    }
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
+
+server.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`shelv.ai server running on port ${PORT}`);
+  console.log(`WebSocket stream available on /ws`);
 });
