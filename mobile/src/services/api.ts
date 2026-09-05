@@ -58,6 +58,13 @@ export interface GeminiSuspicions {
   hint?: string;
 }
 
+export interface GeminiFrameQualification {
+  isRelevant: boolean;
+  probability: 'high' | 'medium' | 'low';
+  elementType?: 'masha_label' | 'serial_label' | 'barcode' | 'equipment_label' | 'none';
+  hint: string;
+}
+
 export interface GeminiScanResponse {
   detected: boolean;
   masha?: string;
@@ -66,6 +73,22 @@ export interface GeminiScanResponse {
   stickerOwner?: string;
   rawText?: string;
   suspicions?: GeminiSuspicions;
+}
+
+export async function qualifyWithGemini(
+  base64Image: string,
+  targetMode?: 'masha' | 'sn' | 'both'
+): Promise<GeminiFrameQualification> {
+  const res = await fetch(`${SERVER_URL}/api/sweep/gemini-qualify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: base64Image, targetMode }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Gemini Vision qualification failed');
+  }
+  return res.json();
 }
 
 export async function scanWithGemini(base64Image: string, targetMode?: 'masha' | 'sn' | 'both'): Promise<GeminiScanResponse> {

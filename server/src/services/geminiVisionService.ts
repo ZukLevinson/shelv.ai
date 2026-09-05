@@ -5,6 +5,7 @@ const LOCATION = process.env.VERTEX_LOCATION || 'us-central1';
 
 let vertexAIInstance: VertexAI | null = null;
 let generativeModel: any = null;
+let fastQualifyModel: any = null;
 
 function getGenerativeModel() {
   if (!generativeModel) {
@@ -23,6 +24,27 @@ function getGenerativeModel() {
   return generativeModel;
 }
 
+function getFastQualifyModel() {
+  if (!fastQualifyModel) {
+    if (!vertexAIInstance) {
+      vertexAIInstance = new VertexAI({
+        project: PROJECT_ID,
+        location: LOCATION,
+      });
+    }
+    // gemini-2.5-flash with maxOutputTokens 120 for lightning-fast qualification check
+    fastQualifyModel = vertexAIInstance.getGenerativeModel({
+      model: process.env.VERTEX_FAST_MODEL || process.env.VERTEX_MODEL || 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.0,
+        maxOutputTokens: 120,
+      },
+    });
+  }
+  return fastQualifyModel;
+}
+
 export interface GeminiSuspicions {
   mashaCandidate?: string | null;
   serialCandidate?: string | null;
@@ -30,6 +52,73 @@ export interface GeminiSuspicions {
   ownerCandidate?: string | null;
   confidence?: 'high' | 'medium' | 'low' | 'none';
   hint?: string;
+}
+
+export interface GeminiFrameQualification {
+  isRelevant: boolean;
+  probability: 'high' | 'medium' | 'low';
+  elementType?: 'masha_label' | 'serial_label' | 'barcode' | 'equipment_label' | 'none';
+  hint: string;
+}
+
+export async function qualifyFrameWithGemini(
+  base64Image: string,
+  targetMode: 'masha' | 'sn' | 'both' = 'both'
+): Promise<GeminiFrameQualification> {
+  const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+  const model = getFastQualifyModel();
+
+  const prompt = `
+Task: Extremely rapid visual triage.
+Determine in <0.2s if this camera image contains a clear, in-focus IT asset sticker, barcode, or serial plate relevant to: ${targetMode}.
+Is it close enough, oriented, and focused with HIGH probability that OCR/deciphering will succeed?
+
+Return JSON ONLY:
+{
+  "isRelevant": true/false,
+  "probability": "high" | "medium" | "low",
+  "elementType": "masha_label" | "serial_label" | "barcode" | "equipment_label" | "none",
+  "hint": "short Hebrew advice max 4 words (e.g. 'קרב מצלמה', 'מדבקה זוהתה! ייצב', 'תמונה מטושטשת')"
+}
+`;
+
+  try {
+    const request = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: 'image/jpeg',
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await model.generateContent(request);
+    const textResponse = response.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textResponse) {
+      return { isRelevant: false, probability: 'low', elementType: 'none', hint: 'כוון למדבקה' };
+    }
+
+    const parsed = JSON.parse(textResponse);
+    return {
+      isRelevant: Boolean(parsed.isRelevant),
+      probability: parsed.probability || (parsed.isRelevant ? 'high' : 'low'),
+      elementType: parsed.elementType || 'none',
+      hint: parsed.hint || (parsed.isRelevant ? 'מדבקה זוהתה' : 'כוון למדבקה'),
+    };
+  } catch (err: any) {
+    console.warn('[Gemini Fast Qualify] Fallback:', err.message);
+    return { isRelevant: false, probability: 'low', elementType: 'none', hint: 'כוון למדבקה' };
+  }
 }
 
 export interface GeminiLabelInspectionResult {

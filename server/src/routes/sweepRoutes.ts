@@ -1,11 +1,27 @@
 import { Router } from 'express';
 import { recordObservation, startSweepSession, completeSweepSession } from '../services/sweepService.js';
-import { analyzeFrameWithGemini } from '../services/geminiVisionService.js';
+import { analyzeFrameWithGemini, qualifyFrameWithGemini } from '../services/geminiVisionService.js';
 import { db } from '../db/database.js';
 
 export const sweepRouter = Router();
 
-// POST /api/sweep/gemini-scan - Fast visual inspection using Gemini Vision on Vertex AI
+// POST /api/sweep/gemini-qualify - Stage 1: Ultra-fast frame relevance & scan probability check
+sweepRouter.post('/gemini-qualify', async (req, res) => {
+  const { image, targetMode } = req.body;
+  if (!image) {
+    return res.status(400).json({ error: 'image base64 string is required' });
+  }
+
+  try {
+    const result = await qualifyFrameWithGemini(image, targetMode);
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Gemini Qualify API] Error checking frame:', error);
+    res.status(500).json({ error: error.message || 'Gemini Vision qualification failed' });
+  }
+});
+
+// POST /api/sweep/gemini-scan - Stage 2: Deep visual inspection & decrypting S/N or Masha
 sweepRouter.post('/gemini-scan', async (req, res) => {
   const { image, targetMode } = req.body;
   if (!image) {

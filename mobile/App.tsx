@@ -17,9 +17,10 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
-import { fetchRooms, submitScan, lookupItem, scanWithGemini, GeminiSuspicions } from './src/services/api';
+import { fetchRooms, submitScan, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification } from './src/services/api';
 
 type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'manual_entry' | 'summary';
+export type ScanPipelineStage = 'idle' | 'searching' | 'qualified' | 'deciphering' | 'success';
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState<Step>('select_room');
@@ -35,6 +36,8 @@ export default function App() {
   const [scanningStatus, setScanningStatus] = useState<string>('סורק פעיל וממתין לברקוד...');
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [scanStage, setScanStage] = useState<ScanPipelineStage>('searching');
+  const [lastQualificationHint, setLastQualificationHint] = useState<string>('');
   const [recognizedLiveText, setRecognizedLiveText] = useState<string>('');
   const [lastOcrDiagnosis, setLastOcrDiagnosis] = useState<string>('');
   const [liveSuspicions, setLiveSuspicions] = useState<GeminiSuspicions | null>(null);
@@ -45,6 +48,7 @@ export default function App() {
   const [isProcessingFound, setIsProcessingFound] = useState(false);
   const [foundInfoText, setFoundInfoText] = useState<string>('');
   const geminiAttemptsRef = useRef(0);
+  const isDecipheringRef = useRef<boolean>(false);
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -131,6 +135,8 @@ export default function App() {
     setRecognizedLiveText('');
     setLastOcrDiagnosis('');
     setLiveSuspicions(null);
+    setScanStage('searching');
+    setLastQualificationHint('');
     setScanError(null);
     setFrozenImage(null);
     setIsProcessingFound(false);
@@ -138,6 +144,7 @@ export default function App() {
     setGeminiAttempts(0);
     geminiAttemptsRef.current = 0;
     isHandlingBarcodeRef.current = false;
+    isDecipheringRef.current = false;
   };
 
   const stopLiveOcrStream = () => {
@@ -277,8 +284,9 @@ export default function App() {
     }
   };
 
-  // Continuous Hands-Free Gemini Vision Stream Detector
-  // Runs continuously in the background whenever camera is pointed at equipment label or serial number!
+  // Two-Tier Hands-Free Gemini Vision Stream Pipeline:
+  // Tier 1 (Fast & Frequent): Rapid qualification check (~350ms) to detect if frame contains relevant sticker/barcode
+  // Tier 2 (Deep Decipher): Triggered when Tier 1 confirms high relevance/probability to decrypt S/N or Masha
   const startLiveTextStreamScanner = () => {
     stopLiveOcrStream();
     if (typeof window === 'undefined') return;
@@ -287,13 +295,22 @@ export default function App() {
     const streamCanvas = document.createElement('canvas');
     const streamCtx = streamCanvas.getContext('2d', { willReadFrequently: true });
 
+    setScanStage('searching');
+    isDecipheringRef.current = false;
+
     liveOcrIntervalRef.current = setInterval(async () => {
       const step = currentStepRef.current;
-      if ((step !== 'scan_masha' && step !== 'scan_sn') || !videoRef.current || isOcrRunningRef.current) {
+      if (
+        (step !== 'scan_masha' && step !== 'scan_sn') ||
+        !videoRef.current ||
+        isOcrRunningRef.current ||
+        isDecipheringRef.current ||
+        isHandlingBarcodeRef.current
+      ) {
         return;
       }
 
-      if (geminiAttemptsRef.current >= 10) {
+      if (geminiAttemptsRef.current >= 15) {
         stopLiveOcrStream();
         setCameraActive(false);
         setShowScanGuideModal(true);
@@ -313,14 +330,14 @@ export default function App() {
         const vw = video.videoWidth || 1280;
         const vh = video.videoHeight || 720;
 
-        // Crop centered reticle area (75% of view) for focused high-detail extraction
+        // Crop centered reticle area (75% of view)
         const cropW = Math.round(vw * 0.75);
         const cropH = Math.round(vh * 0.75);
         const cropX = Math.round((vw - cropW) / 2);
         const cropY = Math.round((vh - cropH) / 2);
 
-        // Scale to 800px width for fast upload & instant Gemini Vision inference
-        const targetW = 800;
+        // Scale down to 480px width for ultra-fast Tier 1 qualification check
+        const targetW = 480;
         const targetH = Math.round((cropH / cropW) * targetW);
 
         if (streamCanvas.width !== targetW || streamCanvas.height !== targetH) {
@@ -329,15 +346,47 @@ export default function App() {
         }
 
         streamCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
-        const base64Jpg = streamCanvas.toDataURL('image/jpeg', 0.82);
+        const fastThumbJpg = streamCanvas.toDataURL('image/jpeg', 0.65);
 
+        const targetMode = step === 'scan_sn' ? 'sn' : 'masha';
+
+        // --- STAGE 1: Ultra-Fast Frame Qualification ---
+        const qualification = await qualifyWithGemini(fastThumbJpg, targetMode);
+
+        if (currentStepRef.current !== step || isDecipheringRef.current) return;
+
+        if (qualification.hint) {
+          setLastQualificationHint(qualification.hint);
+        }
+
+        // Frame is not yet relevant or low probability -> keep searching
+        if (!qualification.isRelevant || qualification.probability === 'low') {
+          setScanStage('searching');
+          setScanningStatus(qualification.hint || (step === 'scan_sn' ? 'כוון למדבקת יצרן או ברקוד...' : 'כוון למדבקת מסח"א...'));
+          return;
+        }
+
+        // --- STAGE 2: Frame Qualified! Trigger Deep Deciphering ---
+        setScanStage('qualified');
+        isDecipheringRef.current = true;
+        setScanningStatus(`🎯 ${qualification.hint || 'מדבקה זוהתה!'} - מייצב ומפענח נתונים...`);
+
+        // Capture high-res frame (850px, quality 0.88) for accurate deep deciphering
+        const hiResW = 850;
+        const hiResH = Math.round((cropH / cropW) * hiResW);
+        streamCanvas.width = hiResW;
+        streamCanvas.height = hiResH;
+        streamCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, hiResW, hiResH);
+        const hiResJpg = streamCanvas.toDataURL('image/jpeg', 0.88);
+
+        // Advance to deciphering stage
+        setScanStage('deciphering');
         geminiAttemptsRef.current += 1;
         const attemptNum = geminiAttemptsRef.current;
         setGeminiAttempts(attemptNum);
+        setScanningStatus(`⚡ מפענח ${step === 'scan_sn' ? 'S/N (מספר סידורי)' : 'מסח"א'} בעומק (ניסיון ${attemptNum}/15)...`);
 
-        const targetMode = step === 'scan_sn' ? 'sn' : 'masha';
-        setScanningStatus(`✨ Gemini סורק (${attemptNum}/10)...`);
-        const geminiRes = await scanWithGemini(base64Jpg, targetMode);
+        const geminiRes = await scanWithGemini(hiResJpg, targetMode);
 
         if (currentStepRef.current !== step) return;
 
@@ -351,12 +400,12 @@ export default function App() {
 
         if (step === 'scan_masha') {
           if (geminiRes.masha) {
-            // Freeze the live frame immediately!
-            setFrozenImage(base64Jpg);
+            setScanStage('success');
+            setFrozenImage(hiResJpg);
             setIsProcessingFound(true);
             setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
             stopLiveOcrStream();
-            setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
+            setScanningStatus(`✨ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
             setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}`);
 
             await onMashaRecognized({
@@ -368,54 +417,52 @@ export default function App() {
             return;
           } else if (geminiRes.suspicions?.mashaCandidate) {
             setLastOcrDiagnosis(`🟡 חושד במסח"א: ${geminiRes.suspicions.mashaCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
-            if (geminiRes.suspicions.hint) {
-              setScanningStatus(`💡 ${geminiRes.suspicions.hint}`);
-            }
-          } else if (geminiRes.rawText) {
-            setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
+            setScanningStatus(geminiRes.suspicions.hint ? `💡 ${geminiRes.suspicions.hint}` : 'ייצב מצלמה מול המסח"א...');
           } else {
-            setScanningStatus(`סורק פעיל (${attemptNum}/10) - כוון למדבקה / מסח"א...`);
+            setScanningStatus(`לא נקרא מסח"א מלא (${attemptNum}/15) - קרב מעט את העדשה למספר`);
           }
         } else if (step === 'scan_sn') {
           const detectedSn = geminiRes.serialNumber || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).serialNumber : undefined);
           if (detectedSn) {
-            setFrozenImage(base64Jpg);
+            setScanStage('success');
+            setFrozenImage(hiResJpg);
             setIsProcessingFound(true);
             setFoundInfoText(`מספר סידורי (S/N): ${detectedSn}`);
             stopLiveOcrStream();
-            setScanningStatus(`⚡ נתונים זוהו! מעבד מספר סידורי: ${detectedSn}...`);
+            setScanningStatus(`✨ נתונים זוהו! מעבד מספר סידורי: ${detectedSn}...`);
             setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה S/N: ${detectedSn}`);
 
             await onSnRecognized(detectedSn);
             return;
           } else if (geminiRes.suspicions?.serialCandidate) {
             setLastOcrDiagnosis(`🟡 חושד ב-S/N: ${geminiRes.suspicions.serialCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
-            if (geminiRes.suspicions.hint) {
-              setScanningStatus(`💡 ${geminiRes.suspicions.hint}`);
-            }
-          } else if (geminiRes.rawText) {
-            setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
+            setScanningStatus(geminiRes.suspicions.hint ? `💡 ${geminiRes.suspicions.hint}` : 'ייצב מצלמה מול ה-S/N...');
           } else {
-            setScanningStatus(`סורק פעיל (${attemptNum}/10) - כוון למדבקת יצרן או ברקוד S/N...`);
+            setScanningStatus(`לא נקרא S/N מלא (${attemptNum}/15) - כוון ישירות לכיתוב S/N`);
           }
         }
 
-        // If after this attempt we hit 10 and still haven't recognized
-        if (geminiAttemptsRef.current >= 10) {
+        // Deep decipher finished but didn't extract confirmed value -> return to searching with updated feedback
+        setScanStage('searching');
+        isDecipheringRef.current = false;
+
+        if (geminiAttemptsRef.current >= 15) {
           stopLiveOcrStream();
           setCameraActive(false);
           setShowScanGuideModal(true);
           return;
         }
       } catch (streamErr: any) {
-        console.warn('Live Gemini scan tick warning:', streamErr.message);
+        console.warn('Live Gemini stream tick warning:', streamErr.message);
         const errMsg = streamErr?.message || 'שגיאה בתקשורת עם שירות הפענוח';
         setScanError(`שגיאה בפענוח: ${errMsg}`);
         setScanningStatus(`⚠️ שגיאה בפענוח: ${errMsg}`);
+        setScanStage('searching');
+        isDecipheringRef.current = false;
       } finally {
         isOcrRunningRef.current = false;
       }
-    }, 750); // Continuous live inspection every 750ms
+    }, 400); // Fast 400ms tick for qualification checks
   };
 
   const handleLiveBarcodeScanned = async (barcodeText: string) => {
@@ -888,6 +935,81 @@ export default function App() {
               </View>
             )}
 
+            {/* Multi-Stage Scan Pipeline Indicator */}
+            <View style={styles.pipelineStageCard}>
+              <View style={styles.pipelineStepsRow}>
+                {/* Stage 1: Searching */}
+                <View style={[
+                  styles.pipelineStepItem,
+                  scanStage === 'searching' && styles.pipelineStepActive,
+                  (scanStage === 'qualified' || scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepDone,
+                ]}>
+                  <Text style={styles.pipelineStepIcon}>
+                    {scanStage === 'searching' ? '🔍' : '✓'}
+                  </Text>
+                  <Text style={[
+                    styles.pipelineStepText,
+                    scanStage === 'searching' && styles.pipelineStepTextActive,
+                    (scanStage === 'qualified' || scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepTextDone,
+                  ]}>
+                    איתור
+                  </Text>
+                </View>
+
+                <View style={[
+                  styles.pipelineDivider,
+                  (scanStage === 'qualified' || scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineDividerActive
+                ]} />
+
+                {/* Stage 2: Locked / Qualified */}
+                <View style={[
+                  styles.pipelineStepItem,
+                  scanStage === 'qualified' && styles.pipelineStepActive,
+                  (scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepDone,
+                ]}>
+                  <Text style={styles.pipelineStepIcon}>
+                    {scanStage === 'qualified' ? '🎯' : (scanStage === 'deciphering' || scanStage === 'success') ? '✓' : '🎯'}
+                  </Text>
+                  <Text style={[
+                    styles.pipelineStepText,
+                    scanStage === 'qualified' && styles.pipelineStepTextActive,
+                    (scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineStepTextDone,
+                  ]}>
+                    נעילת מדבקה
+                  </Text>
+                </View>
+
+                <View style={[
+                  styles.pipelineDivider,
+                  (scanStage === 'deciphering' || scanStage === 'success') && styles.pipelineDividerActive
+                ]} />
+
+                {/* Stage 3: Deciphering */}
+                <View style={[
+                  styles.pipelineStepItem,
+                  scanStage === 'deciphering' && styles.pipelineStepActive,
+                  scanStage === 'success' && styles.pipelineStepDone,
+                ]}>
+                  <Text style={styles.pipelineStepIcon}>
+                    {scanStage === 'deciphering' ? '⚡' : scanStage === 'success' ? '✓' : '⚡'}
+                  </Text>
+                  <Text style={[
+                    styles.pipelineStepText,
+                    scanStage === 'deciphering' && styles.pipelineStepTextActive,
+                    scanStage === 'success' && styles.pipelineStepTextDone,
+                  ]}>
+                    פענוח עמוק
+                  </Text>
+                </View>
+              </View>
+
+              {lastQualificationHint && scanStage !== 'success' ? (
+                <View style={styles.stageHintRow}>
+                  <Text style={styles.stageHintText}>💬 {lastQualificationHint}</Text>
+                </View>
+              ) : null}
+            </View>
+
             {/* Processing Overlay when Gemini finds something */}
             {isProcessingFound ? (
               <View style={styles.processingOverlay}>
@@ -905,10 +1027,18 @@ export default function App() {
                 </View>
               </View>
             ) : (
-              /* Viewfinder Reticle Overlay */
+              /* Viewfinder Reticle Overlay with dynamic color according to scanStage */
               <View style={styles.reticleOverlay} pointerEvents="none">
-                <View style={styles.reticle} />
-                <View style={styles.scanLaser} />
+                <View style={[
+                  styles.reticle,
+                  scanStage === 'qualified' && styles.reticleQualified,
+                  scanStage === 'deciphering' && styles.reticleDeciphering,
+                ]} />
+                <View style={[
+                  styles.scanLaser,
+                  scanStage === 'qualified' && { backgroundColor: '#f59e0b' },
+                  scanStage === 'deciphering' && { backgroundColor: '#38bdf8' },
+                ]} />
               </View>
             )}
 
@@ -1661,6 +1791,77 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 13,
   },
+  pipelineStageCard: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    zIndex: 12,
+  },
+  pipelineStepsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pipelineStepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(51, 65, 85, 0.4)',
+  },
+  pipelineStepActive: {
+    backgroundColor: 'rgba(14, 165, 233, 0.25)',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+  },
+  pipelineStepDone: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  },
+  pipelineStepIcon: {
+    fontSize: 12,
+  },
+  pipelineStepText: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  pipelineStepTextActive: {
+    color: '#38bdf8',
+    fontWeight: 'bold',
+  },
+  pipelineStepTextDone: {
+    color: '#34d399',
+  },
+  pipelineDivider: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#334155',
+    marginHorizontal: 4,
+  },
+  pipelineDividerActive: {
+    backgroundColor: '#10b981',
+  },
+  stageHintRow: {
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#1e293b',
+    alignItems: 'center',
+  },
+  stageHintText: {
+    fontSize: 11,
+    color: '#fbbf24',
+    fontWeight: '500',
+  },
   reticleOverlay: {
     position: 'absolute',
     top: 0,
@@ -1679,6 +1880,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(16, 185, 129, 0.03)',
   },
+  reticleQualified: {
+    borderColor: '#f59e0b',
+    borderWidth: 3,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+  },
+  reticleDeciphering: {
+    borderColor: '#38bdf8',
+    borderWidth: 3,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+  },
   scanLaser: {
     position: 'absolute',
     width: '70%',
@@ -1689,7 +1900,7 @@ const styles = StyleSheet.create({
   },
   geminiSuspicionHud: {
     position: 'absolute',
-    top: 12,
+    top: 66,
     left: 12,
     right: 12,
     backgroundColor: 'rgba(15, 23, 42, 0.92)',
