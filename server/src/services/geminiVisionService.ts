@@ -13,7 +13,7 @@ function getGenerativeModel() {
       location: LOCATION,
     });
     generativeModel = vertexAIInstance.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: process.env.VERTEX_MODEL || 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,
