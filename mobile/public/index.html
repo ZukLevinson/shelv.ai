@@ -12,22 +12,32 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="shelv.ai" />
-    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <!-- The `react-native-web` recommended style reset + Safari WebKit compatibility fixes -->
     <style id="expo-reset">
-      /* These styles make the body full-height */
+      /* These styles make the body full-height across Safari / WebKit and Android */
       html,
       body {
         height: 100%;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        width: 100%;
         background-color: #090d16;
+        margin: 0;
+        padding: 0;
+        -webkit-text-size-adjust: 100%;
       }
-      /* These styles disable body scrolling if you are using <ScrollView> */
+      /* Ensure proper container stretching and scrolling behavior */
       body {
-        overflow: hidden;
+        overflow-x: hidden;
       }
-      /* These styles make the root element full-height */
+      /* These styles make the root element full-height on iOS Safari */
       #root {
         display: flex;
+        flex-direction: column;
         height: 100%;
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        width: 100%;
         flex: 1;
       }
     </style>

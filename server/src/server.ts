@@ -87,6 +87,12 @@ app.get('/health', (req, res) => {
 const mobileBuildPath = process.env.MOBILE_BUILD_PATH || path.join(__dirname, '../../mobile/dist');
 if (fs.existsSync(mobileBuildPath)) {
   console.log(`[Static] Mounting mobile PWA at /scanner from ${mobileBuildPath}`);
+  
+  // Ensure Safari resolves relative base paths and worker/manifest assets correctly
+  app.get('/scanner', (req, res) => {
+    res.redirect(301, '/scanner/');
+  });
+
   app.use('/scanner', express.static(mobileBuildPath));
   // Expo Metro bundles reference /_expo/static/... directly
   app.use('/_expo', express.static(path.join(mobileBuildPath, '_expo')));

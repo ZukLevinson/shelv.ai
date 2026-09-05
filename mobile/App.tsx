@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -21,6 +21,7 @@ export default function App() {
   const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
   const [sweeperName, setSweeperName] = useState('עובד סריקה');
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -42,10 +43,12 @@ export default function App() {
   const loadRooms = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const data = await fetchRooms();
-      setRooms(data);
-    } catch (err) {
+      setRooms(Array.isArray(data) ? data : []);
+    } catch (err: any) {
       console.log('Error loading rooms', err);
+      setLoadError(err.message || 'שגיאת תקשורת עם השרת');
     } finally {
       setLoading(false);
     }
@@ -173,6 +176,18 @@ export default function App() {
           <Text style={styles.sectionTitle}>בחר חדר לסריקת מלאי (Sweep):</Text>
           {loading ? (
             <ActivityIndicator size="large" color="#10b981" />
+          ) : loadError ? (
+            <View style={[styles.card, { borderColor: '#ef4444' }]}>
+              <Text style={[styles.label, { color: '#f87171', textAlign: 'center' }]}>
+                {loadError}
+              </Text>
+              <TouchableOpacity
+                style={[styles.simButton, { backgroundColor: '#10b981', marginTop: 10 }]}
+                onPress={loadRooms}
+              >
+                <Text style={styles.simButtonText}>🔄 נסה שוב</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             rooms.map((room) => (
               <TouchableOpacity
@@ -349,6 +364,8 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    minHeight: '100%',
     backgroundColor: '#0b0f19',
   },
   header: {

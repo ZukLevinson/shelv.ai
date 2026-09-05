@@ -167,7 +167,7 @@ export function App() {
           </button>
 
           <a
-            href="/scanner"
+            href="/scanner/"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all"
