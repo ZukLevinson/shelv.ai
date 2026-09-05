@@ -5,6 +5,10 @@ dist
 *.db
 *.db-shm
 *.db-wal
-mobile
+mobile/node_modules
+mobile/.expo
+mobile/dist
+web/node_modules
+server/node_modules
 .env*
 npm-debug.log*
