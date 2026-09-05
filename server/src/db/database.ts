@@ -113,7 +113,7 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS masha_registry (
       masha TEXT PRIMARY KEY,
       name TEXT,
-      category TEXT DEFAULT 'PC',
+      category TEXT DEFAULT 'Regular Workstation',
       description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -213,5 +213,13 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[DB] Migration error for sweep_observations schema:', err);
+  }
+
+  // Ensure legacy 'PC' categories are migrated to 'Regular Workstation'
+  try {
+    db.exec("UPDATE masha_registry SET category = 'Regular Workstation' WHERE category = 'PC'");
+    db.exec("UPDATE official_inventory SET category = 'Regular Workstation' WHERE category = 'PC'");
+  } catch (err) {
+    console.error('[DB] Migration error for PC category split:', err);
   }
 }

@@ -245,7 +245,7 @@ export default function App() {
 
       // Start appropriate scanner based on current step
       if (currentStep === 'scan_sn') {
-        // Dual mode: ZXing instant 1D/2D Barcode scanner + Continuous Gemini Vision Stream
+        // ZXing instant 1D/2D Barcode scanner; manual snapshot triggers Gemini
         const controls = await readerRef.current.decodeFromVideoElement(
           videoRef.current,
           (result, error) => {
@@ -255,7 +255,8 @@ export default function App() {
           }
         );
         controlsRef.current = controls;
-        startLiveTextStreamScanner();
+        stopLiveOcrStream();
+        setScanStage('idle');
       } else if (currentStep === 'scan_masha') {
         // Human-initiated snapshot mode: camera provides live framing; user taps snapshot button to extract with Gemini
         stopLiveOcrStream();
@@ -401,7 +402,7 @@ export default function App() {
         geminiAttemptsRef.current += 1;
         const attemptNum = geminiAttemptsRef.current;
         setGeminiAttempts(attemptNum);
-        setScanningStatus(`⚡ מפענח ${step === 'scan_sn' ? 'S/N (מספר סידורי)' : 'מסח"א'} בעומק (ניסיון ${attemptNum}/15)...`);
+        setScanningStatus(`⚡ מפענח ${step === 'scan_sn' ? 'S/N (מספר סידורי)' : 'מסח"א'} בעומק...`);
 
         const geminiRes = await scanWithGemini(hiResJpg, targetMode);
 
@@ -450,7 +451,7 @@ export default function App() {
             setLastOcrDiagnosis(`🟡 חושד במסח"א: ${geminiRes.suspicions.mashaCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
             setScanningStatus(geminiRes.suspicions.hint ? `💡 ${geminiRes.suspicions.hint}` : 'ייצב מצלמה מול המסח"א...');
           } else {
-            setScanningStatus(`לא נקרא מסח"א מלא (${attemptNum}/15) - קרב מעט את העדשה למספר`);
+            setScanningStatus('לא נקרא מסח"א מלא - קרב מעט את העדשה למספר');
           }
         } else if (step === 'scan_sn') {
           const detectedSn = geminiRes.serialNumber || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).serialNumber : undefined);
@@ -469,7 +470,7 @@ export default function App() {
             setLastOcrDiagnosis(`🟡 חושד ב-S/N: ${geminiRes.suspicions.serialCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
             setScanningStatus(geminiRes.suspicions.hint ? `💡 ${geminiRes.suspicions.hint}` : 'ייצב מצלמה מול ה-S/N...');
           } else {
-            setScanningStatus(`לא נקרא S/N מלא (${attemptNum}/15) - כוון ישירות לכיתוב S/N`);
+            setScanningStatus('לא נקרא S/N מלא - כוון ישירות לכיתוב S/N');
           }
         }
 
@@ -637,7 +638,7 @@ export default function App() {
       const attemptNum = geminiAttemptsRef.current;
       setGeminiAttempts(attemptNum);
 
-      setScanningStatus(`✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision (${attemptNum}/10)...`);
+      setScanningStatus('✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision...');
 
       const base64Jpg = sourceCanvas.toDataURL('image/jpeg', 0.88);
       const geminiRes = await scanWithGemini(base64Jpg, targetMode);
@@ -695,7 +696,7 @@ export default function App() {
           setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה S/N: ${detectedSn}`);
           await onSnRecognized(detectedSn);
         } else {
-          setScanningStatus(`לא זוהה S/N ברור (${attemptNum}/10). נסה שוב או קרב את העדשה למדבקת היצרן`);
+          setScanningStatus('לא זוהה S/N ברור. נסה שוב או קרב את העדשה למדבקת היצרן');
           setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
           if (geminiAttemptsRef.current >= 10) {
             stopLiveOcrStream();
@@ -1321,42 +1322,6 @@ export default function App() {
               </View>
             )}
 
-            {/* Real-time Gemini Suspicion HUD: Floating badge displaying active hypotheses */}
-            {!isProcessingFound && liveSuspicions && (liveSuspicions.serialCandidate || liveSuspicions.productCandidate || liveSuspicions.mashaCandidate) ? (
-              <View style={[styles.geminiSuspicionHud, { borderColor: '#3b82f6', backgroundColor: 'rgba(15, 23, 42, 0.92)' }]}>
-                <View style={styles.suspicionHeaderRow}>
-                  <View style={[
-                    styles.suspicionIndicatorDot,
-                    { backgroundColor: liveSuspicions.confidence === 'high' ? '#3b82f6' : liveSuspicions.confidence === 'medium' ? '#f59e0b' : '#38bdf8' }
-                  ]} />
-                  <Text style={[styles.suspicionTitle, { color: '#93c5fd' }]}>Gemini סורק S/N בזמן אמת</Text>
-                  {liveSuspicions.confidence ? (
-                    <Text style={[styles.suspicionConfidenceBadge, { color: '#60a5fa', borderColor: '#3b82f6' }]}>
-                      {liveSuspicions.confidence === 'high' ? 'וודאות גבוהה' : liveSuspicions.confidence === 'medium' ? 'ממקד...' : 'בבדיקה'}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {liveSuspicions.serialCandidate ? (
-                  <View style={styles.suspicionChip}>
-                    <Text style={styles.suspicionChipLabel}>S/N משוער:</Text>
-                    <Text style={[styles.suspicionChipValue, { color: '#60a5fa' }]}>{liveSuspicions.serialCandidate}</Text>
-                  </View>
-                ) : null}
-
-                {liveSuspicions.productCandidate ? (
-                  <View style={styles.suspicionChip}>
-                    <Text style={styles.suspicionChipLabel}>דגם/מוצר:</Text>
-                    <Text style={styles.suspicionChipValue} numberOfLines={1}>{liveSuspicions.productCandidate}</Text>
-                  </View>
-                ) : null}
-
-                {liveSuspicions.hint ? (
-                  <Text style={styles.suspicionHintText}>💡 {liveSuspicions.hint}</Text>
-                ) : null}
-              </View>
-            ) : null}
-
             {/* Human Snapshot Shutter Button Overlay for S/N */}
             {!isProcessingFound && !ocrLoading && (
               <View style={styles.shutterContainer}>
@@ -1430,9 +1395,6 @@ export default function App() {
                 </ScrollView>
               ) : null}
 
-              <Text style={styles.ocrInspectionTip}>
-                💡 כוון את המצלמה למדבקת המספר הסידורי (Serial No. / S/N / SN) או השתמש בצילום HD.
-              </Text>
             </View>
           ) : null}
 
