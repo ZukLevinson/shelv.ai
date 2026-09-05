@@ -194,7 +194,7 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
 
   // Metrics derived from current list
   const metrics = useMemo(() => {
-    const uniqueItems = new Set(scans.map((s) => s.serial_number)).size;
+    const uniqueItems = new Set(scans.map((s) => s.serial_number || `${s.masha}::${s.id}`)).size;
     const uniqueScanners = new Set(scans.map((s) => s.scanned_by)).size;
     const mismatches = scans.filter((s) => s.scan_status === 'mismatch').length;
     const unregistered = scans.filter((s) => s.scan_status === 'unregistered').length;
@@ -497,18 +497,26 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                               {scan.item_description}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 font-mono text-[11px]">
-                              <button
-                                onClick={() => openInvestigation(scan.serial_number)}
-                                className="text-emerald-400 hover:underline hover:text-emerald-300 font-bold"
-                                title="לחץ לתחקור מלא של המספר הסידורי"
-                              >
-                                S/N: {scan.serial_number}
-                              </button>
-                              {scan.masha && (
-                                <span className="text-gray-400 bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800">
-                                  מסח"א: {scan.masha}
-                                </span>
+                              {scan.serial_number ? (
+                                <button
+                                  onClick={() => openInvestigation(scan.serial_number!)}
+                                  className="text-emerald-400 hover:underline hover:text-emerald-300 font-bold"
+                                  title="לחץ לתחקור מלא של המספר הסידורי"
+                                >
+                                  S/N: {scan.serial_number}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => openInvestigation(scan.masha)}
+                                  className="text-gray-400 hover:underline hover:text-gray-300 font-medium"
+                                  title="פריט ללא מספר סידורי - לחץ לתחקור לפי מסח&quot;א"
+                                >
+                                  ללא S/N
+                                </button>
                               )}
+                              <span className="text-emerald-400 bg-gray-950 px-1.5 py-0.5 rounded border border-emerald-900/50 font-bold">
+                                מסח"א: {scan.masha}
+                              </span>
                             </div>
                             {scan.sticker_owner_text && (
                               <div className="text-[10px] text-amber-300/80 mt-0.5">
@@ -577,14 +585,14 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                       <td className="py-3.5 px-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
-                            onClick={() => openInvestigation(scan.serial_number)}
+                            onClick={() => openInvestigation(scan.serial_number || scan.masha)}
                             className="p-1.5 rounded-lg bg-gray-800 hover:bg-emerald-500/20 text-gray-300 hover:text-emerald-300 transition-colors"
                             title="תחקור היסטוריית פריט"
                           >
                             <History className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteScan(scan.id, scan.serial_number)}
+                            onClick={() => handleDeleteScan(scan.id, scan.serial_number || scan.masha)}
                             disabled={deletingId === scan.id}
                             className="p-1.5 rounded-lg bg-gray-800 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 transition-colors disabled:opacity-50"
                             title="מחק רשומת סריקה זו"

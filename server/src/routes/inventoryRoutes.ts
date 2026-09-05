@@ -288,11 +288,16 @@ inventoryRouter.get('/items', (req, res) => {
     FROM sweep_observations o
     JOIN rooms r ON o.room_id = r.id
     JOIN inventory_holders h ON r.holder_id = h.id
-    LEFT JOIN official_inventory i ON o.serial_number = i.serial_number
+    LEFT JOIN official_inventory i ON (
+      (o.serial_number IS NOT NULL AND o.serial_number != '' AND o.serial_number = i.serial_number)
+      OR
+      ((o.serial_number IS NULL OR o.serial_number = '') AND o.masha = i.masha)
+    )
     LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
     WHERE o.id = (
       SELECT sub.id FROM sweep_observations sub
-      WHERE sub.serial_number = o.serial_number
+      WHERE (sub.serial_number IS NOT NULL AND sub.serial_number = o.serial_number)
+         OR ((sub.serial_number IS NULL OR sub.serial_number = '') AND (o.serial_number IS NULL OR o.serial_number = '') AND sub.masha = o.masha AND sub.room_id = o.room_id)
       ORDER BY sub.scanned_at DESC LIMIT 1
     )
   `;

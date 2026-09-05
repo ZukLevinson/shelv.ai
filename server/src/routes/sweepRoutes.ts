@@ -7,13 +7,13 @@ export const sweepRouter = Router();
 
 // POST /api/sweep/gemini-scan - Fast visual inspection using Gemini Vision on Vertex AI
 sweepRouter.post('/gemini-scan', async (req, res) => {
-  const { image } = req.body;
+  const { image, targetMode } = req.body;
   if (!image) {
     return res.status(400).json({ error: 'image base64 string is required' });
   }
 
   try {
-    const result = await analyzeFrameWithGemini(image);
+    const result = await analyzeFrameWithGemini(image, targetMode);
     res.json(result);
   } catch (error: any) {
     console.error('[Gemini Scan API] Error analyzing frame:', error);
@@ -24,16 +24,16 @@ sweepRouter.post('/gemini-scan', async (req, res) => {
 sweepRouter.post('/scan', (req, res) => {
   const { sweepId, roomId, serialNumber, masha, scannedBy, stickerOwnerText, productNameDetected } = req.body;
 
-  if (!roomId || !serialNumber || !scannedBy) {
-    return res.status(400).json({ error: 'roomId, serialNumber, and scannedBy are required' });
+  if (!roomId || !masha || !scannedBy) {
+    return res.status(400).json({ error: 'roomId, masha, and scannedBy are required' });
   }
 
   try {
     const result = recordObservation({
       sweepId,
       roomId,
-      serialNumber,
-      masha,
+      masha: String(masha).trim(),
+      serialNumber: serialNumber ? String(serialNumber).trim() : null,
       scannedBy,
       stickerOwnerText,
       productNameDetected
@@ -126,14 +126,18 @@ sweepRouter.get('/scans', (req, res) => {
         COALESCE(m.name, i.description, o.product_name_detected, 'פריט') as item_description,
         COALESCE(m.category, i.category, 'PC') as category,
         CASE
-          WHEN i.serial_number IS NULL THEN 'unregistered'
+          WHEN i.id IS NULL THEN 'unregistered'
           WHEN i.holder_id != r.holder_id THEN 'mismatch'
           ELSE 'matched'
         END as scan_status
       FROM sweep_observations o
       JOIN rooms r ON o.room_id = r.id
       JOIN inventory_holders h ON r.holder_id = h.id
-      LEFT JOIN official_inventory i ON o.serial_number = i.serial_number
+      LEFT JOIN official_inventory i ON (
+        (o.serial_number IS NOT NULL AND o.serial_number != '' AND o.serial_number = i.serial_number)
+        OR
+        ((o.serial_number IS NULL OR o.serial_number = '') AND o.masha = i.masha)
+      )
       LEFT JOIN rooms off_r ON i.room_id = off_r.id
       LEFT JOIN inventory_holders off_h ON i.holder_id = off_h.id
       LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
@@ -176,7 +180,7 @@ sweepRouter.get('/scans', (req, res) => {
     }
 
     if (mismatchOnly === 'true' || mismatchOnly === '1') {
-      sql += ` AND (i.serial_number IS NULL OR i.holder_id != r.holder_id)`;
+      sql += ` AND (i.id IS NULL OR i.holder_id != r.holder_id)`;
     }
 
     // Clone query for counting total matching records
@@ -206,7 +210,7 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
   const cleanSN = serialNumber.trim().toUpperCase();
 
   try {
-    const officialItem = db.prepare(`
+    let officialItem = db.prepare(`
       SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name,
              m.name as masha_name, m.category as masha_category, m.description as masha_description
       FROM official_inventory i
@@ -216,14 +220,27 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
       WHERE i.serial_number = ?
     `).get(cleanSN) as any;
 
+    if (!officialItem) {
+      officialItem = db.prepare(`
+        SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name,
+               m.name as masha_name, m.category as masha_category, m.description as masha_description
+        FROM official_inventory i
+        LEFT JOIN rooms r ON i.room_id = r.id
+        JOIN inventory_holders h ON i.holder_id = h.id
+        LEFT JOIN masha_registry m ON i.masha = m.masha
+        WHERE i.masha = ?
+        LIMIT 1
+      `).get(cleanSN) as any;
+    }
+
     const observations = db.prepare(`
       SELECT o.*, r.name as room_name, r.code as room_code, h.name as holder_name
       FROM sweep_observations o
       JOIN rooms r ON o.room_id = r.id
       JOIN inventory_holders h ON r.holder_id = h.id
-      WHERE o.serial_number = ?
+      WHERE o.serial_number = ? OR o.masha = ?
       ORDER BY o.scanned_at DESC
-    `).all(cleanSN);
+    `).all(cleanSN, cleanSN);
 
     const resolutions = db.prepare(`
       SELECT ar.*, 

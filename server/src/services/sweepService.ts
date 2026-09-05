@@ -5,29 +5,38 @@ import { detectAnomalies } from './anomalyService.js';
 export interface RecordScanInput {
   sweepId?: string;
   roomId: string;
-  serialNumber: string;
-  masha?: string;
+  masha: string;
+  serialNumber?: string | null;
   scannedBy: string;
   stickerOwnerText?: string;
   productNameDetected?: string;
 }
 
 export function recordObservation(input: RecordScanInput) {
-  const cleanSN = input.serialNumber.trim().toUpperCase();
-  const cleanMasha = input.masha ? input.masha.trim() : null;
+  const cleanMasha = (input.masha || '').trim();
+  if (!cleanMasha) {
+    throw new Error('מסח"א הוא שדה חובה');
+  }
 
-  const existingScan = db.prepare(`
-    SELECT * FROM sweep_observations
-    WHERE serial_number = ? AND room_id = ?
-    ORDER BY scanned_at DESC LIMIT 1
-  `).get(cleanSN, input.roomId) as any;
+  const cleanSN = input.serialNumber && input.serialNumber.trim() 
+    ? input.serialNumber.trim().toUpperCase() 
+    : null;
+
+  let existingScan: any = null;
+  if (cleanSN) {
+    existingScan = db.prepare(`
+      SELECT * FROM sweep_observations
+      WHERE serial_number = ? AND room_id = ?
+      ORDER BY scanned_at DESC LIMIT 1
+    `).get(cleanSN, input.roomId) as any;
+  }
 
   if (existingScan) {
     db.prepare(`
       UPDATE sweep_observations 
-      SET scanned_at = CURRENT_TIMESTAMP, scanned_by = ?
+      SET scanned_at = CURRENT_TIMESTAMP, scanned_by = ?, masha = ?
       WHERE id = ?
-    `).run(input.scannedBy, existingScan.id);
+    `).run(input.scannedBy, cleanMasha, existingScan.id);
 
     const officialItem = db.prepare(`
       SELECT i.*, r.name as official_room_name, h.name as official_holder_name
@@ -52,27 +61,42 @@ export function recordObservation(input: RecordScanInput) {
   const observationId = 'obs-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
   db.prepare(`
     INSERT INTO sweep_observations (
-      id, sweep_id, room_id, serial_number, masha, scanned_by, sticker_owner_text, product_name_detected
+      id, sweep_id, room_id, masha, serial_number, scanned_by, sticker_owner_text, product_name_detected
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     observationId,
     input.sweepId || null,
     input.roomId,
-    cleanSN,
     cleanMasha,
+    cleanSN,
     input.scannedBy,
     input.stickerOwnerText || null,
     input.productNameDetected || null
   );
 
-  const officialItem = db.prepare(`
-    SELECT i.*, r.name as official_room_name, r.id as official_room_id,
-           h.name as official_holder_name, h.id as official_holder_id
-    FROM official_inventory i
-    LEFT JOIN rooms r ON i.room_id = r.id
-    JOIN inventory_holders h ON i.holder_id = h.id
-    WHERE i.serial_number = ?
-  `).get(cleanSN) as any;
+  let officialItem: any = null;
+  if (cleanSN) {
+    officialItem = db.prepare(`
+      SELECT i.*, r.name as official_room_name, r.id as official_room_id,
+             h.name as official_holder_name, h.id as official_holder_id
+      FROM official_inventory i
+      LEFT JOIN rooms r ON i.room_id = r.id
+      JOIN inventory_holders h ON i.holder_id = h.id
+      WHERE i.serial_number = ?
+    `).get(cleanSN) as any;
+  }
+
+  if (!officialItem) {
+    officialItem = db.prepare(`
+      SELECT i.*, r.name as official_room_name, r.id as official_room_id,
+             h.name as official_holder_name, h.id as official_holder_id
+      FROM official_inventory i
+      LEFT JOIN rooms r ON i.room_id = r.id
+      JOIN inventory_holders h ON i.holder_id = h.id
+      WHERE i.masha = ?
+      LIMIT 1
+    `).get(cleanMasha) as any;
+  }
 
   const scannedRoom = db.prepare(`
     SELECT r.*, h.name as holder_name FROM rooms r

@@ -63,7 +63,7 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS official_inventory (
       id TEXT PRIMARY KEY,
       masha TEXT NOT NULL,
-      serial_number TEXT UNIQUE NOT NULL,
+      serial_number TEXT UNIQUE,
       description TEXT NOT NULL,
       category TEXT NOT NULL,
       room_id TEXT,
@@ -88,8 +88,8 @@ export function initDatabase() {
       id TEXT PRIMARY KEY,
       sweep_id TEXT,
       room_id TEXT NOT NULL,
-      serial_number TEXT NOT NULL,
-      masha TEXT,
+      masha TEXT NOT NULL,
+      serial_number TEXT,
       scanned_by TEXT NOT NULL,
       sticker_owner_text TEXT,
       product_name_detected TEXT,
@@ -130,17 +130,18 @@ export function initDatabase() {
     console.error('[DB] Migration error for personal_number:', err);
   }
 
-  // Ensure room_id is nullable in official_inventory for existing databases
+  // Ensure serial_number is nullable and masha is NOT NULL in official_inventory for existing databases
   try {
     const officialInfo = db.prepare("PRAGMA table_info(official_inventory)").all() as Array<{ name: string; notnull: number }>;
+    const snCol = officialInfo.find(c => c.name === 'serial_number');
     const roomCol = officialInfo.find(c => c.name === 'room_id');
-    if (roomCol && roomCol.notnull === 1) {
+    if ((snCol && snCol.notnull === 1) || (roomCol && roomCol.notnull === 1)) {
       db.exec(`
         PRAGMA foreign_keys = OFF;
         CREATE TABLE official_inventory_temp (
           id TEXT PRIMARY KEY,
           masha TEXT NOT NULL,
-          serial_number TEXT UNIQUE NOT NULL,
+          serial_number TEXT UNIQUE,
           description TEXT NOT NULL,
           category TEXT NOT NULL,
           room_id TEXT,
@@ -150,13 +151,48 @@ export function initDatabase() {
           FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
           FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE CASCADE
         );
-        INSERT INTO official_inventory_temp SELECT * FROM official_inventory;
+        INSERT INTO official_inventory_temp (id, masha, serial_number, description, category, room_id, holder_id, created_at, updated_at)
+        SELECT id, masha, serial_number, description, category, room_id, holder_id, created_at, updated_at FROM official_inventory;
         DROP TABLE official_inventory;
         ALTER TABLE official_inventory_temp RENAME TO official_inventory;
         PRAGMA foreign_keys = ON;
       `);
     }
   } catch (err) {
-    console.error('[DB] Migration error for official_inventory nullable room_id:', err);
+    console.error('[DB] Migration error for official_inventory schema:', err);
+  }
+
+  // Ensure sweep_observations has nullable serial_number and NOT NULL masha for existing databases
+  try {
+    const sweepObsInfo = db.prepare("PRAGMA table_info(sweep_observations)").all() as Array<{ name: string; notnull: number }>;
+    const snObsCol = sweepObsInfo.find(c => c.name === 'serial_number');
+    const mashaObsCol = sweepObsInfo.find(c => c.name === 'masha');
+    if ((snObsCol && snObsCol.notnull === 1) || (mashaObsCol && mashaObsCol.notnull === 0)) {
+      // First update any legacy null masha rows to a placeholder before enforcing NOT NULL
+      db.exec("UPDATE sweep_observations SET masha = '0000000' WHERE masha IS NULL OR masha = ''");
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE sweep_observations_temp (
+          id TEXT PRIMARY KEY,
+          sweep_id TEXT,
+          room_id TEXT NOT NULL,
+          masha TEXT NOT NULL,
+          serial_number TEXT,
+          scanned_by TEXT NOT NULL,
+          sticker_owner_text TEXT,
+          product_name_detected TEXT,
+          scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (sweep_id) REFERENCES sweep_sessions(id) ON DELETE SET NULL,
+          FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+        );
+        INSERT INTO sweep_observations_temp (id, sweep_id, room_id, masha, serial_number, scanned_by, sticker_owner_text, product_name_detected, scanned_at)
+        SELECT id, sweep_id, room_id, COALESCE(NULLIF(masha, ''), '0000000'), serial_number, scanned_by, sticker_owner_text, product_name_detected, scanned_at FROM sweep_observations;
+        DROP TABLE sweep_observations;
+        ALTER TABLE sweep_observations_temp RENAME TO sweep_observations;
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for sweep_observations schema:', err);
   }
 }

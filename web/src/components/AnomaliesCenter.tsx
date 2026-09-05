@@ -114,14 +114,14 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {unauthorizedTransfers.map((item) => (
-                    <tr key={item.serialNumber} className="hover:bg-gray-800/30 transition-colors">
+                  {unauthorizedTransfers.map((item, idx) => (
+                    <tr key={item.serialNumber || `${item.masha}-${idx}`} className="hover:bg-gray-800/30 transition-colors">
                       <td className="py-4 pr-2">
                         <div className="font-semibold text-white">{item.mashaName}</div>
                         <div className="text-xs font-mono text-emerald-400">מסח\"א: {item.masha}</div>
                       </td>
                       <td className="py-4 font-mono text-xs text-gray-300">
-                        {item.serialNumber}
+                        {item.serialNumber || <span className="text-gray-500 italic">ללא S/N</span>}
                       </td>
                       <td className="py-4 text-xs">
                         <div className="flex items-center gap-1 text-white font-medium">
@@ -143,14 +143,18 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                         <div className="text-[10px] text-gray-500">{new Date(item.scannedAt).toLocaleTimeString('he-IL')}</div>
                       </td>
                       <td className="py-4 pl-2 text-left">
-                        <button
-                          onClick={() => handleApproveTransfer(item.serialNumber, item.scannedHolderId)}
-                          disabled={resolvingSn === item.serialNumber}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-medium transition-all"
-                        >
-                          <UserCheck className="w-3.5 h-3.5" />
-                          <span>העבר חתימה ל-{item.scannedHolderName}</span>
-                        </button>
+                        {item.serialNumber ? (
+                          <button
+                            onClick={() => handleApproveTransfer(item.serialNumber!, item.scannedHolderId)}
+                            disabled={resolvingSn === item.serialNumber}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-medium transition-all"
+                          >
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>העבר חתימה ל-{item.scannedHolderName}</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-500 text-xs italic">עדכון ידני לפי מסח"א</span>
+                        )}
                       </td>
                     </tr>
                   ))}

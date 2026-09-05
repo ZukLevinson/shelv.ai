@@ -22,7 +22,7 @@ export interface InventoryHolder {
 
 
 export interface OfficialItem {
-  serial_number: string;
+  serial_number?: string | null;
   masha: string;
   description: string;
   category: string;
@@ -37,7 +37,7 @@ export interface OfficialItem {
 
 export interface AnomalyReport {
   unauthorizedTransfers: Array<{
-    serialNumber: string;
+    serialNumber?: string | null;
     masha: string;
     mashaName: string;
     category: string;
@@ -83,8 +83,8 @@ export interface ScanObservation {
   id: string;
   sweep_id?: string | null;
   scanned_room_id: string;
-  serial_number: string;
-  masha?: string | null;
+  serial_number?: string | null;
+  masha: string;
   scanned_by: string;
   sticker_owner_text?: string | null;
   product_name_detected?: string | null;

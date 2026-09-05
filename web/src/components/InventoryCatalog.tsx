@@ -12,8 +12,8 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
 
   const filtered = items.filter((item) => {
     const matchesSearch =
-      item.serial_number.toLowerCase().includes(search.toLowerCase()) ||
-      item.masha.includes(search) ||
+      (item.serial_number && item.serial_number.toLowerCase().includes(search.toLowerCase())) ||
+      (item.masha && item.masha.includes(search)) ||
       (item.description || '').toLowerCase().includes(search.toLowerCase()) ||
       (item.holder_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (item.room_name || '').toLowerCase().includes(search.toLowerCase());
@@ -90,8 +90,8 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {filtered.map((item) => (
-                <tr key={item.serial_number} className="hover:bg-gray-800/30 transition-colors">
+              {filtered.map((item, idx) => (
+                <tr key={item.serial_number || `${item.masha}-${idx}`} className="hover:bg-gray-800/30 transition-colors">
                   <td className="py-3 pr-2">
                     <div className="p-2 rounded-lg bg-gray-800/50 inline-block">
                       {getCategoryIcon(item.category)}
@@ -101,11 +101,11 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
                     <div className="font-semibold text-white">{item.description}</div>
                     <div className="text-xs text-gray-500">{item.category}</div>
                   </td>
-                  <td className="py-3 font-mono text-xs text-emerald-400">
+                  <td className="py-3 font-mono text-xs text-emerald-400 font-bold">
                     {item.masha}
                   </td>
                   <td className="py-3 font-mono text-xs text-gray-300">
-                    {item.serial_number}
+                    {item.serial_number || <span className="text-gray-500 italic">ללא S/N</span>}
                   </td>
                   <td className="py-3 text-xs text-gray-300">
                     {item.room_name} ({item.room_code})

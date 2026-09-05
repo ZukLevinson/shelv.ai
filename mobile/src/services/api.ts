@@ -11,8 +11,8 @@ export async function fetchRooms() {
 export async function submitScan(payload: {
   sweepId?: string;
   roomId: string;
-  serialNumber: string;
-  masha?: string;
+  masha: string;
+  serialNumber?: string | null;
   scannedBy: string;
   stickerOwnerText?: string;
   productNameDetected?: string;
@@ -68,11 +68,11 @@ export interface GeminiScanResponse {
   suspicions?: GeminiSuspicions;
 }
 
-export async function scanWithGemini(base64Image: string): Promise<GeminiScanResponse> {
+export async function scanWithGemini(base64Image: string, targetMode?: 'masha' | 'sn' | 'both'): Promise<GeminiScanResponse> {
   const res = await fetch(`${SERVER_URL}/api/sweep/gemini-scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: base64Image }),
+    body: JSON.stringify({ image: base64Image, targetMode }),
   });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));

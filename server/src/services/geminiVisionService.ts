@@ -42,13 +42,14 @@ export interface GeminiLabelInspectionResult {
   suspicions?: GeminiSuspicions;
 }
 
-export async function analyzeFrameWithGemini(base64Image: string): Promise<GeminiLabelInspectionResult> {
+export async function analyzeFrameWithGemini(base64Image: string, targetMode: 'masha' | 'sn' | 'both' = 'both'): Promise<GeminiLabelInspectionResult> {
   const cleanBase64 = base64Image.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
   const model = getGenerativeModel();
 
   const prompt = `
 You are an expert OCR and inventory inspector scanning equipment labels and stickers in organizations (Israel / Ministry / Corporate).
 Your task is to inspect the provided image of an IT equipment sticker/barcode and extract structured inventory metadata.
+Currently, the scanner is specifically searching for: ${targetMode === 'sn' ? 'SERIAL NUMBER (S/N) of manufacturer/hardware' : targetMode === 'masha' ? 'MASHA (מסח"א / Catalog #)' : 'BOTH MASHA and SERIAL NUMBER'}.
 Even if characters are partially blurry, cut off, or not 100% confirmed, provide your best hunch/suspicions in "suspicions".
 
 Look specifically for:
@@ -57,8 +58,8 @@ Look specifically for:
    - Might follow "Catalog #", "Cat #", "מסח"א", "מק"ט", "מספר קטלוגי", or written directly in handwriting/label numbers.
    - Do NOT confuse it with phone numbers, dates, or order numbers.
 2. "serialNumber" (S/N / Serial No. / Serial # / Serial Number / מס"ד / מספר סידורי / SN):
-   - Manufacturer hardware serial number (e.g., HP/Lenovo format like 2UA..., PF..., 5CD..., or alphanumeric barcode value).
-   - Often preceded by labels like "S/N", "Serial No.", "Serial No", "Serial #", "SN:", "מספר סידורי", "מס"ד", etc.
+   - Manufacturer hardware serial number (e.g., HP/Lenovo/Dell format like 2UA..., PF..., 5CD..., CN..., or 1D/2D barcode alphanumeric value).
+   - Often preceded by labels like "S/N", "Serial No.", "Serial No", "Serial #", "SN:", "מספר סידורי", "מס"ד", or directly next to a barcode.
 3. "productDescription":
    - Hardware model / description visible on the label (e.g., "HP Elite Mini 800 G9", "Lenovo ThinkPad", "Dell OptiPlex", "מסך 24 אינץ'").
 4. "stickerOwner" (בעל מצאי / אחראי):
@@ -78,7 +79,7 @@ Return JSON only in this exact format:
     "productCandidate": "detected device or brand snippet or null",
     "ownerCandidate": "potential owner name or null",
     "confidence": "high" | "medium" | "low" | "none",
-    "hint": "short Hebrew phrase for user, e.g. 'מזהה ספרות מסח\"א, ייצב מצלמה' or 'נא לקרב למדבקה' or 'זוהתה מדבקת מחשב'"
+    "hint": "short Hebrew phrase for user, e.g. 'מזהה מספר סידורי, ייצב מצלמה' or 'מזהה ספרות מסח\"א, ייצב מצלמה' or 'כוון למדבקת יצרן S/N' or 'זוהתה מדבקת מחשב'"
   }
 }
 
@@ -96,7 +97,7 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
     "productCandidate": null,
     "ownerCandidate": null,
     "confidence": "none",
-    "hint": "כוון את המצלמה ישירות למדבקה"
+    "hint": "${targetMode === 'sn' ? 'כוון את המצלמה למדבקת היצרן או לברקוד S/N' : 'כוון את המצלמה ישירות למדבקה'}"
   }
 }
 `;
@@ -130,7 +131,7 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
   try {
     const parsed = JSON.parse(textResponse);
     return {
-      detected: Boolean(parsed.masha || parsed.serialNumber),
+      detected: Boolean(parsed.masha),
       masha: parsed.masha || undefined,
       serialNumber: parsed.serialNumber || undefined,
       productDescription: parsed.productDescription || undefined,

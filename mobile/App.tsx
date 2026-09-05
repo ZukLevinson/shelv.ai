@@ -655,37 +655,41 @@ export default function App() {
   };
 
   const handleManualSubmit = async () => {
-    if (!manualSn || !manualMasha) {
-      Alert.alert('שגיאה', 'יש למלא מספר סידורי ומסח"א');
+    if (!manualMasha || !manualMasha.trim()) {
+      Alert.alert('שגיאה', 'יש למלא מספר מסח"א (שדה חובה)');
       return;
     }
-    await handleCompleteItemScan(manualSn, manualMasha, manualDesc, '');
+    await handleCompleteItemScan(manualSn.trim() || undefined, manualMasha.trim(), manualDesc, '');
     setManualSn('');
     setManualMasha('');
     setManualDesc('');
   };
 
   const handleCompleteItemScan = async (
-    sn: string,
+    sn: string | undefined,
     masha: string,
     description: string,
     ownerText: string
   ) => {
     if (!selectedRoom) return;
+    if (!masha || !masha.trim()) {
+      Alert.alert('שגיאה', 'מסח"א הוא שדה חובה');
+      return;
+    }
 
     try {
       setLoading(true);
       const res = await submitScan({
         roomId: selectedRoom.id,
-        serialNumber: sn,
-        masha,
+        serialNumber: sn || null,
+        masha: masha.trim(),
         scannedBy: sweeperName,
         stickerOwnerText: ownerText,
         productNameDetected: description,
       });
 
       if (res.status === 'duplicate') {
-        Alert.alert('שימו לב ⚠️', `הפריט (${sn}) כבר נסרק בסריקה זו!`);
+        Alert.alert('שימו לב ⚠️', `הפריט (${sn || masha}) כבר נסרק בסריקה זו!`);
       } else {
         setScannedItemsCount(prev => prev + 1);
         setLastScannedItem(res.item);
@@ -1119,6 +1123,13 @@ export default function App() {
           <View style={styles.scannerControlsCompact}>
             <View style={styles.quickToolsRow}>
               <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#059669' }]}
+                onPress={() => handleCompleteItemScan(undefined, scannedMasha, detectedDescription, detectedOwner)}
+              >
+                <Text style={styles.quickToolBtnText}>⏩ דלג ושמור ללא S/N</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
                 onPress={() => setCurrentStep('manual_entry')}
               >
@@ -1158,22 +1169,22 @@ export default function App() {
         <ScrollView style={styles.content}>
           <Text style={styles.sectionTitle}>הזנה ידנית של פריט</Text>
           <View style={styles.card}>
-            <Text style={styles.label}>מסח"א (Catalog #):</Text>
+            <Text style={styles.label}>מסח"א (Catalog #) - חובה *:</Text>
             <TextInput
               style={styles.input}
               value={manualMasha}
               onChangeText={setManualMasha}
-              placeholder="לדוגמה: 943121160"
+              placeholder="לדוגמה: 943121160 (שדה חובה)"
               placeholderTextColor="#666"
               keyboardType="numeric"
             />
 
-            <Text style={styles.label}>מספר סידורי (S/N):</Text>
+            <Text style={styles.label}>מספר סידורי (S/N) - אופציונלי:</Text>
             <TextInput
               style={styles.input}
               value={manualSn}
               onChangeText={setManualSn}
-              placeholder="לדוגמה: 2UA80920XS"
+              placeholder="לדוגמה: 2UA80920XS (אם קיים)"
               placeholderTextColor="#666"
               autoCapitalize="characters"
             />
