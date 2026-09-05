@@ -22,7 +22,8 @@ import {
   Printer,
   Tv,
   Fingerprint,
-  Box
+  Box,
+  RotateCcw
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import type { ScanObservation, ScanInvestigationData, Room } from '../types';
@@ -52,6 +53,8 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
 
   // Deletion state
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Revert resolution state
+  const [revertingResolutionId, setRevertingResolutionId] = useState<string | null>(null);
 
   const fetchScanners = async () => {
     try {
@@ -129,6 +132,28 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
       alert('שגיאה בעת מחיקת הסריקה');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRevertResolution = async (resolutionId: string) => {
+    if (!window.confirm('האם לבטל פעולה זו? הפריט יוחזר למצבו הקודם והאישור יימחק מההיסטוריה.')) {
+      return;
+    }
+    setRevertingResolutionId(resolutionId);
+    try {
+      await axios.post(`${API_BASE_URL}/api/anomalies/revert-resolution`, {
+        resolutionId,
+        revertedBy: 'מנהל מערכת'
+      });
+      if (investigatingSN) {
+        await openInvestigation(investigatingSN);
+      }
+      fetchScans();
+    } catch (err: any) {
+      console.error('Failed to revert resolution:', err);
+      alert(err.response?.data?.error || 'שגיאה בעת ביטול הפעולה');
+    } finally {
+      setRevertingResolutionId(null);
     }
   };
 
@@ -763,17 +788,30 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                       </h4>
                       <div className="space-y-2">
                         {investigationData.resolutions.map((res) => (
-                          <div key={res.id} className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl text-xs space-y-1">
+                          <div key={res.id} className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl text-xs space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="font-bold text-emerald-300">
-                                הועבר מ-{res.from_room_name || 'חדר קודם'} ({res.from_holder_name}) ל-{res.to_room_name || 'חדר יעד'} ({res.to_holder_name})
+                                {res.from_room_name || res.from_holder_name
+                                  ? `הועבר מ-${res.from_room_name || 'חדר קודם'} (${res.from_holder_name || 'ללא בעל מצאי'}) ל-${res.to_room_name || 'חדר יעד'} (${res.to_holder_name || 'לא ידוע'})`
+                                  : `נוסף למצאי רשמי ב-${res.to_room_name || 'חדר יעד'} (${res.to_holder_name || 'לא ידוע'})`}
                               </span>
                               <span className="text-[10px] text-gray-400 font-mono">
                                 {new Date(res.resolved_at).toLocaleString('he-IL')}
                               </span>
                             </div>
-                            <div className="text-[11px] text-gray-400">
-                              אושר ונחתם ע"י: <strong className="text-gray-200">{res.resolved_by}</strong>
+                            <div className="flex items-center justify-between pt-1 border-t border-emerald-500/20">
+                              <div className="text-[11px] text-gray-400">
+                                אושר ונחתם ע"י: <strong className="text-gray-200">{res.resolved_by}</strong>
+                              </div>
+                              <button
+                                onClick={() => handleRevertResolution(res.id)}
+                                disabled={revertingResolutionId === res.id}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-all disabled:opacity-50"
+                                title="בטל פעולה זו והחזר את הפריט למצבו הקודם"
+                              >
+                                <RotateCcw className={`w-3 h-3 ${revertingResolutionId === res.id ? 'animate-spin' : ''}`} />
+                                <span>{revertingResolutionId === res.id ? 'מבטל...' : 'בטל פעולה זו'}</span>
+                              </button>
                             </div>
                           </div>
                         ))}

@@ -434,3 +434,40 @@ export function confirmInternalMove(serialNumber: string, targetRoomId: string, 
 
   return { success: true, resolutionId };
 }
+
+export function revertResolution(resolutionId: string, revertedBy: string) {
+  const resolution = db.prepare('SELECT * FROM anomaly_resolutions WHERE id = ?').get(resolutionId) as any;
+  if (!resolution) {
+    throw new Error('Resolution record not found');
+  }
+
+  const { serial_number, from_room_id, from_holder_id, to_room_id } = resolution;
+
+  // Check if item currently exists in official inventory
+  const currentItem = db.prepare('SELECT * FROM official_inventory WHERE serial_number = ?').get(serial_number) as any;
+
+  if (currentItem) {
+    if (!from_room_id && !from_holder_id) {
+      // The item was newly added during this resolution (was not in official inventory before)
+      db.prepare('DELETE FROM official_inventory WHERE serial_number = ?').run(serial_number);
+    } else {
+      // Restore previous room and holder
+      db.prepare(`
+        UPDATE official_inventory 
+        SET room_id = ?, holder_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE serial_number = ?
+      `).run(from_room_id, from_holder_id, serial_number);
+    }
+  }
+
+  // Remove the resolution record from history
+  db.prepare('DELETE FROM anomaly_resolutions WHERE id = ?').run(resolutionId);
+
+  return {
+    success: true,
+    message: 'הפעולה בוטלה בהצלחה והפריט הוחזר למצבו הקודם',
+    serialNumber: serial_number,
+    restoredRoomId: from_room_id,
+    restoredHolderId: from_holder_id
+  };
+}

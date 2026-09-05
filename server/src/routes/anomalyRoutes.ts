@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { detectAnomalies, approveTransfer, confirmInternalMove } from '../services/anomalyService.js';
+import { detectAnomalies, approveTransfer, confirmInternalMove, revertResolution } from '../services/anomalyService.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { db } from '../db/database.js';
 
@@ -67,5 +67,24 @@ anomalyRouter.post('/confirm-move', (req, res) => {
   } catch (error: any) {
     console.error('[Anomaly API] Error confirming move:', error);
     res.status(500).json({ error: error.message || 'Failed to confirm move' });
+  }
+});
+
+anomalyRouter.post('/revert-resolution', (req, res) => {
+  const { resolutionId, revertedBy } = req.body;
+  if (!resolutionId) {
+    return res.status(400).json({ error: 'resolutionId is required' });
+  }
+
+  try {
+    const user = revertedBy || 'מנהל מערכת';
+    const result = revertResolution(resolutionId, user);
+    const updatedReport = detectAnomalies();
+    broadcast('ANOMALIES_UPDATED', updatedReport);
+    broadcast('RESOLUTION_REVERTED', { resolutionId, serialNumber: result.serialNumber, revertedBy: user });
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Anomaly API] Error reverting resolution:', error);
+    res.status(500).json({ error: error.message || 'Failed to revert resolution' });
   }
 });
