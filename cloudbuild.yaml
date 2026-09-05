@@ -16,7 +16,21 @@ steps:
       - '--all-tags'
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai'
 
-  # 3. Deploy to Cloud Run with cheapest cost-optimized configuration:
+  # 3. Ensure Cloud Storage bucket for database persistence exists
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        BUCKET_NAME="shelv-ai-db-$PROJECT_ID"
+        if ! gcloud storage buckets describe "gs://$$BUCKET_NAME" >/dev/null 2>&1; then
+          echo "Creating GCS bucket $$BUCKET_NAME..."
+          gcloud storage buckets create "gs://$$BUCKET_NAME" --location=europe-west1 --uniform-bucket-level-access
+        else
+          echo "GCS bucket $$BUCKET_NAME already exists."
+        fi
+
+  # 4. Deploy to Cloud Run with cheapest cost-optimized configuration:
   #    - min-instances=0 (scales to 0 when idle = $0 cost)
   #    - max-instances=2 (caps maximum spend)
   #    - memory=512Mi (Cloud Run free tier eligible)
@@ -47,6 +61,8 @@ steps:
       - '2'
       - '--concurrency'
       - '80'
+      - '--set-env-vars'
+      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID'
 
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA'

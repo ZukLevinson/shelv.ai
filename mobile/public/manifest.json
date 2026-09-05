@@ -1,0 +1,17 @@
+﻿{
+  "short_name": "shelv.ai",
+  "name": "shelv.ai Scanner",
+  "icons": [
+    {
+      "src": "/scanner/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 any"
+    }
+  ],
+  "start_url": "/scanner/",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/scanner/"
+}

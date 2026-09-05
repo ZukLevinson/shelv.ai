@@ -11,6 +11,7 @@ export interface Room {
 export interface InventoryHolder {
   id: string;
   name: string;
+  personal_number?: string;
   email?: string;
   phone?: string;
   total_signed_items?: number;

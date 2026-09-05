@@ -5,7 +5,6 @@ import {
   Plus, 
   Edit3, 
   Trash2, 
-  Mail, 
   Phone, 
   Building2, 
   Package, 
@@ -13,7 +12,8 @@ import {
   AlertCircle, 
   X, 
   Check, 
-  UserCheck
+  UserCheck,
+  IdCard
 } from 'lucide-react';
 import axios from 'axios';
 import type { InventoryHolder, Room } from '../types';
@@ -39,7 +39,7 @@ export const HoldersManagement: React.FC<Props> = ({
 
   // Add / Edit form states
   const [formName, setFormName] = useState('');
-  const [formEmail, setFormEmail] = useState('');
+  const [formPersonalNumber, setFormPersonalNumber] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -50,12 +50,12 @@ export const HoldersManagement: React.FC<Props> = ({
     const q = search.toLowerCase().trim();
     if (!q) return true;
     const nameMatch = h.name.toLowerCase().includes(q);
-    const emailMatch = (h.email || '').toLowerCase().includes(q);
+    const personalNumberMatch = (h.personal_number || '').toLowerCase().includes(q);
     const phoneMatch = (h.phone || '').toLowerCase().includes(q);
     const roomMatch = h.rooms?.some(
       (r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q)
     );
-    return nameMatch || emailMatch || phoneMatch || roomMatch;
+    return nameMatch || personalNumberMatch || phoneMatch || roomMatch;
   });
 
   // Calculate summary stats
@@ -68,7 +68,7 @@ export const HoldersManagement: React.FC<Props> = ({
   const openCreateModal = () => {
     setEditingHolder(null);
     setFormName('');
-    setFormEmail('');
+    setFormPersonalNumber('');
     setFormPhone('');
     setFormError(null);
     setIsAddModalOpen(true);
@@ -77,7 +77,7 @@ export const HoldersManagement: React.FC<Props> = ({
   const openEditModal = (holder: InventoryHolder) => {
     setEditingHolder(holder);
     setFormName(holder.name);
-    setFormEmail(holder.email || '');
+    setFormPersonalNumber(holder.personal_number || '');
     setFormPhone(holder.phone || '');
     setFormError(null);
     setIsAddModalOpen(true);
@@ -98,7 +98,7 @@ export const HoldersManagement: React.FC<Props> = ({
         // Edit
         await axios.put(`${API_BASE_URL}/api/inventory/holders/${editingHolder.id}`, {
           name: formName.trim(),
-          email: formEmail.trim() || null,
+          personal_number: formPersonalNumber.trim() || null,
           phone: formPhone.trim() || null
         });
         setActionSuccess(`פרטי בעל המצאי "${formName.trim()}" עודכנו בהצלחה`);
@@ -106,7 +106,7 @@ export const HoldersManagement: React.FC<Props> = ({
         // Create
         await axios.post(`${API_BASE_URL}/api/inventory/holders`, {
           name: formName.trim(),
-          email: formEmail.trim() || null,
+          personal_number: formPersonalNumber.trim() || null,
           phone: formPhone.trim() || null
         });
         setActionSuccess(`בעל המצאי "${formName.trim()}" נוצר בהצלחה`);
@@ -256,7 +256,12 @@ export const HoldersManagement: React.FC<Props> = ({
               <thead>
                 <tr className="border-b border-gray-800 bg-gray-950/40 text-gray-400">
                   <th className="py-3.5 px-4 font-semibold">בעל מצאי</th>
-                  <th className="py-3.5 px-4 font-semibold">אימייל</th>
+                  <th className="py-3.5 px-4 font-semibold">
+                    <div className="flex items-center gap-1.5">
+                      <IdCard className="w-3.5 h-3.5 text-blue-400" />
+                      <span>מ"א</span>
+                    </div>
+                  </th>
                   <th className="py-3.5 px-4 font-semibold">טלפון</th>
                   <th className="py-3.5 px-4 font-semibold">
                     <div className="flex items-center justify-between gap-2">
@@ -308,20 +313,14 @@ export const HoldersManagement: React.FC<Props> = ({
                         </div>
                       </td>
 
-                      {/* Email */}
-                      <td className="py-3.5 px-4 text-gray-300">
-                        {holder.email ? (
-                          <div className="flex items-center gap-1.5">
-                            <Mail className="w-3 h-3 text-gray-500 shrink-0" />
-                            <a 
-                              href={`mailto:${holder.email}`}
-                              className="hover:text-emerald-400 hover:underline max-w-[160px] truncate"
-                            >
-                              {holder.email}
-                            </a>
-                          </div>
+                      {/* Personal Number (מ"א) */}
+                      <td className="py-3.5 px-4 text-gray-300 font-mono">
+                        {holder.personal_number ? (
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-300 font-bold tracking-wider">
+                            {holder.personal_number}
+                          </span>
                         ) : (
-                          <span className="text-gray-600 italic">לא הוזן</span>
+                          <span className="text-gray-600 italic font-sans">לא הוזן</span>
                         )}
                       </td>
 
@@ -443,15 +442,17 @@ export const HoldersManagement: React.FC<Props> = ({
               </div>
 
               <div>
-                <label className="block text-gray-300 font-medium mb-1.5">
-                  דואר אלקטרוני (Email)
+                <label className="block text-gray-300 font-medium mb-1.5 flex items-center justify-between">
+                  <span>מספר אישי (מ"א)</span>
+                  <span className="text-[10px] text-gray-500">למשל: 8888888</span>
                 </label>
                 <input
-                  type="email"
-                  placeholder="name@example.com"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                  type="text"
+                  maxLength={10}
+                  placeholder="8888888"
+                  value={formPersonalNumber}
+                  onChange={(e) => setFormPersonalNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-white placeholder-gray-500 font-mono tracking-wider focus:outline-none focus:border-emerald-500 transition-colors"
                 />
               </div>
 

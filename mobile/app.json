@@ -1,5 +1,31 @@
 {
-  "plugins": [
-    "expo-asset"
-  ]
+  "expo": {
+    "name": "shelv.ai Scanner",
+    "slug": "shelv-ai-scanner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-asset"
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "meta": {
+        "apple-mobile-web-app-capable": "yes",
+        "apple-mobile-web-app-status-bar-style": "black-translucent"
+      },
+      "manifest": {
+        "name": "shelv.ai Scanner",
+        "short_name": "shelv.ai",
+        "description": "Barcode and inventory scanner for shelv.ai",
+        "start_url": "/scanner/",
+        "scope": "/scanner/",
+        "display": "standalone",
+        "background_color": "#090d16",
+        "theme_color": "#090d16",
+        "orientation": "portrait"
+      }
+    }
+  }
 }

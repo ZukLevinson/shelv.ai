@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../shelv.db');
+export const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../shelv.db');
 const dbDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
@@ -22,6 +22,7 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS inventory_holders (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      personal_number TEXT,
       email TEXT,
       phone TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -96,6 +97,16 @@ export function initDatabase() {
     );
   `);
 
+  // Ensure personal_number column exists for existing databases
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(inventory_holders)").all() as Array<{ name: string }>;
+    if (!tableInfo.some(col => col.name === 'personal_number')) {
+      db.exec("ALTER TABLE inventory_holders ADD COLUMN personal_number TEXT");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for personal_number:', err);
+  }
+
   seedDefaultDataIfEmpty();
 }
 
@@ -104,10 +115,10 @@ function seedDefaultDataIfEmpty() {
   if (holderCount.count === 0) {
     console.log('[DB] Seeding initial holders, rooms, and official inventory...');
 
-    const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name, email, phone) VALUES (?, ?, ?, ?)');
-    insertHolder.run('holder-1', 'ניסים כהן', 'nissim@example.com', '050-1234567');
-    insertHolder.run('holder-2', 'שלום מזרחי', 'shalom@example.com', '052-7654321');
-    insertHolder.run('holder-3', 'דוד אג"ן', 'david@example.com', '054-9988776');
+    const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name, personal_number, phone) VALUES (?, ?, ?, ?)');
+    insertHolder.run('holder-1', 'ניסים כהן', '8123456', '050-1234567');
+    insertHolder.run('holder-2', 'שלום מזרחי', '8234567', '052-7654321');
+    insertHolder.run('holder-3', 'דוד אג"ן', '8345678', '054-9988776');
 
     const insertRoom = db.prepare('INSERT INTO rooms (id, name, code, holder_id) VALUES (?, ?, ?, ?)');
     insertRoom.run('room-101', 'חדר מחשבים 101', 'R-101', 'holder-1');

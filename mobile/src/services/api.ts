@@ -1,5 +1,7 @@
-const host = typeof window !== 'undefined' && window.location?.hostname ? window.location.hostname : '192.168.1.11';
-export const SERVER_URL = `http://${host}:4000`;
+const isBrowser = typeof window !== 'undefined' && Boolean(window.location?.origin);
+export const SERVER_URL = isBrowser
+  ? window.location.origin
+  : 'http://192.168.1.11:4000';
 
 export async function fetchRooms() {
   const res = await fetch(`${SERVER_URL}/api/inventory/rooms`);

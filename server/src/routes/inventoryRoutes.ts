@@ -6,7 +6,7 @@ export const inventoryRouter = Router();
 
 inventoryRouter.get('/rooms', (req, res) => {
   const rooms = db.prepare(`
-    SELECT r.*, h.name as holder_name, h.email as holder_email,
+    SELECT r.*, h.name as holder_name, h.personal_number as holder_personal_number, h.phone as holder_phone,
            (SELECT COUNT(*) FROM official_inventory i WHERE i.room_id = r.id) as total_items,
            (SELECT COUNT(DISTINCT o.serial_number) FROM sweep_observations o WHERE o.room_id = r.id) as swept_items
     FROM rooms r
@@ -169,7 +169,7 @@ inventoryRouter.get('/holders', (req, res) => {
 });
 
 inventoryRouter.post('/holders', (req, res) => {
-  const { name, email, phone } = req.body;
+  const { name, personal_number, phone } = req.body;
   const cleanName = (name || '').trim();
   if (!cleanName) {
     return res.status(400).json({ error: 'שם בעל מצאי הוא שדה חובה' });
@@ -180,19 +180,22 @@ inventoryRouter.post('/holders', (req, res) => {
     return res.json({ success: true, id: existingHolder.id, name: cleanName, existing: true });
   }
 
+  const cleanPersonalNumber = personal_number ? String(personal_number).trim() : null;
+  const cleanPhone = phone ? String(phone).trim() : null;
+
   const id = 'holder-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-  db.prepare('INSERT INTO inventory_holders (id, name, email, phone) VALUES (?, ?, ?, ?)').run(
-    id, cleanName, email ? email.trim() : null, phone ? phone.trim() : null
+  db.prepare('INSERT INTO inventory_holders (id, name, personal_number, phone) VALUES (?, ?, ?, ?)').run(
+    id, cleanName, cleanPersonalNumber, cleanPhone
   );
 
   broadcast('HOLDERS_UPDATED', { id, action: 'created', name: cleanName });
 
-  res.status(201).json({ success: true, id, name: cleanName, email: email ? email.trim() : null, phone: phone ? phone.trim() : null });
+  res.status(201).json({ success: true, id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone });
 });
 
 inventoryRouter.put('/holders/:id', (req, res) => {
   const { id } = req.params;
-  const { name, email, phone } = req.body;
+  const { name, personal_number, phone } = req.body;
 
   const existing = db.prepare('SELECT * FROM inventory_holders WHERE id = ?').get(id) as any;
   if (!existing) {
@@ -209,14 +212,14 @@ inventoryRouter.put('/holders/:id', (req, res) => {
     return res.status(400).json({ error: `שם בעל המצאי "${cleanName}" כבר קיים במערכת` });
   }
 
-  const cleanEmail = email !== undefined ? (email ? email.trim() : null) : existing.email;
-  const cleanPhone = phone !== undefined ? (phone ? phone.trim() : null) : existing.phone;
+  const cleanPersonalNumber = personal_number !== undefined ? (personal_number ? String(personal_number).trim() : null) : existing.personal_number;
+  const cleanPhone = phone !== undefined ? (phone ? String(phone).trim() : null) : existing.phone;
 
   db.prepare(`
     UPDATE inventory_holders
-    SET name = ?, email = ?, phone = ?
+    SET name = ?, personal_number = ?, phone = ?
     WHERE id = ?
-  `).run(cleanName, cleanEmail, cleanPhone, id);
+  `).run(cleanName, cleanPersonalNumber, cleanPhone, id);
 
   broadcast('HOLDERS_UPDATED', { id, action: 'updated', name: cleanName });
 

@@ -42,7 +42,7 @@ export const RoomManagementModal: React.FC<Props> = ({
   const [holderId, setHolderId] = useState('');
   const [isNewHolderMode, setIsNewHolderMode] = useState(false);
   const [newHolderName, setNewHolderName] = useState('');
-  const [newHolderEmail, setNewHolderEmail] = useState('');
+  const [newHolderPersonalNumber, setNewHolderPersonalNumber] = useState('');
   const [newHolderPhone, setNewHolderPhone] = useState('');
 
   // Editing state for an existing room
@@ -121,7 +121,7 @@ export const RoomManagementModal: React.FC<Props> = ({
       if (isNewHolderMode) {
         const holderRes = await axios.post(`${API_BASE_URL}/api/inventory/holders`, {
           name: newHolderName.trim(),
-          email: newHolderEmail.trim() || undefined,
+          personal_number: newHolderPersonalNumber.trim() || undefined,
           phone: newHolderPhone.trim() || undefined,
         });
         resolvedHolderId = holderRes.data.id;
@@ -139,7 +139,7 @@ export const RoomManagementModal: React.FC<Props> = ({
       setCode('');
       setIsNewHolderMode(false);
       setNewHolderName('');
-      setNewHolderEmail('');
+      setNewHolderPersonalNumber('');
       setNewHolderPhone('');
       onSuccess();
 
@@ -353,7 +353,7 @@ export const RoomManagementModal: React.FC<Props> = ({
                       )}
                       {holders.map((h) => (
                         <option key={h.id} value={h.id}>
-                          {h.name} {h.email ? `(${h.email})` : ''}
+                          {h.name} {h.personal_number ? `(מ"א: ${h.personal_number})` : ''}
                         </option>
                       ))}
                     </select>
@@ -374,11 +374,12 @@ export const RoomManagementModal: React.FC<Props> = ({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <input
-                        type="email"
-                        placeholder="כתובת אימייל (אופציונלי)"
-                        value={newHolderEmail}
-                        onChange={(e) => setNewHolderEmail(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                        type="text"
+                        maxLength={10}
+                        placeholder={'מספר אישי מ"א (למשל: 8888888)'}
+                        value={newHolderPersonalNumber}
+                        onChange={(e) => setNewHolderPersonalNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 font-mono focus:outline-none focus:border-emerald-500"
                       />
                       <input
                         type="tel"
