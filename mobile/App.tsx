@@ -17,7 +17,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
-import { fetchRooms, submitScan, lookupItem, scanWithGemini } from './src/services/api';
+import { fetchRooms, submitScan, lookupItem, scanWithGemini, GeminiSuspicions } from './src/services/api';
 
 type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'manual_entry' | 'summary';
 
@@ -37,6 +37,7 @@ export default function App() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [recognizedLiveText, setRecognizedLiveText] = useState<string>('');
   const [lastOcrDiagnosis, setLastOcrDiagnosis] = useState<string>('');
+  const [liveSuspicions, setLiveSuspicions] = useState<GeminiSuspicions | null>(null);
   const [geminiAttempts, setGeminiAttempts] = useState(0);
   const [showScanGuideModal, setShowScanGuideModal] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -129,6 +130,7 @@ export default function App() {
     setDetectedOwner('');
     setRecognizedLiveText('');
     setLastOcrDiagnosis('');
+    setLiveSuspicions(null);
     setScanError(null);
     setFrozenImage(null);
     setIsProcessingFound(false);
@@ -335,6 +337,10 @@ export default function App() {
 
         if (currentStepRef.current !== 'scan_masha') return;
 
+        if (geminiRes.suspicions) {
+          setLiveSuspicions(geminiRes.suspicions);
+        }
+
         if (geminiRes.rawText) {
           setRecognizedLiveText(geminiRes.rawText);
         }
@@ -355,6 +361,11 @@ export default function App() {
             serialNumber: geminiRes.serialNumber,
           });
           return;
+        } else if (geminiRes.suspicions?.mashaCandidate) {
+          setLastOcrDiagnosis(`🟡 חושד במסח"א: ${geminiRes.suspicions.mashaCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
+          if (geminiRes.suspicions.hint) {
+            setScanningStatus(`💡 ${geminiRes.suspicions.hint}`);
+          }
         } else if (geminiRes.rawText) {
           setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
         } else {
@@ -817,6 +828,49 @@ export default function App() {
                 <View style={styles.scanLaser} />
               </View>
             )}
+
+            {/* Real-time Gemini Suspicion HUD: Floating badge displaying active hypotheses */}
+            {!isProcessingFound && liveSuspicions && (liveSuspicions.mashaCandidate || liveSuspicions.productCandidate || liveSuspicions.serialCandidate) ? (
+              <View style={styles.geminiSuspicionHud}>
+                <View style={styles.suspicionHeaderRow}>
+                  <View style={[
+                    styles.suspicionIndicatorDot,
+                    { backgroundColor: liveSuspicions.confidence === 'high' ? '#10b981' : liveSuspicions.confidence === 'medium' ? '#f59e0b' : '#38bdf8' }
+                  ]} />
+                  <Text style={styles.suspicionTitle}>Gemini חושד בזמן אמת</Text>
+                  {liveSuspicions.confidence ? (
+                    <Text style={styles.suspicionConfidenceBadge}>
+                      {liveSuspicions.confidence === 'high' ? 'וודאות גבוהה' : liveSuspicions.confidence === 'medium' ? 'ממקד...' : 'בבדיקה'}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {liveSuspicions.mashaCandidate ? (
+                  <View style={styles.suspicionChip}>
+                    <Text style={styles.suspicionChipLabel}>מסח"א אפשרי:</Text>
+                    <Text style={styles.suspicionChipValue}>{liveSuspicions.mashaCandidate}</Text>
+                  </View>
+                ) : null}
+
+                {liveSuspicions.productCandidate ? (
+                  <View style={styles.suspicionChip}>
+                    <Text style={styles.suspicionChipLabel}>דגם/מוצר:</Text>
+                    <Text style={styles.suspicionChipValue} numberOfLines={1}>{liveSuspicions.productCandidate}</Text>
+                  </View>
+                ) : null}
+
+                {liveSuspicions.serialCandidate ? (
+                  <View style={styles.suspicionChip}>
+                    <Text style={styles.suspicionChipLabel}>S/N משוער:</Text>
+                    <Text style={styles.suspicionChipValue}>{liveSuspicions.serialCandidate}</Text>
+                  </View>
+                ) : null}
+
+                {liveSuspicions.hint ? (
+                  <Text style={styles.suspicionHintText}>💡 {liveSuspicions.hint}</Text>
+                ) : null}
+              </View>
+            ) : null}
 
             {/* Floating Status Pill inside camera bottom */}
             <View style={styles.floatingStatusPill}>
@@ -1490,6 +1544,81 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: '#10b981',
     opacity: 0.85,
+  },
+  geminiSuspicionHud: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    zIndex: 10,
+  },
+  suspicionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 6,
+  },
+  suspicionIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  suspicionTitle: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'right',
+  },
+  suspicionConfidenceBadge: {
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    color: '#7dd3fc',
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    borderColor: '#38bdf8',
+  },
+  suspicionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    backgroundColor: 'rgba(30, 41, 59, 0.85)',
+    borderRadius: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    marginTop: 3,
+    gap: 6,
+  },
+  suspicionChipLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  suspicionChipValue: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  suspicionHintText: {
+    color: '#fbbf24',
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: 'right',
+    fontWeight: '500',
   },
   floatingStatusPill: {
     position: 'absolute',

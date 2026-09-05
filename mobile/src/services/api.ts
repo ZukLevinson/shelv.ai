@@ -49,7 +49,26 @@ export async function completeSweepSession(sessionId: string) {
   return res.json();
 }
 
-export async function scanWithGemini(base64Image: string) {
+export interface GeminiSuspicions {
+  mashaCandidate?: string | null;
+  serialCandidate?: string | null;
+  productCandidate?: string | null;
+  ownerCandidate?: string | null;
+  confidence?: 'high' | 'medium' | 'low' | 'none';
+  hint?: string;
+}
+
+export interface GeminiScanResponse {
+  detected: boolean;
+  masha?: string;
+  serialNumber?: string;
+  productDescription?: string;
+  stickerOwner?: string;
+  rawText?: string;
+  suspicions?: GeminiSuspicions;
+}
+
+export async function scanWithGemini(base64Image: string): Promise<GeminiScanResponse> {
   const res = await fetch(`${SERVER_URL}/api/sweep/gemini-scan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

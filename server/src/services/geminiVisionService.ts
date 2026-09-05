@@ -23,6 +23,15 @@ function getGenerativeModel() {
   return generativeModel;
 }
 
+export interface GeminiSuspicions {
+  mashaCandidate?: string | null;
+  serialCandidate?: string | null;
+  productCandidate?: string | null;
+  ownerCandidate?: string | null;
+  confidence?: 'high' | 'medium' | 'low' | 'none';
+  hint?: string;
+}
+
 export interface GeminiLabelInspectionResult {
   masha?: string;
   serialNumber?: string;
@@ -30,6 +39,7 @@ export interface GeminiLabelInspectionResult {
   stickerOwner?: string;
   rawText?: string;
   detected: boolean;
+  suspicions?: GeminiSuspicions;
 }
 
 export async function analyzeFrameWithGemini(base64Image: string): Promise<GeminiLabelInspectionResult> {
@@ -39,6 +49,7 @@ export async function analyzeFrameWithGemini(base64Image: string): Promise<Gemin
   const prompt = `
 You are an expert OCR and inventory inspector scanning equipment labels and stickers in organizations (Israel / Ministry / Corporate).
 Your task is to inspect the provided image of an IT equipment sticker/barcode and extract structured inventory metadata.
+Even if characters are partially blurry, cut off, or not 100% confirmed, provide your best hunch/suspicions in "suspicions".
 
 Look specifically for:
 1. "masha" (מסח"א / מספר קטלוגי / Catalog # / מק"ט):
@@ -55,11 +66,19 @@ Look specifically for:
 Return JSON only in this exact format:
 {
   "detected": true,
-  "masha": "string digits or null",
-  "serialNumber": "string or null",
-  "productDescription": "string or null",
+  "masha": "complete string digits or null if not yet 100% clear",
+  "serialNumber": "complete string or null",
+  "productDescription": "complete string or null",
   "stickerOwner": "string or null",
-  "rawText": "brief summary of detected label text"
+  "rawText": "brief summary of detected label text",
+  "suspicions": {
+    "mashaCandidate": "partial or tentative digits if spotted (e.g. '94312...' or '943121160') or null",
+    "serialCandidate": "partial or tentative serial number or null",
+    "productCandidate": "detected device or brand snippet or null",
+    "ownerCandidate": "potential owner name or null",
+    "confidence": "high" | "medium" | "low" | "none",
+    "hint": "short Hebrew phrase for user, e.g. 'מזהה ספרות מסח\"א, ייצב מצלמה' or 'נא לקרב למדבקה' or 'זוהתה מדבקת מחשב'"
+  }
 }
 
 If no label/masha/serial is clearly visible or decipherable in this frame, return:
@@ -69,7 +88,15 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
   "serialNumber": null,
   "productDescription": null,
   "stickerOwner": null,
-  "rawText": ""
+  "rawText": "",
+  "suspicions": {
+    "mashaCandidate": null,
+    "serialCandidate": null,
+    "productCandidate": null,
+    "ownerCandidate": null,
+    "confidence": "none",
+    "hint": "כוון את המצלמה ישירות למדבקה"
+  }
 }
 `;
 
@@ -108,6 +135,7 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
       productDescription: parsed.productDescription || undefined,
       stickerOwner: parsed.stickerOwner || undefined,
       rawText: parsed.rawText || '',
+      suspicions: parsed.suspicions || undefined,
     };
   } catch (err) {
     console.error('[Gemini Vision] Failed to parse JSON response:', textResponse);
