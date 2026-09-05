@@ -641,6 +641,7 @@ export default function App() {
       setScanningStatus('✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision...');
 
       const base64Jpg = sourceCanvas.toDataURL('image/jpeg', 0.88);
+      setFrozenImage(base64Jpg);
       const geminiRes = await scanWithGemini(base64Jpg, targetMode);
 
       if (geminiRes.box_2d) {
@@ -688,6 +689,7 @@ export default function App() {
       } else if (step === 'scan_sn') {
         const detectedSn = geminiRes.serialNumber || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).serialNumber : undefined);
         if (detectedSn) {
+          setScanError(null);
           setFrozenImage(base64Jpg);
           setIsProcessingFound(true);
           setFoundInfoText(`מספר סידורי (S/N): ${detectedSn}`);
@@ -696,6 +698,7 @@ export default function App() {
           setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה S/N: ${detectedSn}`);
           await onSnRecognized(detectedSn);
         } else {
+          setScanError('לא זוהה מספר סידורי (S/N) ברור בתמונה. קרב את המצלמה למדבקת היצרן ולחץ "צלם שוב"');
           setScanningStatus('לא זוהה S/N ברור. נסה שוב או קרב את העדשה למדבקת היצרן');
           setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
           if (geminiAttemptsRef.current >= 10) {
@@ -744,6 +747,11 @@ export default function App() {
       const baseCtx = baseCanvas.getContext('2d');
       if (!baseCtx) throw new Error('Failed to get 2D context');
       baseCtx.drawImage(video, 0, 0, srcWidth, srcHeight);
+
+      // Immediately freeze the image behind so user sees the captured snapshot
+      const base64Jpg = baseCanvas.toDataURL('image/jpeg', 0.88);
+      setFrozenImage(base64Jpg);
+      setScanError(null);
 
       await processImageForOcr(baseCanvas);
     } catch (err: any) {
@@ -980,13 +988,7 @@ export default function App() {
 
           {/* Real Camera Viewfinder - Expanded to take maximum space */}
           <View style={styles.viewfinderExpanded}>
-            {frozenImage ? (
-              <Image
-                source={{ uri: frozenImage }}
-                style={styles.frozenImageStyle}
-                resizeMode="cover"
-              />
-            ) : cameraActive ? (
+            {cameraActive ? (
               <video
                 id="shelv-scanner-video"
                 ref={videoRef as any}
@@ -994,45 +996,29 @@ export default function App() {
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
+                  display: cameraActive ? 'block' : 'none',
                 } as any}
                 autoPlay
                 playsInline
                 muted
               />
-            ) : (
+            ) : !frozenImage ? (
               <View style={styles.cameraPausedView}>
                 <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
               </View>
-            )}
+            ) : null}
 
-            {/* Processing Overlay when Gemini is analyzing or found something */}
-            {isProcessingFound ? (
-              <View style={styles.processingOverlay}>
-                <View style={styles.processingModalCard}>
-                  <View style={styles.processingPulseBadge}>
-                    <ActivityIndicator size="large" color="#10b981" />
-                  </View>
-                  <Text style={styles.processingTitle}>✨ זוהה בהצלחה!</Text>
-                  <Text style={styles.processingSubtitle}>התמונה הוקפאה והנתונים נבדקים ומעובדים במערכת...</Text>
-                  {foundInfoText ? (
-                    <View style={styles.processingDetailsBox}>
-                      <Text style={styles.processingDetailsText}>{foundInfoText}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ) : ocrLoading ? (
-              <View style={styles.processingOverlay}>
-                <View style={styles.processingModalCard}>
-                  <View style={styles.processingPulseBadge}>
-                    <ActivityIndicator size="large" color="#38bdf8" />
-                  </View>
-                  <Text style={[styles.processingTitle, { color: '#38bdf8' }]}>⚡ Gemini מפענח מדבקה...</Text>
-                  <Text style={styles.processingSubtitle}>מחלץ מספר מסח"א ופרטי פריט מהתמונה שנלכדה</Text>
-                </View>
-              </View>
-            ) : (
-              /* Viewfinder Reticle Overlay */
+            {/* Frozen captured snapshot overlay - freezes the image behind */}
+            {frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={[StyleSheet.absoluteFillObject, styles.frozenImageStyle]}
+                resizeMode="cover"
+              />
+            ) : null}
+
+            {/* Viewfinder Reticle Overlay - only visible when actively aiming live camera */}
+            {!frozenImage && !ocrLoading && !isProcessingFound && (
               <View style={styles.reticleOverlay} pointerEvents="none">
                 <View style={styles.reticle} />
                 <View style={styles.scanLaser} />
@@ -1072,8 +1058,8 @@ export default function App() {
               </View>
             )}
 
-            {/* Human Snapshot Shutter Button Overlay */}
-            {!isProcessingFound && !ocrLoading && (
+            {/* Human Snapshot Shutter Button Overlay - shown when camera is live */}
+            {!isProcessingFound && !ocrLoading && !frozenImage && (
               <View style={styles.shutterContainer}>
                 <TouchableOpacity
                   style={styles.shutterButton}
@@ -1087,15 +1073,29 @@ export default function App() {
               </View>
             )}
 
-            {/* Floating Status Pill inside camera top/bottom */}
-            <View style={styles.floatingStatusPill}>
-              {ocrLoading ? (
-                <ActivityIndicator size="small" color="#34d399" style={{ marginRight: 6 }} />
-              ) : (
+            {/* Retake Button Overlay - shown when image is frozen and not processing */}
+            {!isProcessingFound && !ocrLoading && frozenImage && (
+              <View style={styles.shutterContainer}>
+                <TouchableOpacity
+                  style={[styles.shutterButton, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
+                  onPress={() => {
+                    setFrozenImage(null);
+                    setScanError(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Floating Status Pill inside camera - only when live */}
+            {!frozenImage && !ocrLoading && !isProcessingFound && (
+              <View style={styles.floatingStatusPill}>
                 <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 6 }]} />
-              )}
-              <Text style={styles.statusPillTextCompact} numberOfLines={1}>{scanningStatus}</Text>
-            </View>
+                <Text style={styles.statusPillTextCompact} numberOfLines={1}>{scanningStatus}</Text>
+              </View>
+            )}
 
             {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
@@ -1110,16 +1110,53 @@ export default function App() {
             ) : null}
           </View>
 
+          {/* Status & Processing Info Card - Converted from Modal to below the image */}
+          {isProcessingFound ? (
+            <View style={styles.processingBelowCard}>
+              <View style={styles.processingBelowHeaderRow}>
+                <ActivityIndicator size="small" color="#10b981" style={{ marginLeft: 8 }} />
+                <Text style={styles.processingBelowTitle}>✨ זוהה בהצלחה!</Text>
+              </View>
+              <Text style={styles.processingBelowSubtitle}>התמונה הוקפאה והנתונים נבדקים ומעובדים במערכת...</Text>
+              {foundInfoText ? (
+                <View style={styles.processingBelowDetailsBox}>
+                  <Text style={styles.processingBelowDetailsText}>{foundInfoText}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : ocrLoading ? (
+            <View style={styles.processingBelowCard}>
+              <View style={styles.processingBelowHeaderRow}>
+                <ActivityIndicator size="small" color="#38bdf8" style={{ marginLeft: 8 }} />
+                <Text style={[styles.processingBelowTitle, { color: '#38bdf8' }]}>⚡ Gemini מפענח מדבקה...</Text>
+              </View>
+              <Text style={styles.processingBelowSubtitle}>מחלץ מספר מסח"א ופרטי פריט מהתמונה שנלכדה</Text>
+            </View>
+          ) : null}
+
           {/* User Scan Error Notification Banner */}
           {scanError ? (
             <View style={styles.scanErrorNotification}>
               <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
-              <TouchableOpacity
-                style={styles.dismissScanErrorBtn}
-                onPress={() => setScanError(null)}
-              >
-                <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
-              </TouchableOpacity>
+              <View style={styles.scanErrorActionsRow}>
+                {frozenImage && (
+                  <TouchableOpacity
+                    style={styles.retakeErrorBtn}
+                    onPress={() => {
+                      setFrozenImage(null);
+                      setScanError(null);
+                    }}
+                  >
+                    <Text style={styles.retakeErrorBtnText}>🔄 צלם שוב</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.dismissScanErrorBtn}
+                  onPress={() => setScanError(null)}
+                >
+                  <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : null}
 
@@ -1234,13 +1271,7 @@ export default function App() {
 
           {/* Real Camera Viewfinder - Expanded */}
           <View style={styles.viewfinderExpanded}>
-            {frozenImage ? (
-              <Image
-                source={{ uri: frozenImage }}
-                style={styles.frozenImageStyle}
-                resizeMode="cover"
-              />
-            ) : cameraActive ? (
+            {cameraActive ? (
               <video
                 id="shelv-scanner-video"
                 ref={videoRef as any}
@@ -1248,44 +1279,29 @@ export default function App() {
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
+                  display: cameraActive ? 'block' : 'none',
                 } as any}
                 autoPlay
                 playsInline
                 muted
               />
-            ) : (
+            ) : !frozenImage ? (
               <View style={styles.cameraPausedView}>
                 <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
               </View>
-            )}
+            ) : null}
 
-            {/* Processing Overlay when S/N is detected */}
-            {isProcessingFound ? (
-              <View style={styles.processingOverlay}>
-                <View style={[styles.processingModalCard, { borderColor: '#3b82f6', shadowColor: '#3b82f6' }]}>
-                  <View style={[styles.processingPulseBadge, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-                    <ActivityIndicator size="large" color="#3b82f6" />
-                  </View>
-                  <Text style={[styles.processingTitle, { color: '#60a5fa' }]}>✨ S/N נקלט בהצלחה!</Text>
-                  <Text style={styles.processingSubtitle}>התמונה הוקפאה, שומר ומעדכן את הפריט במערכת...</Text>
-                  {foundInfoText ? (
-                    <View style={styles.processingDetailsBox}>
-                      <Text style={styles.processingDetailsText}>{foundInfoText}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ) : ocrLoading ? (
-              <View style={styles.processingOverlay}>
-                <View style={[styles.processingModalCard, { borderColor: '#3b82f6' }]}>
-                  <View style={[styles.processingPulseBadge, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-                    <ActivityIndicator size="large" color="#60a5fa" />
-                  </View>
-                  <Text style={[styles.processingTitle, { color: '#60a5fa' }]}>⚡ Gemini מפענח S/N...</Text>
-                  <Text style={styles.processingSubtitle}>מחלץ מספר סידורי ופרטי יצרן מהתמונה שנלכדה</Text>
-                </View>
-              </View>
-            ) : (
+            {/* Frozen captured snapshot overlay - freezes the image behind */}
+            {frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={[StyleSheet.absoluteFillObject, styles.frozenImageStyle]}
+                resizeMode="cover"
+              />
+            ) : null}
+
+            {/* Viewfinder Reticle Overlay - only visible when actively aiming live camera */}
+            {!frozenImage && !ocrLoading && !isProcessingFound && (
               <View style={styles.reticleOverlay} pointerEvents="none">
                 <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
                 <View style={[styles.scanLaser, { backgroundColor: '#3b82f6' }]} />
@@ -1322,8 +1338,8 @@ export default function App() {
               </View>
             )}
 
-            {/* Human Snapshot Shutter Button Overlay for S/N */}
-            {!isProcessingFound && !ocrLoading && (
+            {/* Human Snapshot Shutter Button Overlay for S/N - shown when camera is live */}
+            {!isProcessingFound && !ocrLoading && !frozenImage && (
               <View style={styles.shutterContainer}>
                 <TouchableOpacity
                   style={styles.shutterButtonBlue}
@@ -1337,15 +1353,29 @@ export default function App() {
               </View>
             )}
 
-            {/* Floating Status inside camera bottom */}
-            <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
-              {ocrLoading ? (
-                <ActivityIndicator size="small" color="#60a5fa" style={{ marginRight: 6 }} />
-              ) : (
+            {/* Retake Button Overlay - shown when image is frozen and not processing */}
+            {!isProcessingFound && !ocrLoading && frozenImage && (
+              <View style={styles.shutterContainer}>
+                <TouchableOpacity
+                  style={[styles.shutterButtonBlue, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
+                  onPress={() => {
+                    setFrozenImage(null);
+                    setScanError(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Floating Status inside camera bottom - only when live */}
+            {!frozenImage && !ocrLoading && !isProcessingFound && (
+              <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
                 <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 6 }]} />
-              )}
-              <Text style={[styles.statusPillTextCompact, { color: '#93c5fd' }]} numberOfLines={1}>{scanningStatus}</Text>
-            </View>
+                <Text style={[styles.statusPillTextCompact, { color: '#93c5fd' }]} numberOfLines={1}>{scanningStatus}</Text>
+              </View>
+            )}
 
             {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
@@ -1360,16 +1390,53 @@ export default function App() {
             ) : null}
           </View>
 
+          {/* Status & Processing Info Card - Converted from Modal to below the image */}
+          {isProcessingFound ? (
+            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]}>
+              <View style={styles.processingBelowHeaderRow}>
+                <ActivityIndicator size="small" color="#3b82f6" style={{ marginLeft: 8 }} />
+                <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>✨ S/N נקלט בהצלחה!</Text>
+              </View>
+              <Text style={styles.processingBelowSubtitle}>התמונה הוקפאה, שומר ומעדכן את הפריט במערכת...</Text>
+              {foundInfoText ? (
+                <View style={[styles.processingBelowDetailsBox, { borderColor: 'rgba(59, 130, 246, 0.4)' }]}>
+                  <Text style={styles.processingBelowDetailsText}>{foundInfoText}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : ocrLoading ? (
+            <View style={[styles.processingBelowCard, styles.processingBelowCardBlue]}>
+              <View style={styles.processingBelowHeaderRow}>
+                <ActivityIndicator size="small" color="#60a5fa" style={{ marginLeft: 8 }} />
+                <Text style={[styles.processingBelowTitle, { color: '#60a5fa' }]}>⚡ Gemini מפענח S/N...</Text>
+              </View>
+              <Text style={styles.processingBelowSubtitle}>מחלץ מספר סידורי ופרטי יצרן מהתמונה שנלכדה</Text>
+            </View>
+          ) : null}
+
           {/* User Scan Error Notification Banner */}
           {scanError ? (
             <View style={styles.scanErrorNotification}>
               <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
-              <TouchableOpacity
-                style={styles.dismissScanErrorBtn}
-                onPress={() => setScanError(null)}
-              >
-                <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
-              </TouchableOpacity>
+              <View style={styles.scanErrorActionsRow}>
+                {frozenImage && (
+                  <TouchableOpacity
+                    style={styles.retakeErrorBtn}
+                    onPress={() => {
+                      setFrozenImage(null);
+                      setScanError(null);
+                    }}
+                  >
+                    <Text style={styles.retakeErrorBtnText}>🔄 צלם שוב</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.dismissScanErrorBtn}
+                  onPress={() => setScanError(null)}
+                >
+                  <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : null}
 
@@ -2635,6 +2702,77 @@ const styles = StyleSheet.create({
     color: '#fca5a5',
     fontSize: 11,
     fontWeight: 'bold',
+  },
+  scanErrorActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 8,
+  },
+  retakeErrorBtn: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  retakeErrorBtnText: {
+    color: '#b91c1c',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  processingBelowCard: {
+    backgroundColor: '#064e3b',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#10b981',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginVertical: 4,
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  processingBelowCardBlue: {
+    backgroundColor: '#1e3a8a',
+    borderColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+  },
+  processingBelowHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  processingBelowTitle: {
+    color: '#34d399',
+    fontSize: 15,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  processingBelowSubtitle: {
+    color: '#d1fae5',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  processingBelowDetailsBox: {
+    marginTop: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    width: '100%',
+  },
+  processingBelowDetailsText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   frozenImageStyle: {
     width: '100%',
