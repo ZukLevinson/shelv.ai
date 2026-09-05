@@ -276,8 +276,8 @@ inventoryRouter.get('/items', (req, res) => {
     SELECT 
       COALESCE(o.serial_number, i.serial_number) as serial_number,
       COALESCE(o.masha, i.masha) as masha,
-      COALESCE(m.name, i.description, o.product_name_detected, 'פריט') as description,
-      COALESCE(m.category, i.category, 'PC') as category,
+      COALESCE(m.description, i.description, o.product_name_detected, 'ציוד') as description,
+      COALESCE(m.category, i.category, 'Regular Workstation') as category,
       r.id as room_id,
       r.name as room_name,
       r.code as room_code,
@@ -307,7 +307,7 @@ inventoryRouter.get('/items', (req, res) => {
   const params: any[] = [];
 
   if (search) {
-    query += ` AND (o.serial_number LIKE ? OR o.masha LIKE ? OR m.name LIKE ? OR i.description LIKE ?)`;
+    query += ` AND (o.serial_number LIKE ? OR o.masha LIKE ? OR m.description LIKE ? OR i.description LIKE ?)`;
     const searchPattern = `%${search}%`;
     params.push(searchPattern, searchPattern, searchPattern, searchPattern);
   }
@@ -320,7 +320,7 @@ inventoryRouter.get('/items', (req, res) => {
     params.push(holderId);
   }
   if (category) {
-    query += ` AND COALESCE(m.category, i.category, 'PC') = ?`;
+    query += ` AND COALESCE(m.category, i.category, 'Regular Workstation') = ?`;
     params.push(category);
   }
 
@@ -332,8 +332,8 @@ inventoryRouter.get('/items', (req, res) => {
   if (items.length === 0) {
     let fallbackQuery = `
       SELECT i.serial_number, i.masha, 
-             COALESCE(m.name, i.description) as description,
-             COALESCE(m.category, i.category) as category,
+             COALESCE(m.description, i.description) as description,
+             COALESCE(m.category, i.category, 'Regular Workstation') as category,
              r.id as room_id, r.name as room_name, r.code as room_code, h.name as holder_name,
              i.created_at as last_seen_at, 'בסיס נתונים' as last_scanned_by, NULL as sticker_owner_text,
              i.import_id, e.filename as import_filename
@@ -346,9 +346,9 @@ inventoryRouter.get('/items', (req, res) => {
     `;
     const fallbackParams: any[] = [];
     if (search) {
-      fallbackQuery += ` AND (i.serial_number LIKE ? OR i.masha LIKE ? OR i.description LIKE ?)`;
+      fallbackQuery += ` AND (i.serial_number LIKE ? OR i.masha LIKE ? OR i.description LIKE ? OR m.description LIKE ?)`;
       const searchPattern = `%${search}%`;
-      fallbackParams.push(searchPattern, searchPattern, searchPattern);
+      fallbackParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
     if (roomId) {
       fallbackQuery += ` AND i.room_id = ?`;
@@ -408,8 +408,7 @@ inventoryRouter.get('/masha-registry', (req, res) => {
         SELECT masha FROM sweep_observations WHERE masha IS NOT NULL AND masha != ''
       )
       SELECT a.masha, 
-             COALESCE(m.name, '') as name,
-             COALESCE(m.category, (SELECT o.category FROM official_inventory o WHERE o.masha = a.masha LIMIT 1), 'PC') as category,
+             COALESCE(m.category, (SELECT o.category FROM official_inventory o WHERE o.masha = a.masha LIMIT 1), 'Regular Workstation') as category,
              COALESCE(m.description, (SELECT o.description FROM official_inventory o WHERE o.masha = a.masha LIMIT 1), '') as description,
              (SELECT COUNT(*) FROM official_inventory o WHERE o.masha = a.masha) as total_signed,
              (SELECT COUNT(DISTINCT s.serial_number) FROM sweep_observations s WHERE s.masha = a.masha) as total_discovered
@@ -424,38 +423,36 @@ inventoryRouter.get('/masha-registry', (req, res) => {
 });
 
 inventoryRouter.post('/masha-registry/update', (req, res) => {
-  const { masha, name, category, description } = req.body;
+  const { masha, category, description } = req.body;
   if (!masha) {
     return res.status(400).json({ error: 'masha is required' });
   }
 
   const cleanMasha = String(masha).trim();
-  const cleanName = (name || '').trim();
-  const cleanCategory = (category || 'PC').trim();
+  const cleanCategory = (category || 'Regular Workstation').trim();
   const cleanDesc = (description || '').trim();
 
   try {
     db.prepare(`
-      INSERT INTO masha_registry (masha, name, category, description, updated_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT INTO masha_registry (masha, category, description, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(masha) DO UPDATE SET
-        name = excluded.name,
         category = excluded.category,
         description = excluded.description,
         updated_at = CURRENT_TIMESTAMP
-    `).run(cleanMasha, cleanName, cleanCategory, cleanDesc);
+    `).run(cleanMasha, cleanCategory, cleanDesc);
 
-    // Also update any official inventory items with this masha to keep name/description/category in sync
-    if (cleanName || cleanDesc || cleanCategory) {
+    // Also update any official inventory items with this masha to keep description/category in sync
+    if (cleanDesc || cleanCategory) {
       db.prepare(`
         UPDATE official_inventory
         SET description = COALESCE(NULLIF(?, ''), description),
             category = COALESCE(NULLIF(?, ''), category)
         WHERE masha = ?
-      `).run(cleanName || cleanDesc, cleanCategory, cleanMasha);
+      `).run(cleanDesc, cleanCategory, cleanMasha);
     }
 
-    broadcast('MASHA_UPDATED', { masha: cleanMasha, name: cleanName, category: cleanCategory, description: cleanDesc });
+    broadcast('MASHA_UPDATED', { masha: cleanMasha, category: cleanCategory, description: cleanDesc });
     res.json({ success: true, masha: cleanMasha });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to update masha' });

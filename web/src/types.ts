@@ -51,7 +51,7 @@ export interface AnomalyReport {
   unauthorizedTransfers: Array<{
     serialNumber?: string | null;
     masha: string;
-    mashaName: string;
+    description: string;
     category: string;
     scannedRoomId: string;
     scannedRoomName: string;
@@ -67,7 +67,7 @@ export interface AnomalyReport {
     holderId: string;
     holderName: string;
     masha: string;
-    mashaName: string;
+    description: string;
     category: string;
     expectedQuantity: number;
     actualDiscovered: number;
@@ -80,7 +80,7 @@ export interface AnomalyReport {
     roomName: string;
     roomCode: string;
     masha: string;
-    mashaName: string;
+    description: string;
     count: number;
   }>;
   stats: {
@@ -129,7 +129,6 @@ export interface ScanInvestigationData {
     room_name: string;
     room_code: string;
     holder_name: string;
-    masha_name?: string;
     masha_category?: string;
     masha_description?: string;
     created_at: string;

@@ -82,7 +82,10 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
         ''
       ).trim().toUpperCase();
       const description = String(row['Description'] || row['תיאור'] || row['Product'] || row['שם פריט'] || 'ציוד').trim();
-      const category = String(row['Category'] || row['קטגוריה'] || 'PC').trim();
+      let category = String(row['Category'] || row['קטגוריה'] || 'Regular Workstation').trim();
+      if (category.toLowerCase() === 'pc') {
+        category = 'Regular Workstation';
+      }
       const holderName = String(row['Inventory Holder'] || row['בעל מצאי'] || row['Holder'] || '').trim();
       
       const rawQty = row['Quantity'] || row['כמות'] || row['Count'] || row['Qty'];
@@ -204,8 +207,8 @@ export function generateSampleExcelBuffer(): Buffer {
       'Catalog #': '943121160',
       'Inventory Holder': 'ניסים כהן',
       'Quantity': 5,
-      'Description': 'HP EliteDesk 800 G3 SFF Business PC',
-      'Category': 'PC',
+      'Description': 'HP EliteDesk 800 G3 SFF Tower Business PC',
+      'Category': 'Tower PC',
       'Serial Number': ''
     },
     {
@@ -213,15 +216,15 @@ export function generateSampleExcelBuffer(): Buffer {
       'Inventory Holder': 'ניסים כהן',
       'Quantity': 3,
       'Description': 'HP Elite Mini 800 G9 i712700 8GB/256',
-      'Category': 'PC',
+      'Category': 'Mini Workstation',
       'Serial Number': '2UA4192N4X'
     },
     {
       'Catalog #': '943116103',
       'Inventory Holder': 'ניסים כהן',
       'Quantity': 2,
-      'Description': 'HP EliteDesk 800 G6 DM i7-10700 16GB/512GB',
-      'Category': 'PC',
+      'Description': 'HP ProDesk 400 Workstation i7-10700 16GB/512GB',
+      'Category': 'Regular Workstation',
       'Serial Number': ''
     },
     {

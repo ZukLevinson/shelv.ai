@@ -139,8 +139,8 @@ sweepRouter.get('/scans', (req, res) => {
         off_r.name as official_room_name,
         off_r.code as official_room_code,
         off_h.name as official_holder_name,
-        COALESCE(m.name, i.description, o.product_name_detected, 'פריט') as item_description,
-        COALESCE(m.category, i.category, 'PC') as category,
+        COALESCE(m.description, i.description, o.product_name_detected, 'ציוד') as item_description,
+        COALESCE(m.category, i.category, 'Regular Workstation') as category,
         CASE
           WHEN i.id IS NULL THEN 'unregistered'
           WHEN i.holder_id != r.holder_id THEN 'mismatch'
@@ -169,7 +169,7 @@ sweepRouter.get('/scans', (req, res) => {
         o.masha LIKE ? OR
         o.product_name_detected LIKE ? OR
         o.sticker_owner_text LIKE ? OR
-        m.name LIKE ? OR
+        m.description LIKE ? OR
         i.description LIKE ?
       )`;
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
@@ -228,7 +228,7 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
   try {
     let officialItem = db.prepare(`
       SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name,
-             m.name as masha_name, m.category as masha_category, m.description as masha_description
+             m.category as masha_category, m.description as masha_description
       FROM official_inventory i
       LEFT JOIN rooms r ON i.room_id = r.id
       JOIN inventory_holders h ON i.holder_id = h.id
@@ -239,7 +239,7 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
     if (!officialItem) {
       officialItem = db.prepare(`
         SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name,
-               m.name as masha_name, m.category as masha_category, m.description as masha_description
+               m.category as masha_category, m.description as masha_description
         FROM official_inventory i
         LEFT JOIN rooms r ON i.room_id = r.id
         JOIN inventory_holders h ON i.holder_id = h.id

@@ -687,9 +687,9 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                     {investigationData?.officialItem ? (
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                         <div>
-                          <div className="text-gray-500 text-[11px]">תיאור דגם:</div>
+                          <div className="text-gray-500 text-[11px]">תיאור ומפרט:</div>
                           <div className="font-semibold text-white mt-0.5">
-                            {investigationData.officialItem.masha_name || investigationData.officialItem.description}
+                            {investigationData.officialItem.masha_description || investigationData.officialItem.description}
                           </div>
                         </div>
                         <div>

@@ -4,7 +4,6 @@ import { MashaEditModal } from './MashaEditModal';
 
 interface MashaItem {
   masha: string;
-  name?: string;
   category?: string;
   description?: string;
   total_signed: number;
@@ -22,7 +21,11 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
 
   const getCategoryIcon = (category?: string) => {
     switch ((category || '').toLowerCase()) {
-      case 'pc': return <Monitor className="w-4 h-4 text-blue-400" />;
+      case 'tower pc':
+      case 'mini workstation':
+      case 'regular workstation':
+      case 'pc':
+        return <Monitor className="w-4 h-4 text-blue-400" />;
       case 'laptop': return <Laptop className="w-4 h-4 text-purple-400" />;
       case 'screen': case 'tv': return <Tv className="w-4 h-4 text-emerald-400" />;
       case 'printer': return <Printer className="w-4 h-4 text-amber-400" />;
@@ -33,7 +36,7 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
 
   const filtered = mashaList.filter(m =>
     m.masha.includes(search) ||
-    (m.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.category || '').toLowerCase().includes(search.toLowerCase()) ||
     (m.description || '').toLowerCase().includes(search.toLowerCase())
   );
 
@@ -43,9 +46,9 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
         <div className="flex items-center gap-2.5">
           <Tag className="w-5 h-5 text-emerald-400 shrink-0" />
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-white">הגדרת שמות וסוגי מסח"א</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white">הגדרת סוגי ומפרטי מסח"א</h2>
             <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
-              הענק שם דגם, סוג פריט ותיאור לכל מסח"א כדי שיוצג בצורה ברורה בסריקות ובדשבורד
+              הענק סוג פריט ותיאור/מפרט לכל מסח"א כדי שיוצג בצורה ברורה בסריקות ובדשבורד
             </p>
           </div>
         </div>
@@ -53,7 +56,7 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
         <div className="w-full sm:w-auto">
           <input
             type="text"
-            placeholder={'חפש לפי מספר מסח"א או דגם...'}
+            placeholder={'חפש לפי מספר מסח"א, תיאור או קטגוריה...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-full sm:w-64"
@@ -72,8 +75,7 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
                 <th className="pb-3 pr-2">סוג</th>
                 <th className="pb-3">מסח"א (Catalog #)</th>
-                <th className="pb-3">שם פריט ודגם</th>
-                <th className="pb-3">מפרט / תיאור נוסף</th>
+                <th className="pb-3">תיאור ומפרט הפריט</th>
                 <th className="pb-3">סה"כ חתום (אקסל)</th>
                 <th className="pb-3">נסרק בפועל</th>
                 <th className="pb-3 pl-2 text-left">פעולה</th>
@@ -83,18 +85,18 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
               {filtered.map((item) => (
                 <tr key={item.masha} className="hover:bg-gray-800/30 transition-colors">
                   <td className="py-3.5 pr-2">
-                    <div className="p-2 rounded-lg bg-gray-800/50 inline-block">
-                      {getCategoryIcon(item.category)}
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-gray-800/50 inline-block">
+                        {getCategoryIcon(item.category)}
+                      </div>
+                      <span className="text-xs text-gray-300 font-medium">{item.category || 'Regular Workstation'}</span>
                     </div>
                   </td>
                   <td className="py-3.5 font-mono text-xs font-bold text-emerald-400">
                     {item.masha}
                   </td>
-                  <td className="py-3.5 font-medium text-white">
-                    {item.name ? item.name : <span className="text-gray-500 italic">טרם הוגדר שם</span>}
-                  </td>
-                  <td className="py-3.5 text-xs text-gray-400 max-w-xs truncate">
-                    {item.description || '-'}
+                  <td className="py-3.5 text-xs text-gray-200 max-w-sm">
+                    {item.description ? item.description : <span className="text-gray-500 italic">טרם הוגדר תיאור</span>}
                   </td>
                   <td className="py-3.5 text-xs font-semibold text-gray-200">
                     {item.total_signed || 0} יח'

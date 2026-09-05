@@ -36,7 +36,11 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
 
   const getCategoryIcon = (category: string) => {
     switch ((category || '').toLowerCase()) {
-      case 'pc': return <Monitor className="w-4 h-4 text-blue-400" />;
+      case 'tower pc':
+      case 'mini workstation':
+      case 'regular workstation':
+      case 'pc':
+        return <Monitor className="w-4 h-4 text-blue-400" />;
       case 'laptop': return <Laptop className="w-4 h-4 text-purple-400" />;
       case 'printer': return <Printer className="w-4 h-4 text-amber-400" />;
       case 'screen': case 'tv': return <Tv className="w-4 h-4 text-emerald-400" />;
@@ -71,7 +75,9 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
             className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-emerald-500 w-full sm:w-auto"
           >
             <option value="all">כל הקטגוריות</option>
-            <option value="PC">מחשבים נייחים (PC)</option>
+            <option value="Regular Workstation">תחנות עבודה רגילות</option>
+            <option value="Tower PC">מחשבי Tower</option>
+            <option value="Mini Workstation">תחנות עבודה זעירות (Mini)</option>
             <option value="Laptop">מחשבים ניידים</option>
             <option value="Screen">מסכים</option>
             <option value="Switch">מתגים</option>
@@ -107,7 +113,7 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
                 <th className="pb-3 pr-2">סוג</th>
-                <th className="pb-3">דגם פריט</th>
+                <th className="pb-3">תיאור ומפרט פריט</th>
                 <th className="pb-3">מסח\"א (Catalog #)</th>
                 <th className="pb-3">מספר סידורי (S/N)</th>
                 <th className="pb-3">חדר נוכחי</th>

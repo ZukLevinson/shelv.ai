@@ -104,7 +104,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
               <table className="w-full text-right text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
-                    <th className="pb-3 pr-2">דגם ומסח\"א</th>
+                    <th className="pb-3 pr-2">תיאור ומסח\"א</th>
                     <th className="pb-3">מספר סידורי (S/N)</th>
                     <th className="pb-3">נמצא בחדר (סריקה)</th>
                     <th className="pb-3">בעל המצאי של החדר</th>
@@ -117,7 +117,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   {unauthorizedTransfers.map((item, idx) => (
                     <tr key={item.serialNumber || `${item.masha}-${idx}`} className="hover:bg-gray-800/30 transition-colors">
                       <td className="py-4 pr-2">
-                        <div className="font-semibold text-white">{item.mashaName}</div>
+                        <div className="font-semibold text-white">{item.description}</div>
                         <div className="text-xs font-mono text-emerald-400">מסח\"א: {item.masha}</div>
                       </td>
                       <td className="py-4 font-mono text-xs text-gray-300">
@@ -179,7 +179,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                 <thead>
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
                     <th className="pb-3 pr-2">בעל מצאי</th>
-                    <th className="pb-3">מסח\"א ודגם</th>
+                    <th className="pb-3">מסח\"א ותיאור</th>
                     <th className="pb-3">חתימה באקסל</th>
                     <th className="pb-3">נמצאו בסריקות</th>
                     <th className="pb-3 pl-2">פער חסר</th>
@@ -192,7 +192,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                         {d.holderName}
                       </td>
                       <td className="py-3.5">
-                        <div className="font-medium text-gray-200">{d.mashaName}</div>
+                        <div className="font-medium text-gray-200">{d.description}</div>
                         <div className="text-xs font-mono text-emerald-400">מסח\"א: {d.masha}</div>
                       </td>
                       <td className="py-3.5 text-xs text-gray-300 font-semibold">
@@ -229,7 +229,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
                     <th className="pb-3 pr-2">בעל מצאי</th>
                     <th className="pb-3">חדר</th>
-                    <th className="pb-3">דגם ומסח\"א</th>
+                    <th className="pb-3">תיאור ומסח\"א</th>
                     <th className="pb-3 pl-2">כמות שזוהתה בחדר זה</th>
                   </tr>
                 </thead>
@@ -243,7 +243,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                         {dist.roomName} ({dist.roomCode})
                       </td>
                       <td className="py-3.5">
-                        <div className="font-medium text-gray-200">{dist.mashaName}</div>
+                        <div className="font-medium text-gray-200">{dist.description}</div>
                         <div className="text-xs font-mono text-gray-400">מסח\"א: {dist.masha}</div>
                       </td>
                       <td className="py-3.5 pl-2 font-bold text-white">

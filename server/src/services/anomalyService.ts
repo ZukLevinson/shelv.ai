@@ -4,7 +4,7 @@ export interface AnomalyReport {
   unauthorizedTransfers: Array<{
     serialNumber: string;
     masha: string;
-    mashaName: string;
+    description: string;
     category: string;
     scannedRoomId: string;
     scannedRoomName: string;
@@ -26,7 +26,7 @@ export interface AnomalyReport {
     holderId: string;
     holderName: string;
     masha: string;
-    mashaName: string;
+    description: string;
     category: string;
     expectedQuantity: number;
     actualDiscovered: number;
@@ -39,7 +39,7 @@ export interface AnomalyReport {
     roomName: string;
     roomCode: string;
     masha: string;
-    mashaName: string;
+    description: string;
     count: number;
   }>;
   internalMoves: Array<{
@@ -103,8 +103,8 @@ export function detectAnomalies(): AnomalyReport {
            r.code as official_room_code,
            h.id as official_holder_id,
            h.name as official_holder_name,
-           COALESCE(m.name, i.description) as masha_name,
-           COALESCE(m.category, i.category, 'PC') as resolved_category
+           COALESCE(m.description, i.description) as resolved_description,
+           COALESCE(m.category, i.category, 'Regular Workstation') as resolved_category
     FROM official_inventory i
     LEFT JOIN rooms r ON i.room_id = r.id
     JOIN inventory_holders h ON i.holder_id = h.id
@@ -113,20 +113,19 @@ export function detectAnomalies(): AnomalyReport {
   const officialItems = db.prepare(officialItemsQuery).all() as any[];
 
   const mashaList = db.prepare('SELECT * FROM masha_registry').all() as any[];
-  const mashaMap = new Map<string, { name: string; category: string; description: string }>();
+  const mashaMap = new Map<string, { category: string; description: string }>();
   for (const m of mashaList) {
     mashaMap.set(m.masha, {
-      name: m.name || '',
-      category: m.category || 'PC',
+      category: m.category || 'Regular Workstation',
       description: m.description || '',
     });
   }
 
-  const resolveMashaInfo = (masha: string, defaultName?: string, defaultCategory?: string) => {
+  const resolveMashaInfo = (masha: string, defaultDesc?: string, defaultCategory?: string) => {
     const reg = mashaMap.get(masha);
     return {
-      name: reg?.name || defaultName || (masha ? `מסח"א ${masha}` : 'ציוד כללי'),
-      category: reg?.category || defaultCategory || 'PC',
+      description: reg?.description || defaultDesc || (masha ? `מסח"א ${masha}` : 'ציוד כללי'),
+      category: reg?.category || defaultCategory || 'Regular Workstation',
     };
   };
 
@@ -152,7 +151,7 @@ export function detectAnomalies(): AnomalyReport {
       missingItems.push({
         serialNumber: item.serial_number,
         masha: item.masha,
-        description: item.masha_name || item.description,
+        description: item.resolved_description || item.description,
         category: item.resolved_category,
         officialRoomId: item.room_id,
         officialRoomName: item.official_room_name,
@@ -166,7 +165,7 @@ export function detectAnomalies(): AnomalyReport {
         unauthorizedTransfers.push({
           serialNumber: item.serial_number,
           masha: item.masha,
-          mashaName: mashaInfo.name,
+          description: mashaInfo.description,
           category: mashaInfo.category,
           scannedRoomId: scan.room_id,
           scannedRoomName: scan.scanned_room_name,
@@ -188,7 +187,7 @@ export function detectAnomalies(): AnomalyReport {
         internalMoves.push({
           serialNumber: item.serial_number,
           masha: item.masha,
-          description: mashaInfo.name,
+          description: mashaInfo.description,
           category: mashaInfo.category,
           officialRoomId: item.room_id,
           officialRoomName: item.official_room_name,
@@ -212,7 +211,7 @@ export function detectAnomalies(): AnomalyReport {
       unauthorizedTransfers.push({
         serialNumber: scan.serial_number,
         masha: effectiveMasha,
-        mashaName: mashaInfo.name,
+        description: mashaInfo.description,
         category: mashaInfo.category,
         scannedRoomId: scan.room_id,
         scannedRoomName: scan.scanned_room_name,
@@ -237,7 +236,7 @@ export function detectAnomalies(): AnomalyReport {
     roomName: string;
     roomCode: string;
     masha: string;
-    mashaName: string;
+    description: string;
     count: number;
   }>();
 
@@ -259,7 +258,7 @@ export function detectAnomalies(): AnomalyReport {
         roomName: scan.scanned_room_name,
         roomCode: scan.scanned_room_code,
         masha,
-        mashaName: mashaInfo.name,
+        description: mashaInfo.description,
         count: 1,
       });
     }
@@ -276,7 +275,7 @@ export function detectAnomalies(): AnomalyReport {
     holderId: string;
     holderName: string;
     masha: string;
-    mashaName: string;
+    description: string;
     category: string;
     expectedQuantity: number;
   }>();
@@ -292,7 +291,7 @@ export function detectAnomalies(): AnomalyReport {
         holderId: item.official_holder_id,
         holderName: item.official_holder_name,
         masha: item.masha,
-        mashaName: mashaInfo.name,
+        description: mashaInfo.description,
         category: mashaInfo.category,
         expectedQuantity: 1,
       });
@@ -319,7 +318,7 @@ export function detectAnomalies(): AnomalyReport {
         holderId: quota.holderId,
         holderName: quota.holderName,
         masha: quota.masha,
-        mashaName: quota.mashaName,
+        description: quota.description,
         category: quota.category,
         expectedQuantity: quota.expectedQuantity,
         actualDiscovered,
