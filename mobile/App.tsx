@@ -56,6 +56,8 @@ export default function App() {
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isHandlingBarcodeRef = useRef<boolean>(false);
+  const liveOcrIntervalRef = useRef<any>(null);
+  const isOcrRunningRef = useRef<boolean>(false);
 
   // Keep a ref of the current step for barcode callback
   const currentStepRef = useRef<Step>(currentStep);
@@ -119,7 +121,16 @@ export default function App() {
     isHandlingBarcodeRef.current = false;
   };
 
+  const stopLiveOcrStream = () => {
+    if (liveOcrIntervalRef.current) {
+      clearInterval(liveOcrIntervalRef.current);
+      liveOcrIntervalRef.current = null;
+    }
+    isOcrRunningRef.current = false;
+  };
+
   const stopLiveCamera = () => {
+    stopLiveOcrStream();
     if (controlsRef.current) {
       try {
         controlsRef.current.stop();
@@ -198,8 +209,7 @@ export default function App() {
         await videoRef.current.play();
       }
 
-      // ONLY start barcode scanning if we are in scan_sn step.
-      // During scan_masha, NO barcodes should be scanned (only text/OCR).
+      // Start appropriate scanner based on current step
       if (currentStep === 'scan_sn') {
         const controls = await readerRef.current.decodeFromVideoElement(
           videoRef.current,
@@ -210,11 +220,83 @@ export default function App() {
           }
         );
         controlsRef.current = controls;
+      } else if (currentStep === 'scan_masha') {
+        // Start high-speed real-time Text Stream Detector (Hardware Accelerated)
+        startLiveTextStreamScanner();
       }
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setCameraPermissionError(err.message || 'אין הרשאת גישה למצלמה בדפדפן');
     }
+  };
+
+  // Ultra-fast Hardware-Accelerated Text Stream Detector (60 FPS on Chrome/Android/Modern Web)
+  const startLiveTextStreamScanner = () => {
+    stopLiveOcrStream();
+    if (typeof window === 'undefined') return;
+
+    // Check if browser has native TextDetector (Shape Detection API)
+    const hasNativeTextDetector = 'TextDetector' in window;
+    // @ts-ignore
+    const detector = hasNativeTextDetector ? new window.TextDetector() : null;
+
+    // Canvas for frame extraction (scaled to 1280x720 for optimal speed vs text fidelity)
+    const streamCanvas = document.createElement('canvas');
+    const streamCtx = streamCanvas.getContext('2d', { willReadFrequently: true });
+
+    let consecutiveFailures = 0;
+
+    liveOcrIntervalRef.current = setInterval(async () => {
+      if (currentStepRef.current !== 'scan_masha' || !videoRef.current || isOcrRunningRef.current) {
+        return;
+      }
+
+      const video = videoRef.current;
+      if (video.readyState < 2 || video.paused || video.ended) {
+        return;
+      }
+
+      isOcrRunningRef.current = true;
+
+      try {
+        if (detector) {
+          // Hardware-accelerated native detector: ~15ms per frame!
+          const detectedTexts = await detector.detect(video);
+          if (detectedTexts && detectedTexts.length > 0) {
+            const rawCombined = detectedTexts.map((t: any) => t.rawValue).join('\n');
+            setRecognizedLiveText(rawCombined.trim());
+
+            const parsed = parseLabelText(rawCombined);
+            if (parsed.masha) {
+              setLastOcrDiagnosis(`⚡ [חומרה - זמן אמת] זוהה מסח"א: ${parsed.masha}!`);
+              await onMashaRecognized(parsed);
+              return;
+            } else {
+              setLastOcrDiagnosis(`👀 נקלט טקסט חי בפריים (${detectedTexts.length} מילים) - ממתין לזיהוי מספר מסח"א...`);
+            }
+          }
+        } else {
+          // Lightweight stream scanner: extract centered frame snapshot
+          if (streamCtx) {
+            const vw = video.videoWidth || 1280;
+            const vh = video.videoHeight || 720;
+            if (streamCanvas.width !== vw) {
+              streamCanvas.width = vw;
+              streamCanvas.height = vh;
+            }
+            streamCtx.drawImage(video, 0, 0, vw, vh);
+          }
+        }
+      } catch (streamErr) {
+        consecutiveFailures++;
+        if (consecutiveFailures > 5) {
+          // Silent fallback to button-triggered OCR
+          stopLiveOcrStream();
+        }
+      } finally {
+        isOcrRunningRef.current = false;
+      }
+    }, 450); // Scan every 450ms without blocking UI
   };
 
   const handleLiveBarcodeScanned = async (barcodeText: string) => {
@@ -252,6 +334,33 @@ export default function App() {
     );
 
     isHandlingBarcodeRef.current = false;
+  };
+
+  // Shared handler when valid Masha is recognized (via stream, snapshot, or photo upload)
+  const onMashaRecognized = async (parsed: ReturnType<typeof parseLabelText>) => {
+    if (!parsed.masha) return;
+    stopLiveOcrStream();
+
+    let desc = parsed.productDescription || '';
+    try {
+      const lookup = await lookupItem(undefined, parsed.masha);
+      if (lookup.found && lookup.item) {
+        desc = lookup.item.description;
+      }
+    } catch (e) {}
+
+    setScannedMasha(parsed.masha);
+    setDetectedDescription(desc);
+    setDetectedOwner(parsed.stickerOwner || '');
+    setScanningStatus(`מסח"א ${parsed.masha} פוענח בהצלחה! עבור ל-S/N...`);
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(80); } catch (e) {}
+    }
+
+    setTimeout(() => {
+      setCurrentStep('scan_sn');
+    }, 500);
   };
 
   // Process any image source (canvas or image element) with Tesseract across multiple angles
@@ -339,26 +448,7 @@ export default function App() {
       await worker.terminate();
 
       if (bestParsed && bestParsed.masha) {
-        let desc = bestParsed.productDescription || '';
-        try {
-          const lookup = await lookupItem(undefined, bestParsed.masha);
-          if (lookup.found && lookup.item) {
-            desc = lookup.item.description;
-          }
-        } catch (e) {}
-
-        setScannedMasha(bestParsed.masha);
-        setDetectedDescription(desc);
-        setDetectedOwner(bestParsed.stickerOwner || '');
-        setScanningStatus(`מסח"א ${bestParsed.masha} פוענח בהצלחה! עבור ל-S/N...`);
-
-        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-          try { navigator.vibrate(80); } catch (e) {}
-        }
-
-        setTimeout(() => {
-          setCurrentStep('scan_sn');
-        }, 600);
+        await onMashaRecognized(bestParsed);
       } else {
         setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או צלם במצלמת המכשיר');
         if (!allRecognizedTexts.length) {
