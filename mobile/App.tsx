@@ -581,7 +581,7 @@ export default function App() {
       setOcrLoading(true);
       setScanningStatus('טוען תמונת HD מהמכשיר...');
 
-      const img = new Image();
+      const img = document.createElement('img');
       const objectUrl = URL.createObjectURL(file);
       img.src = objectUrl;
 
@@ -908,13 +908,6 @@ export default function App() {
             <View style={styles.quickToolsRow}>
               <TouchableOpacity
                 style={styles.quickToolBtn}
-                onPress={() => setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'))}
-              >
-                <Text style={styles.quickToolBtnText}>🔄 הפוך מצלמה</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.quickToolBtn}
                 onPress={() => setCameraActive(prev => !prev)}
               >
                 <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה מצלמה' : '▶️ הפעל מצלמה'}</Text>
@@ -992,7 +985,13 @@ export default function App() {
 
           {/* Real Camera Viewfinder */}
           <View style={styles.viewfinder}>
-            {cameraActive ? (
+            {frozenImage ? (
+              <Image
+                source={{ uri: frozenImage }}
+                style={styles.frozenImageStyle}
+                resizeMode="cover"
+              />
+            ) : cameraActive ? (
               <video
                 id="shelv-scanner-video"
                 ref={videoRef as any}
@@ -1012,12 +1011,30 @@ export default function App() {
               </View>
             )}
 
-            <View style={styles.reticleOverlay} pointerEvents="none">
-              <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
-              <View style={[styles.scanLaser, { backgroundColor: '#3b82f6' }]} />
-            </View>
+            {/* Processing Overlay when S/N is detected */}
+            {isProcessingFound ? (
+              <View style={styles.processingOverlay}>
+                <View style={[styles.processingModalCard, { borderColor: '#3b82f6', shadowColor: '#3b82f6' }]}>
+                  <View style={[styles.processingPulseBadge, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                    <ActivityIndicator size="large" color="#3b82f6" />
+                  </View>
+                  <Text style={[styles.processingTitle, { color: '#60a5fa' }]}>✨ S/N נקלט בהצלחה!</Text>
+                  <Text style={styles.processingSubtitle}>התמונה הוקפאה, שומר ומעדכן את הפריט במערכת...</Text>
+                  {foundInfoText ? (
+                    <View style={styles.processingDetailsBox}>
+                      <Text style={styles.processingDetailsText}>{foundInfoText}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : (
+              <View style={styles.reticleOverlay} pointerEvents="none">
+                <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
+                <View style={[styles.scanLaser, { backgroundColor: '#3b82f6' }]} />
+              </View>
+            )}
 
-            {cameraPermissionError ? (
+            {cameraPermissionError && !frozenImage ? (
               <View style={styles.cameraErrorBanner}>
                 <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
                 <TouchableOpacity
@@ -1052,13 +1069,6 @@ export default function App() {
           {/* Real Scanner Controls + Fallback Tools */}
           <View style={styles.scannerControls}>
             <View style={styles.quickToolsRow}>
-              <TouchableOpacity
-                style={styles.quickToolBtn}
-                onPress={() => setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'))}
-              >
-                <Text style={styles.quickToolBtnText}>🔄 הפוך מצלמה</Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
                 onPress={() => setCurrentStep('manual_entry')}
