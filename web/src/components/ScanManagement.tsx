@@ -254,19 +254,19 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
       </div>
 
       {/* Filter Toolbar ("מי סרק, מה, איפה ומתי") */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between flex-wrap gap-4 border-b border-gray-800 pb-3">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl max-w-full overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
           <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-bold text-white">כלי תחקור וניהול סריקות מלאי</h2>
-            <span className="text-xs text-gray-400">(מי, מה, איפה ומתי)</span>
+            <History className="w-5 h-5 text-emerald-400 shrink-0" />
+            <h2 className="text-base sm:text-lg font-bold text-white">כלי תחקור וניהול סריקות מלאי</h2>
+            <span className="text-[11px] sm:text-xs text-gray-400 hidden sm:inline">(מי, מה, איפה ומתי)</span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => fetchScans()}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-950 border border-gray-800 hover:border-gray-700 rounded-xl transition-all"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-950 border border-gray-800 hover:border-gray-700 rounded-xl transition-all"
             >
               <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>רענן נתונים</span>
@@ -274,10 +274,10 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
             <button
               onClick={handleExportCSV}
               disabled={scans.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all disabled:opacity-50"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all disabled:opacity-50"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>ייצוא ל-Excel / CSV</span>
+              <span>ייצוא CSV</span>
             </button>
           </div>
         </div>
@@ -346,7 +346,7 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
           </div>
 
           {/* מתי (When): Date range & quick buttons */}
-          <div className="lg:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-2">
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11px] font-semibold text-gray-400 flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
@@ -405,8 +405,8 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
               className="w-4 h-4 rounded bg-gray-950 border-gray-700 text-rose-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
             />
             <span className="flex items-center gap-1.5">
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-              <span>הצג רק סריקות עם חריגת מיקום / ללא חתימה מקורית</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span>הצג רק חריגות מיקום / ללא חתימה</span>
             </span>
           </label>
 
@@ -429,9 +429,9 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
       </div>
 
       {/* Scans Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl max-w-full">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full text-right text-xs min-w-[820px]">
             <thead>
               <tr className="bg-gray-950/60 border-b border-gray-800 text-gray-400 font-semibold">
                 <th className="py-3 px-4">מתי (זמן סריקה)</th>
@@ -602,16 +602,16 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
 
       {/* Item Drilldown Investigation Modal */}
       {investigatingSN && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-gray-900 border border-gray-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-gray-950/40">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                  <History className="w-5 h-5" />
+            <div className="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between bg-gray-950/40">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">
+                  <History className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-white">תחקור פריט מלאי (Asset Audit Trail)</h3>
+                  <h3 className="font-bold text-base sm:text-lg text-white">תחקור פריט מלאי</h3>
                   <div className="text-xs text-gray-400">
                     מספר סידורי: <span className="font-mono text-emerald-400 font-bold">{investigatingSN}</span>
                   </div>
@@ -619,14 +619,14 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
               </div>
               <button
                 onClick={closeInvestigation}
-                className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
+                className="p-1.5 sm:p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 overflow-y-auto space-y-6">
+            <div className="p-3.5 sm:p-6 overflow-y-auto space-y-5 sm:space-y-6">
               {investigationLoading ? (
                 <div className="py-16 text-center text-gray-400 flex flex-col items-center gap-3">
                   <RotateCw className="w-6 h-6 animate-spin text-emerald-400" />

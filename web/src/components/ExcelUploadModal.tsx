@@ -46,19 +46,19 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-semibold text-lg text-white">ייבוא מצאי רשמי (אקסל)</h3>
+            <h3 className="font-semibold text-base sm:text-lg text-white">ייבוא מצאי רשמי (אקסל)</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           <p className="text-sm text-gray-400 leading-relaxed">
             העלה קובץ אקסל (.xlsx / .csv) לעדכון רשומות המצאי הרשמיות של הארגון.
             עמודות חובה: <strong>Catalog # (מסח"א)</strong>, <strong>תיאור</strong>, <strong>חדר</strong>.

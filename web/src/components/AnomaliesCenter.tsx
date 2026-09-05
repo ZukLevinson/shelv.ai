@@ -36,55 +36,55 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-6 shadow-xl">
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b border-gray-800 pb-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-xl max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-gray-800 pb-4">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="w-6 h-6 text-rose-400" />
-          <h2 className="text-xl font-bold text-white">מרכז חריגות וחלוקת מצאי</h2>
+          <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400 shrink-0" />
+          <h2 className="text-lg sm:text-xl font-bold text-white">מרכז חריגות וחלוקת מצאי</h2>
         </div>
 
-        <div className="flex gap-2 p-1 bg-gray-950 rounded-xl border border-gray-800">
+        <div className="flex gap-1.5 p-1 bg-gray-950 rounded-xl border border-gray-800 overflow-x-auto scrollbar-thin max-w-full">
           <button
             onClick={() => setActiveTab('unauthorized')}
-            className={'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ' + (
+            className={'flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
               activeTab === 'unauthorized'
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                 : 'text-gray-400 hover:text-white'
             )}
           >
-            <AlertTriangle className="w-4 h-4" />
-            <span>ציוד זר בחדר (ללא חתימה)</span>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-rose-500/30 text-rose-200">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>ציוד זר בחדר</span>
+            <span className="px-2 py-0.5 text-xs rounded-full bg-rose-500/30 text-rose-200 font-bold">
               {unauthorizedTransfers.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('discrepancies')}
-            className={'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ' + (
+            className={'flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
               activeTab === 'discrepancies'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-gray-400 hover:text-white'
             )}
           >
-            <HelpCircle className="w-4 h-4" />
+            <HelpCircle className="w-4 h-4 shrink-0" />
             <span>פערי חתימות חסרים</span>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500/30 text-amber-200">
+            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500/30 text-amber-200 font-bold">
               {quotaDiscrepancies.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('distribution')}
-            className={'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ' + (
+            className={'flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
               activeTab === 'distribution'
                 ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                 : 'text-gray-400 hover:text-white'
             )}
           >
-            <BarChart3 className="w-4 h-4" />
-            <span>פריסה פיזית לפי חדרים</span>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/30 text-blue-200">
+            <BarChart3 className="w-4 h-4 shrink-0" />
+            <span>פריסה פיזית</span>
+            <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/30 text-blue-200 font-bold">
               {discoveredDistribution.length}
             </span>
           </button>
@@ -100,8 +100,8 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
               <p>לא נמצאו פריטים בחדרים של בעלי מצאי ללא חתימה מתאימה.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full text-right text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
                     <th className="pb-3 pr-2">דגם ומסח\"א</th>
@@ -170,8 +170,8 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
               <p>כל המכסות החתומות באקסל אומתו בסריקות הפיזיות במלואן!</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full text-right text-sm min-w-[600px]">
                 <thead>
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
                     <th className="pb-3 pr-2">בעל מצאי</th>
@@ -219,8 +219,8 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
               טרם בוצעו סריקות למיפוי מיקומי הפריטים בחדרים.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full text-right text-sm min-w-[550px]">
                 <thead>
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
                     <th className="pb-3 pr-2">בעל מצאי</th>

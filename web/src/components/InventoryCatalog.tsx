@@ -35,29 +35,29 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-6 shadow-xl">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-xl max-w-full overflow-hidden">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-2">
-          <Database className="w-5 h-5 text-emerald-400" />
-          <h2 className="text-xl font-bold text-white">קטלוג פריטים פיזיים שנסרקו (Discovered Assets)</h2>
+          <Database className="w-5 h-5 text-emerald-400 shrink-0" />
+          <h2 className="text-lg sm:text-xl font-bold text-white">קטלוג פריטים פיזיים שנסרקו</h2>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
+          <div className="relative w-full sm:w-64 md:w-72">
             <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="חפש לפי S/N, מסח״א, תיאור או בעלים..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-gray-950 border border-gray-800 rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-72"
+              className="bg-gray-950 border border-gray-800 rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-full"
             />
           </div>
 
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-emerald-500"
+            className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-emerald-500 w-full sm:w-auto"
           >
             <option value="all">כל הקטגוריות</option>
             <option value="PC">מחשבים נייחים (PC)</option>
@@ -76,8 +76,8 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
           טרם נסרקו פריטים. בצע סריקה ראשונה באפליקציית הטלפון כדי לראות כאן את הפריטים והמספרים הסידוריים.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full text-right text-sm min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
                 <th className="pb-3 pr-2">סוג</th>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,8 +8,11 @@ import {
   ScrollView,
   SafeAreaView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
+import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { parseLabelText } from './src/services/labelParser';
 import { fetchRooms, submitScan, lookupItem } from './src/services/api';
 
@@ -22,6 +25,12 @@ export default function App() {
   const [sweeperName, setSweeperName] = useState('עובד סריקה');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Real Camera & Scanner state
+  const [cameraActive, setCameraActive] = useState(true);
+  const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
+  const [scanningStatus, setScanningStatus] = useState<string>('סורק פעיל וממתין לברקוד...');
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -36,9 +45,43 @@ export default function App() {
   const [manualSn, setManualSn] = useState('');
   const [manualDesc, setManualDesc] = useState('');
 
+  // Video and barcode reader refs
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const controlsRef = useRef<any>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const isHandlingBarcodeRef = useRef<boolean>(false);
+
+  // Keep a ref of the current step for barcode callback
+  const currentStepRef = useRef<Step>(currentStep);
+  currentStepRef.current = currentStep;
+
+  const scannedMashaRef = useRef<string>(scannedMasha);
+  scannedMashaRef.current = scannedMasha;
+
+  const detectedDescRef = useRef<string>(detectedDescription);
+  detectedDescRef.current = detectedDescription;
+
+  const detectedOwnerRef = useRef<string>(detectedOwner);
+  detectedOwnerRef.current = detectedOwner;
+
   useEffect(() => {
     loadRooms();
   }, []);
+
+  // Initialize and clean up camera when entering / leaving scanning steps
+  useEffect(() => {
+    const isScanningStep = currentStep === 'scan_masha' || currentStep === 'scan_sn';
+    if (isScanningStep && cameraActive) {
+      startLiveCamera();
+    } else {
+      stopLiveCamera();
+    }
+
+    return () => {
+      stopLiveCamera();
+    };
+  }, [currentStep, cameraActive, facingMode]);
 
   const loadRooms = async () => {
     try {
@@ -58,6 +101,7 @@ export default function App() {
     setSelectedRoom(room);
     setCurrentStep('scan_masha');
     resetCurrentScan();
+    setScanningStatus('סורק פעיל וממתין לברקוד מסח"א...');
   };
 
   const resetCurrentScan = () => {
@@ -65,9 +109,163 @@ export default function App() {
     setScannedSn('');
     setDetectedDescription('');
     setDetectedOwner('');
+    isHandlingBarcodeRef.current = false;
   };
 
-  // Simulated CV detection of Masha sticker (Top/Front sticker)
+  const stopLiveCamera = () => {
+    if (controlsRef.current) {
+      try {
+        controlsRef.current.stop();
+      } catch (e) {}
+      controlsRef.current = null;
+    }
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      streamRef.current = null;
+    }
+  };
+
+  const startLiveCamera = async () => {
+    if (Platform.OS !== 'web' && typeof navigator === 'undefined') {
+      return;
+    }
+
+    setCameraPermissionError(null);
+    setScanningStatus(currentStep === 'scan_sn' ? 'מכוון לברקוד סידורי (S/N)...' : 'מכוון למדבקת מסח"א / ברקוד...');
+
+    try {
+      stopLiveCamera();
+
+      if (!readerRef.current) {
+        const hints = new Map();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.CODE_93,
+          BarcodeFormat.QR_CODE,
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.DATA_MATRIX,
+          BarcodeFormat.ITF,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+        ]);
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        readerRef.current = new BrowserMultiFormatReader(hints, {
+          delayBetweenScanAttempts: 250,
+        });
+      }
+
+      // Allow DOM video element to attach if not yet mounted
+      await new Promise(res => setTimeout(res, 80));
+
+      if (!videoRef.current) {
+        // Find existing video element in DOM if ref didn't catch it
+        const domVideo = document.getElementById('shelv-scanner-video') as HTMLVideoElement;
+        if (domVideo) {
+          videoRef.current = domVideo;
+        }
+      }
+
+      if (!videoRef.current) {
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
+      }
+
+      // Start continuous scanning
+      const controls = await readerRef.current.decodeFromVideoElement(
+        videoRef.current,
+        (result, error) => {
+          if (result && !isHandlingBarcodeRef.current) {
+            handleLiveBarcodeScanned(result.getText());
+          }
+        }
+      );
+      controlsRef.current = controls;
+    } catch (err: any) {
+      console.warn('Camera access error:', err);
+      setCameraPermissionError(err.message || 'אין הרשאת גישה למצלמה בדפדפן');
+    }
+  };
+
+  const handleLiveBarcodeScanned = async (barcodeText: string) => {
+    if (!barcodeText || isHandlingBarcodeRef.current) return;
+    const cleanText = barcodeText.trim();
+    if (!cleanText) return;
+
+    isHandlingBarcodeRef.current = true;
+    setScanningStatus(`ברקוד נקלט: ${cleanText}`);
+
+    // Provide haptic feedback if available on mobile
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(80);
+      } catch (e) {}
+    }
+
+    if (currentStepRef.current === 'scan_masha') {
+      // Step 1: Masha scan
+      const parsed = parseLabelText(cleanText);
+      const detectedMashaVal = parsed.masha || (cleanText.length >= 6 && cleanText.length <= 15 ? cleanText : '');
+      
+      let desc = parsed.productDescription || '';
+      if (detectedMashaVal) {
+        try {
+          const lookup = await lookupItem(undefined, detectedMashaVal);
+          if (lookup.found && lookup.item) {
+            desc = lookup.item.description;
+          }
+        } catch (e) {}
+      }
+
+      setScannedMasha(detectedMashaVal || cleanText);
+      setDetectedDescription(desc);
+      setDetectedOwner(parsed.stickerOwner || '');
+
+      setScanningStatus(`מסח"א ${detectedMashaVal || cleanText} זוהה! עבור לברקוד S/N...`);
+
+      setTimeout(() => {
+        setCurrentStep('scan_sn');
+        isHandlingBarcodeRef.current = false;
+      }, 500);
+
+    } else if (currentStepRef.current === 'scan_sn') {
+      // Step 2: S/N scan
+      const parsed = parseLabelText(cleanText);
+      const snVal = parsed.serialNumber || cleanText.toUpperCase();
+
+      setScannedSn(snVal);
+      setScanningStatus(`S/N ${snVal} נסרק! שומר במערכת...`);
+
+      await handleCompleteItemScan(
+        snVal,
+        scannedMashaRef.current,
+        detectedDescRef.current,
+        detectedOwnerRef.current
+      );
+
+      isHandlingBarcodeRef.current = false;
+    }
+  };
+
+  // Simulated CV detection of Masha sticker (Fallback/Demo helper)
   const simulateDetectMasha = async (sampleIndex: number) => {
     let mockText = "";
     if (sampleIndex === 1) {
@@ -83,21 +281,19 @@ export default function App() {
     setDetectedDescription(parsed.productDescription || '');
     setDetectedOwner(parsed.stickerOwner || '');
 
-    // Check if known in official database
     if (parsed.masha) {
       try {
         const lookup = await lookupItem(undefined, parsed.masha);
-        if (lookup.found) {
+        if (lookup.found && lookup.item) {
           setDetectedDescription(lookup.item.description);
         }
       } catch (err) {}
     }
 
-    // Move to step 2: Scan S/N
     setCurrentStep('scan_sn');
   };
 
-  // Simulated CV detection of Manufacturer OEM S/N barcode (Back/Bottom label)
+  // Simulated CV detection of Manufacturer OEM S/N barcode (Fallback/Demo helper)
   const simulateDetectSn = async (sn: string) => {
     setScannedSn(sn);
     await handleCompleteItemScan(sn, scannedMasha, detectedDescription, detectedOwner);
@@ -148,6 +344,7 @@ export default function App() {
       setLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -212,42 +409,108 @@ export default function App() {
       {currentStep === 'scan_masha' && (
         <View style={styles.scanContainer}>
           <View style={styles.stepBanner}>
-            <Text style={styles.stepBadge}>שלב 1 מתוך 2</Text>
+            <View style={styles.stepBadgeRow}>
+              <View style={styles.liveIndicator}>
+                <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#10b981' : '#ef4444' }]} />
+                <Text style={styles.liveText}>{cameraActive ? 'מצלמה חיה פעילה' : 'מצלמה כבויה'}</Text>
+              </View>
+              <Text style={styles.stepBadge}>שלב 1 מתוך 2</Text>
+            </View>
             <Text style={styles.stepTitle}>כוון את המצלמה למדבקת המסח"א (Catalog #)</Text>
             <Text style={styles.stepHint}>
-              חפש את המדבקה הלבנה בחזית או בחלק העליון של המחשב / הציוד
+              חפש את הברקוד או המספר במדבקה הלבנה בחזית המכשיר
             </Text>
           </View>
 
-          {/* Camera Viewfinder Mockup with CV Bounding Box */}
+          {/* Real Camera Viewfinder */}
           <View style={styles.viewfinder}>
-            <View style={styles.reticle} />
-            <Text style={styles.viewfinderText}>מזהה תוויות וברקודים בזמן אמת...</Text>
+            {cameraActive ? (
+              <video
+                id="shelv-scanner-video"
+                ref={videoRef as any}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: 14,
+                } as any}
+                autoPlay
+                playsInline
+                muted
+              />
+            ) : (
+              <View style={styles.cameraPausedView}>
+                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
+              </View>
+            )}
+
+            {/* Viewfinder Reticle Overlay */}
+            <View style={styles.reticleOverlay} pointerEvents="none">
+              <View style={styles.reticle} />
+              <View style={styles.scanLaser} />
+            </View>
+
+            {cameraPermissionError ? (
+              <View style={styles.cameraErrorBanner}>
+                <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
+                <TouchableOpacity
+                  style={styles.retryCameraButton}
+                  onPress={startLiveCamera}
+                >
+                  <Text style={styles.retryCameraText}>🔄 אשר גישה ונסה שוב</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
 
-          {/* Quick Simulation Buttons for Demo / Testing */}
-          <View style={styles.simControls}>
-            <Text style={styles.simLabel}>סימולציית זיהוי מדבקה (Computer Vision):</Text>
-            <TouchableOpacity
-              style={styles.simButton}
-              onPress={() => simulateDetectMasha(1)}
-            >
-              <Text style={styles.simButtonText}>📷 זהה: HP Elite Mini (מדבקת ספק)</Text>
-            </TouchableOpacity>
+          {/* Live Scanner Real-time Status */}
+          <View style={styles.statusPill}>
+            <Text style={styles.statusPillText}>{scanningStatus}</Text>
+          </View>
 
-            <TouchableOpacity
-              style={styles.simButton}
-              onPress={() => simulateDetectMasha(2)}
-            >
-              <Text style={styles.simButtonText}>📷 זהה: מדבקה בעברית (בעל מצאי: ניסים)</Text>
-            </TouchableOpacity>
+          {/* Real Scanner Controls + Fallback Tools */}
+          <View style={styles.scannerControls}>
+            <View style={styles.quickToolsRow}>
+              <TouchableOpacity
+                style={styles.quickToolBtn}
+                onPress={() => setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'))}
+              >
+                <Text style={styles.quickToolBtnText}>🔄 הפוך מצלמה</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.simButton, { backgroundColor: '#374151' }]}
-              onPress={() => setCurrentStep('manual_entry')}
-            >
-              <Text style={styles.simButtonText}>⌨️ הקלדה ידנית</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickToolBtn}
+                onPress={() => setCameraActive(prev => !prev)}
+              >
+                <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה מצלמה' : '▶️ הפעל מצלמה'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
+                onPress={() => setCurrentStep('manual_entry')}
+              >
+                <Text style={styles.quickToolBtnText}>⌨️ הקלדה ידנית</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Demo Helpers if testing in desktop browser without barcode labels */}
+            <View style={styles.simControls}>
+              <Text style={styles.simLabel}>דוגמאות מהירות לבדיקה בלחיצה אחת:</Text>
+              <View style={styles.quickSimRow}>
+                <TouchableOpacity
+                  style={styles.simButtonCompact}
+                  onPress={() => simulateDetectMasha(1)}
+                >
+                  <Text style={styles.simButtonText}>🏷️ 943123265 (HP Mini)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.simButtonCompact}
+                  onPress={() => simulateDetectMasha(2)}
+                >
+                  <Text style={styles.simButtonText}>🏷️ 943121160 (ניסים)</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
 
           {/* Bottom Live Bar */}
@@ -270,7 +533,7 @@ export default function App() {
           <View style={styles.recognizedCard}>
             <Text style={styles.recognizedTag}>✅ מסח"א זוהה בהצלחה</Text>
             <Text style={styles.recognizedTitle}>
-              {detectedDescription || 'HP Elite Business Equipment'}
+              {detectedDescription || 'פריט מזוהה'}
             </Text>
             <Text style={styles.recognizedMasha}>מסח"א: {scannedMasha}</Text>
             {detectedOwner ? (
@@ -279,33 +542,106 @@ export default function App() {
           </View>
 
           <View style={[styles.stepBanner, { backgroundColor: '#1e3a8a' }]}>
-            <Text style={styles.stepBadge}>שלב 2 מתוך 2</Text>
+            <View style={styles.stepBadgeRow}>
+              <View style={styles.liveIndicator}>
+                <View style={[styles.liveDot, { backgroundColor: cameraActive ? '#3b82f6' : '#ef4444' }]} />
+                <Text style={styles.liveText}>{cameraActive ? 'מצלמה חיה פעילה' : 'מצלמה כבויה'}</Text>
+              </View>
+              <Text style={[styles.stepBadge, { color: '#93c5fd' }]}>שלב 2 מתוך 2</Text>
+            </View>
             <Text style={styles.stepTitle}>כעת כוון לברקוד המספר הסידורי (S/N)</Text>
-            <Text style={styles.stepHint}>
-              נמצא בדרך כלל במדבקת היצרן השחורה בגב המכשיר או בתחתיתו
+            <Text style={[styles.stepHint, { color: '#bfdbfe' }]}>
+              נמצא בדרך כלל במדבקת היצרן בגב המכשיר או בתחתיתו
             </Text>
           </View>
 
+          {/* Real Camera Viewfinder */}
           <View style={styles.viewfinder}>
-            <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
-            <Text style={styles.viewfinderText}>סורק ברקוד Serial No...</Text>
+            {cameraActive ? (
+              <video
+                id="shelv-scanner-video"
+                ref={videoRef as any}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  borderRadius: 14,
+                } as any}
+                autoPlay
+                playsInline
+                muted
+              />
+            ) : (
+              <View style={styles.cameraPausedView}>
+                <Text style={styles.cameraPausedText}>המצלמה מושהית</Text>
+              </View>
+            )}
+
+            <View style={styles.reticleOverlay} pointerEvents="none">
+              <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
+              <View style={[styles.scanLaser, { backgroundColor: '#3b82f6' }]} />
+            </View>
+
+            {cameraPermissionError ? (
+              <View style={styles.cameraErrorBanner}>
+                <Text style={styles.cameraErrorText}>⚠️ {cameraPermissionError}</Text>
+                <TouchableOpacity
+                  style={styles.retryCameraButton}
+                  onPress={startLiveCamera}
+                >
+                  <Text style={styles.retryCameraText}>🔄 אשר גישה ונסה שוב</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
 
-          <View style={styles.simControls}>
-            <Text style={styles.simLabel}>סימולציית זיהוי S/N היצרן:</Text>
-            <TouchableOpacity
-              style={[styles.simButton, { backgroundColor: '#2563eb' }]}
-              onPress={() => simulateDetectSn('2UA80920XS')}
-            >
-              <Text style={styles.simButtonText}>⚡ ברקוד זוהה: S/N: 2UA80920XS</Text>
-            </TouchableOpacity>
+          {/* Live Scanner Real-time Status */}
+          <View style={[styles.statusPill, { borderColor: '#3b82f6' }]}>
+            <Text style={[styles.statusPillText, { color: '#93c5fd' }]}>{scanningStatus}</Text>
+          </View>
 
-            <TouchableOpacity
-              style={[styles.simButton, { backgroundColor: '#2563eb' }]}
-              onPress={() => simulateDetectSn('2UA4192N4X')}
-            >
-              <Text style={styles.simButtonText}>⚡ ברקוד זוהה: S/N: 2UA4192N4X</Text>
-            </TouchableOpacity>
+          {/* Real Scanner Controls + Fallback Tools */}
+          <View style={styles.scannerControls}>
+            <View style={styles.quickToolsRow}>
+              <TouchableOpacity
+                style={styles.quickToolBtn}
+                onPress={() => setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'))}
+              >
+                <Text style={styles.quickToolBtnText}>🔄 הפוך מצלמה</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
+                onPress={() => setCurrentStep('manual_entry')}
+              >
+                <Text style={styles.quickToolBtnText}>⌨️ הקלדת S/N ידנית</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
+                onPress={() => setCurrentStep('scan_masha')}
+              >
+                <Text style={styles.quickToolBtnText}>↩️ חזרה למסח"א</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.simControls}>
+              <Text style={styles.simLabel}>דוגמאות S/N לבדיקה בלחיצה:</Text>
+              <View style={styles.quickSimRow}>
+                <TouchableOpacity
+                  style={[styles.simButtonCompact, { backgroundColor: '#2563eb' }]}
+                  onPress={() => simulateDetectSn('2UA80920XS')}
+                >
+                  <Text style={styles.simButtonText}>⚡ 2UA80920XS</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.simButtonCompact, { backgroundColor: '#2563eb' }]}
+                  onPress={() => simulateDetectSn('2UA4192N4X')}
+                >
+                  <Text style={styles.simButtonText}>⚡ 2UA4192N4X</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       )}
@@ -488,27 +824,147 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'right',
   },
+  stepBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  liveText: {
+    color: '#e5e7eb',
+    fontSize: 11,
+    fontWeight: '500',
+  },
   viewfinder: {
-    height: 180,
+    height: 240,
     backgroundColor: '#030712',
     borderRadius: 16,
     borderWidth: 2,
     borderColor: '#1f2937',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  cameraPausedView: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+  },
+  cameraPausedText: {
+    color: '#94a3b8',
+    fontSize: 13,
+  },
+  reticleOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   reticle: {
-    width: 140,
-    height: 80,
+    width: 220,
+    height: 120,
     borderWidth: 2,
     borderColor: '#10b981',
-    borderRadius: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
   },
-  viewfinderText: {
-    color: '#6b7280',
+  scanLaser: {
+    position: 'absolute',
+    width: 200,
+    height: 2,
+    backgroundColor: '#10b981',
+    opacity: 0.8,
+  },
+  cameraErrorBanner: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cameraErrorText: {
+    color: '#fff',
     fontSize: 11,
-    marginTop: 10,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  retryCameraButton: {
+    marginTop: 6,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  retryCameraText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  statusPill: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusPillText: {
+    color: '#34d399',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  scannerControls: {
+    backgroundColor: '#111827',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+  },
+  quickToolsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+    marginBottom: 8,
+  },
+  quickToolBtn: {
+    flex: 1,
+    backgroundColor: '#1f2937',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  quickToolBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   recognizedCard: {
     backgroundColor: '#111827',
@@ -543,28 +999,33 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   simControls: {
-    backgroundColor: '#111827',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1f2937',
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#1f2937',
   },
   simLabel: {
     color: '#9ca3af',
     fontSize: 11,
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: 'right',
   },
-  simButton: {
+  quickSimRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  simButtonCompact: {
+    flex: 1,
     backgroundColor: '#059669',
-    padding: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderRadius: 8,
-    marginBottom: 6,
     alignItems: 'center',
   },
   simButtonText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   bottomBar: {
@@ -595,5 +1056,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  simButton: {
+    backgroundColor: '#059669',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 6,
+    alignItems: 'center',
   },
 });

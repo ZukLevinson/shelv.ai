@@ -32,3 +32,19 @@ export async function lookupItem(sn?: string, masha?: string) {
   const res = await fetch(`${SERVER_URL}/api/inventory/lookup?${params.toString()}`);
   return res.json();
 }
+
+export async function startSweepSession(roomId: string, sweptBy: string) {
+  const res = await fetch(`${SERVER_URL}/api/sweep/sessions/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomId, sweptBy }),
+  });
+  return res.json();
+}
+
+export async function completeSweepSession(sessionId: string) {
+  const res = await fetch(`${SERVER_URL}/api/sweep/sessions/${sessionId}/complete`, {
+    method: 'POST',
+  });
+  return res.json();
+}

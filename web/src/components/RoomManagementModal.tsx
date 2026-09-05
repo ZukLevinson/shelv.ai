@@ -209,18 +209,18 @@ export const RoomManagementModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-2.5 sm:p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-950/40">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800 bg-gray-950/40">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+            <div className="p-1.5 sm:p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-white">ניהול חדרים ומבנים</h3>
-              <p className="text-xs text-gray-400">הגדרת רשימת החדרים ובעלי המצאי בארגון</p>
+              <h3 className="font-bold text-base sm:text-lg text-white">ניהול חדרים ומבנים</h3>
+              <p className="text-[11px] sm:text-xs text-gray-400">הגדרת רשימת החדרים ובעלי המצאי בארגון</p>
             </div>
           </div>
           <button
@@ -232,10 +232,10 @@ export const RoomManagementModal: React.FC<Props> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-gray-800 px-6 pt-3 bg-gray-950/20 gap-2">
+        <div className="flex border-b border-gray-800 px-4 sm:px-6 pt-2.5 sm:pt-3 bg-gray-950/20 gap-2">
           <button
             onClick={() => { setActiveTab('list'); setError(null); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
               activeTab === 'list'
                 ? 'border-emerald-500 text-emerald-400 bg-gray-800/50'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
@@ -247,7 +247,7 @@ export const RoomManagementModal: React.FC<Props> = ({
 
           <button
             onClick={() => { setActiveTab('create'); setError(null); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 ${
               activeTab === 'create'
                 ? 'border-emerald-500 text-emerald-400 bg-gray-800/50'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
@@ -274,7 +274,7 @@ export const RoomManagementModal: React.FC<Props> = ({
         )}
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
           {activeTab === 'create' ? (
             <form onSubmit={handleCreateRoom} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

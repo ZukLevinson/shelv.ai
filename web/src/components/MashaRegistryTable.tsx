@@ -38,25 +38,25 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
   );
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-6 shadow-xl">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-2">
-          <Tag className="w-5 h-5 text-emerald-400" />
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-xl max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5">
+          <Tag className="w-5 h-5 text-emerald-400 shrink-0" />
           <div>
-            <h2 className="text-xl font-bold text-white">הגדרת שמות וסוגי מסח"א</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h2 className="text-lg sm:text-xl font-bold text-white">הגדרת שמות וסוגי מסח"א</h2>
+            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
               הענק שם דגם, סוג פריט ותיאור לכל מסח"א כדי שיוצג בצורה ברורה בסריקות ובדשבורד
             </p>
           </div>
         </div>
 
-        <div>
+        <div className="w-full sm:w-auto">
           <input
             type="text"
             placeholder={'חפש לפי מספר מסח"א או דגם...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-64"
+            className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-full sm:w-64"
           />
         </div>
       </div>
@@ -66,8 +66,8 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
           אין כרגע מסחאות במערכת. ייבא קובץ אקסל חתימות כדי להתחיל.
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full text-right text-sm min-w-[650px]">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
                 <th className="pb-3 pr-2">סוג</th>

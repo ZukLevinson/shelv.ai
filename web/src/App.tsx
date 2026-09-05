@@ -73,32 +73,32 @@ export function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6 md:p-8 space-y-8">
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-full overflow-x-hidden">
       {/* Top Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800/80 pb-6">
+      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-gray-800/80 pb-5">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-2xl">
+          <div className="p-2.5 sm:p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-xl sm:text-2xl shrink-0">
             S
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black tracking-tight text-white">shelv.ai</h1>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">shelv.ai</h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 Live Anomaly Engine
               </span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
               מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Navigation View Switcher */}
-          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full xl:w-auto">
+          {/* Navigation View Switcher (Horizontally scrollable on mobile) */}
+          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
             <button
               onClick={() => setActiveView('overview')}
-              className={'px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+              className={'whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'overview' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -106,7 +106,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('scans')}
-              className={'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+              className={'whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'scans' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -115,7 +115,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('holders')}
-              className={'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+              className={'whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'holders' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -124,7 +124,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('masha_registry')}
-              className={'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+              className={'whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'masha_registry' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -133,55 +133,58 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('items')}
-              className={'px-3 py-1.5 text-xs font-medium rounded-lg transition-all ' + (
+              className={'whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'items' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
-              קטלוג פריטים שנסרקו ({items.length})
+              קטלוג פריטים ({items.length})
             </button>
           </div>
 
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-all"
-          >
-            <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
-            <span>רענן</span>
-          </button>
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-all"
+            >
+              <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
+              <span>רענן</span>
+            </button>
 
-          <button
-            onClick={() => setRoomModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all"
-          >
-            <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>ניהול חדרים</span>
-          </button>
+            <button
+              onClick={() => setRoomModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all"
+            >
+              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>ניהול חדרים</span>
+            </button>
 
-          <button
-            onClick={() => setUploadModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all"
-          >
-            <Upload className="w-4 h-4" />
-            <span>ייבוא אקסל חתימות</span>
-          </button>
+            <button
+              onClick={() => setUploadModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>ייבוא אקסל</span>
+            </button>
 
-          <a
-            href="/scanner/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all"
-            title="פתח סורק נייד בסמארטפון או בדפדפן"
-          >
-            <Smartphone className="w-4 h-4 text-cyan-400" />
-            <span>סורק נייד (PWA)</span>
-          </a>
+            <a
+              href="/scanner/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all"
+              title="פתח סורק נייד בסמארטפון או בדפדפן"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+              <span>סורק נייד</span>
+            </a>
+          </div>
         </div>
       </header>
 
       {/* Metric Quick Cards */}
       {anomalies && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between text-gray-400 text-xs">
               <span>סך פריטים חתומים (באקסל)</span>
