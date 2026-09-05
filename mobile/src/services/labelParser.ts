@@ -88,23 +88,56 @@ export function parseLabelText(rawText: string): ParsedItemData {
     }
   }
 
-  // Pass 3: Handwritten Masha fallback (standalone 7 to 10 digit sequence)
+  // Pass 3: Handwritten Masha detection (pure sequence of 7 to 10 digits)
+  // In handwritten stickers, there is often NO word "Catalog" or "מסח\"א" - only handwriting with numbers!
+  // e.g. "943112961", "943121160", or spaced handwriting like "9 4 3 1 1 2 9 6 1"
   if (!result.masha) {
     for (const line of lines) {
-      const cleanLine = line.replace(/[^\w\s]/g, ' ').trim();
-      const numMatch = cleanLine.match(/\b([0-9]{7,10})\b/);
-      if (numMatch && numMatch[1] !== result.serialNumber) {
-        result.masha = numMatch[1];
-        break;
+      // Exclude phone number or date lines
+      if (/Phone|טלפון|טל|Date|תאריך|Begin|Warranty/i.test(line)) continue;
+
+      // Normalize look-alike characters (O->0, I/l->1, S->5, etc.)
+      const normalizedLine = normalizeDigits(line);
+
+      // Check for standalone 7-10 digit numbers
+      const numMatches = normalizedLine.match(/\b([0-9]{7,10})\b/g);
+      if (numMatches) {
+        for (const num of numMatches) {
+          // Skip if matches serial number or Israeli phone prefix (05x, 09, 03, 08, 02) or year (19xx, 20xx)
+          if (num === result.serialNumber) continue;
+          if (/^(?:05\d{8}|0[23489]\d{7}|19\d{2}|20\d{2})$/.test(num)) continue;
+
+          result.masha = num;
+          break;
+        }
+        if (result.masha) break;
+      }
+
+      // Check for handwriting where digits might have spaces between them (e.g. "9 4 3 1 1 2 9 6 1")
+      const spacedDigitsMatch = normalizedLine.match(/\b((?:[0-9]\s*){7,10})\b/);
+      if (spacedDigitsMatch) {
+        const compact = spacedDigitsMatch[1].replace(/\s+/g, '');
+        if (compact.length >= 7 && compact.length <= 10 && compact !== result.serialNumber) {
+          if (!/^(?:05\d{8}|0[23489]\d{7})$/.test(compact)) {
+            result.masha = compact;
+            break;
+          }
+        }
       }
     }
   }
 
-  // Pass 4: Raw text fallback for any 8-10 digit sequence
+  // Pass 4: Global text fallback for any 7-10 digit sequence (excluding phone / dates)
   if (!result.masha) {
-    const rawDigits = rawText.match(/\b([0-9]{8,10})\b/);
-    if (rawDigits && rawDigits[1] !== result.serialNumber) {
-      result.masha = rawDigits[1];
+    const allNormalized = normalizeDigits(rawText);
+    const allDigitsMatches = allNormalized.match(/\b([0-9]{7,10})\b/g);
+    if (allDigitsMatches) {
+      for (const num of allDigitsMatches) {
+        if (num === result.serialNumber) continue;
+        if (/^(?:05\d{8}|0[23489]\d{7}|19\d{2}|20\d{2})$/.test(num)) continue;
+        result.masha = num;
+        break;
+      }
     }
   }
 

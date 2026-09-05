@@ -678,9 +678,9 @@ export default function App() {
               </View>
               <Text style={styles.stepBadge}>שלב 1 מתוך 2</Text>
             </View>
-            <Text style={styles.stepTitle}>כוון את המצלמה למדבקת המסח"א (Catalog #)</Text>
+            <Text style={styles.stepTitle}>כוון למדבקת מסח"א / רצף מספרים בכתב יד</Text>
             <Text style={styles.stepHint}>
-              זיהוי טקסט בלבד (ללא ברקוד). סורק את המספר שאחרי Catalog #: או כתב יד בכל זווית
+              זיהוי טקסט וספרות (ללא ברקוד). מזהה רצף ספרות בכתב יד (7-10 ספרות) או מדבקת Catalog #
             </Text>
           </View>
 
