@@ -697,9 +697,13 @@ export default function App() {
             ) : null}
           </View>
 
-          {/* Live Scanner Real-time Status */}
+          {/* Live Scanner Real-time Status Badge */}
           <View style={styles.statusPill}>
-            <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 6 }]} />
+            {ocrLoading ? (
+              <ActivityIndicator size="small" color="#34d399" style={{ marginRight: 8 }} />
+            ) : (
+              <View style={[styles.liveDot, { backgroundColor: '#10b981', marginRight: 8 }]} />
+            )}
             <Text style={styles.statusPillText}>{scanningStatus}</Text>
           </View>
 
@@ -880,7 +884,8 @@ export default function App() {
           </View>
 
           {/* Live Scanner Real-time Status */}
-          <View style={[styles.statusPill, { borderColor: '#3b82f6' }]}>
+          <View style={[styles.statusPill, { borderColor: '#3b82f6', flexDirection: 'row', justifyContent: 'center' }]}>
+            <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 8 }]} />
             <Text style={[styles.statusPillText, { color: '#93c5fd' }]}>{scanningStatus}</Text>
           </View>
 
@@ -1134,14 +1139,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   viewfinder: {
-    height: 240,
+    height: 380,
     backgroundColor: '#030712',
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 2,
     borderColor: '#1f2937',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 12,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -1166,19 +1171,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reticle: {
-    width: 220,
-    height: 120,
-    borderWidth: 2,
+    width: 290,
+    height: 170,
+    borderWidth: 2.5,
     borderColor: '#10b981',
-    borderRadius: 12,
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    borderRadius: 16,
+    backgroundColor: 'rgba(16, 185, 129, 0.04)',
   },
   scanLaser: {
     position: 'absolute',
-    width: 200,
+    width: 260,
     height: 2,
     backgroundColor: '#10b981',
-    opacity: 0.8,
+    opacity: 0.85,
   },
   cameraErrorBanner: {
     position: 'absolute',
@@ -1209,19 +1214,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   statusPill: {
-    backgroundColor: '#111827',
-    borderWidth: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.95)',
+    borderWidth: 1.5,
     borderColor: '#10b981',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   statusPillText: {
     color: '#34d399',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'center',
   },
   scannerControls: {
