@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Tag, Edit3, Monitor, Laptop, Tv, Printer, Fingerprint, Box } from 'lucide-react';
 import { MashaEditModal } from './MashaEditModal';
 
@@ -43,9 +43,9 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
         <div className="flex items-center gap-2">
           <Tag className="w-5 h-5 text-emerald-400" />
           <div>
-            <h2 className="text-xl font-bold text-white">×”×’×“×¨×ª ×©×ž×•×ª ×•×¡×•×’×™ ×ž×¡×—×</h2>
+            <h2 className="text-xl font-bold text-white">הגדרת שמות וסוגי מסח"א</h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              ×”×¢× ×§ ×©× ×“×’×, ×¡×•×’ ×¤×¨×™×˜ ×•×ª×™××•×¨ ×œ×›×œ ×ž×¡×—× ×›×“×™ ×©×™×•×¦×’ ×‘×¦×•×¨×” ×‘×¨×•×¨×” ×‘×¡×¨×™×§×•×ª ×•×‘×“×©×‘×•×¨×“
+              הענק שם דגם, סוג פריט ותיאור לכל מסח"א כדי שיוצג בצורה ברורה בסריקות ובדשבורד
             </p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
         <div>
           <input
             type="text"
-            placeholder="×—×¤×© ×œ×¤×™ ×ž×¡×¤×¨ ×ž×¡×—× ××• ×“×’×..."
+            placeholder={'חפש לפי מספר מסח"א או דגם...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 w-64"
@@ -63,20 +63,20 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
 
       {filtered.length === 0 ? (
         <div className="text-center py-10 text-gray-500 text-xs">
-          ××™×Ÿ ×›×¨×’×¢ ×ž×¡×—××•×ª ×‘×ž×¢×¨×›×ª. ×™×™×‘× ×§×•×‘×¥ ××§×¡×œ ×—×ª×™×ž×•×ª ×›×“×™ ×œ×”×ª×—×™×œ.
+          אין כרגע מסחאות במערכת. ייבא קובץ אקסל חתימות כדי להתחיל.
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
-                <th className="pb-3 pr-2">×¡×•×’</th>
-                <th className="pb-3">×ž×¡×—× (Catalog #)</th>
-                <th className="pb-3">×©× ×¤×¨×™×˜ ×•×“×’×</th>
-                <th className="pb-3">×ž×¤×¨×˜ / ×ª×™××•×¨ × ×•×¡×£</th>
-                <th className="pb-3">×¡×”×› ×—×ª×•× (××§×¡×œ)</th>
-                <th className="pb-3">× ×¡×¨×§ ×‘×¤×•×¢×œ</th>
-                <th className="pb-3 pl-2 text-left">×¤×¢×•×œ×”</th>
+                <th className="pb-3 pr-2">סוג</th>
+                <th className="pb-3">מסח"א (Catalog #)</th>
+                <th className="pb-3">שם פריט ודגם</th>
+                <th className="pb-3">מפרט / תיאור נוסף</th>
+                <th className="pb-3">סה"כ חתום (אקסל)</th>
+                <th className="pb-3">נסרק בפועל</th>
+                <th className="pb-3 pl-2 text-left">פעולה</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
@@ -91,16 +91,16 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
                     {item.masha}
                   </td>
                   <td className="py-3.5 font-medium text-white">
-                    {item.name ? item.name : <span className="text-gray-500 italic">×˜×¨× ×”×•×’×“×¨ ×©×</span>}
+                    {item.name ? item.name : <span className="text-gray-500 italic">טרם הוגדר שם</span>}
                   </td>
                   <td className="py-3.5 text-xs text-gray-400 max-w-xs truncate">
                     {item.description || '-'}
                   </td>
                   <td className="py-3.5 text-xs font-semibold text-gray-200">
-                    {item.total_signed || 0} ×™×—'
+                    {item.total_signed || 0} יח'
                   </td>
                   <td className="py-3.5 text-xs font-semibold text-emerald-400">
-                    {item.total_discovered || 0} ×™×—'
+                    {item.total_discovered || 0} יח'
                   </td>
                   <td className="py-3.5 pl-2 text-left">
                     <button
@@ -108,7 +108,7 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-emerald-500/20 text-gray-300 hover:text-emerald-300 border border-gray-700 hover:border-emerald-500/30 text-xs transition-all"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      <span>×¢×¨×•×š ×”×’×“×¨×”</span>
+                      <span>ערוך הגדרה</span>
                     </button>
                   </td>
                 </tr>
@@ -129,4 +129,3 @@ export const MashaRegistryTable: React.FC<Props> = ({ mashaList, onRefresh }) =>
     </div>
   );
 };
-

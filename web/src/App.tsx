@@ -81,7 +81,7 @@ export function App() {
               </span>
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
-              ×ž×¢×¨×›×ª × ×™×”×•×œ, ×¡×¨×™×§×ª ×ž×œ××™ ×•×–×™×”×•×™ ×—×¨×™×’×•×ª ×‘×¢×œ×™ ×ž×¦××™ ×‘××¨×’×•×Ÿ
+              מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון
             </p>
           </div>
         </div>
@@ -95,7 +95,7 @@ export function App() {
                 activeView === 'overview' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
-              ×ž×‘×˜ ×¢×œ ×•×—×¨×™×’×•×ª
+              מבט על וחריגות
             </button>
             <button
               onClick={() => setActiveView('masha_registry')}
@@ -104,7 +104,7 @@ export function App() {
               )}
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>×”×’×“×¨×ª ×ž×¡×—××•×ª ({mashaList.length})</span>
+              <span>הגדרת מסחאות ({mashaList.length})</span>
             </button>
             <button
               onClick={() => setActiveView('items')}
@@ -112,7 +112,7 @@ export function App() {
                 activeView === 'items' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
-              ×§×˜×œ×•×’ ×¤×¨×™×˜×™× ×©× ×¡×¨×§×• ({items.length})
+              קטלוג פריטים שנסרקו ({items.length})
             </button>
           </div>
 
@@ -122,7 +122,7 @@ export function App() {
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-all"
           >
             <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
-            <span>×¨×¢× ×Ÿ</span>
+            <span>רענן</span>
           </button>
 
           <button
@@ -138,7 +138,7 @@ export function App() {
             className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all"
           >
             <Upload className="w-4 h-4" />
-            <span>×™×™×‘×•×  × ×§×¡×œ ×—×ª×™×ž×•×ª</span>
+            <span>ייבוא אקסל חתימות</span>
           </button>
         </div>
       </header>
@@ -148,46 +148,46 @@ export function App() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between text-gray-400 text-xs">
-              <span>×¡×š ×¤×¨×™×˜×™× ×—×ª×•×ž×™× (×‘××§×¡×œ)</span>
+              <span>סך פריטים חתומים (באקסל)</span>
               <BarChart3 className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-2xl font-black text-white mt-2">
-              {anomalies.stats.totalExpectedItems}
+              {anomalies.stats?.totalExpectedItems ?? (anomalies.stats as any)?.totalOfficialItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">×ž×›×¡×ª ×”×—×ª×™×ž×•×ª ×©×œ ×‘×¢×œ×™ ×”×ž×¦××™</div>
+            <div className="text-[11px] text-gray-500 mt-1">מכסת החתימות של בעלי המצאי</div>
           </div>
 
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between text-gray-400 text-xs">
-              <span>×¤×¨×™×˜×™× ×¤×™×–×™×™× ×©× ×¡×¨×§×•</span>
+              <span>פריטים פיזיים שנסרקו</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl font-black text-emerald-400 mt-2">
-              {anomalies.stats.totalDiscoveredItems}
+              {anomalies.stats?.totalDiscoveredItems ?? (anomalies.stats as any)?.totalSweptItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">×–×•×”×• ×•××•×ž×ª×• ×‘×¡×¨×™×§×•×ª ×”×¢×•×‘×“×™×</div>
+            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות העובדים</div>
           </div>
 
           <div className="bg-gray-900 border border-rose-900/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between text-rose-300 text-xs">
-              <span>×”×¢×‘×¨×•×ª ×œ×œ× ×—×ª×™×ž×” (×—×¨×™×’×•×ª)</span>
+              <span>העברות ללא חתימה (חריגות)</span>
               <AlertOctagon className="w-4 h-4 text-rose-400" />
             </div>
             <div className="text-2xl font-black text-rose-400 mt-2">
-              {anomalies.stats.unauthorizedCount}
+              {anomalies.stats?.unauthorizedCount ?? 0}
             </div>
-            <div className="text-[11px] text-rose-300/70 mt-1">×¤×¨×™×˜×™× ×‘×—×“×¨ ×©×œ ×‘×¢×œ ×ž×¦××™ ×©××™×Ÿ ×œ×• ×—×ª×™×ž×”</div>
+            <div className="text-[11px] text-rose-300/70 mt-1">פריטים בחדר של בעל מצאי שאין לו חתימה</div>
           </div>
 
           <div className="bg-gray-900 border border-amber-900/30 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between text-amber-300 text-xs">
-              <span>×¤×¢×¨ ×—×¡×¨ ×ž×¡×š ×”×—×ª×™×ž×•×ª</span>
+              <span>פער חסר מסך החתימות</span>
               <ShieldCheck className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-2xl font-black text-amber-400 mt-2">
-              {anomalies.stats.missingCount}
+              {anomalies.stats?.missingCount ?? 0}
             </div>
-            <div className="text-[11px] text-amber-300/70 mt-1">×¤×¨×™×˜×™× ×©×¢×“×™×™×Ÿ ×œ× × ×ž×¦××• ×‘×©×•× ×¡×¨×™×§×”</div>
+            <div className="text-[11px] text-amber-300/70 mt-1">פריטים שעדיין לא נמצאו בשום סריקה</div>
           </div>
         </div>
       )}

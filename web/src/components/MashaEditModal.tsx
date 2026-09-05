@@ -42,7 +42,7 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <Tag className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-semibold text-base text-white">×”×’×“×¨×ª ×¤×¨×˜×™ ×ž×¡×—× {mashaItem.masha}</h3>
+            <h3 className="font-semibold text-base text-white">הגדרת פרטי מסח"א {mashaItem.masha}</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg">
             <X className="w-5 h-5" />
@@ -52,45 +52,45 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
         <div className="p-6 space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">
-              ×©× ×”×¤×¨×™×˜ / ×“×’× (×œ×“×•×’×ž×”: HP Elite Mini 800 G9):
+              שם הפריט / דגם (לדוגמה: HP Elite Mini 800 G9):
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="×”×–×Ÿ ×©× ×“×’×..."
+              placeholder="הזן שם דגם..."
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
             />
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">
-              ×¡×•×’ ×¤×¨×™×˜:
+              סוג פריט:
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500"
             >
-              <option value="PC">×ž×—×©×‘ × ×™×™×— (PC)</option>
-              <option value="Laptop">×ž×—×©×‘ × ×™×™×“ (Laptop)</option>
-              <option value="Screen">×ž×¡×š (Screen)</option>
-              <option value="Switch">×ž×ª×’ ×ª×¦×•×’×” / ×¨×©×ª (Switch)</option>
-              <option value="Printer">×ž×“×¤×¡×ª (Printer)</option>
-              <option value="TV">×˜×œ×•×•×™×–×™×” / ×ž×¡×š ×ª×¦×•×’×” (TV)</option>
-              <option value="Scanner">×¡×•×¨×§ ×˜×‘×™×¢×•×ª ××¦×‘×¢ (Fingerprint Scanner)</option>
-              <option value="Other">××—×¨ (Other)</option>
+              <option value="PC">מחשב נייח (PC)</option>
+              <option value="Laptop">מחשב נייד (Laptop)</option>
+              <option value="Screen">מסך (Screen)</option>
+              <option value="Switch">מתג תצוגה / רשת (Switch)</option>
+              <option value="Printer">מדפסת (Printer)</option>
+              <option value="TV">טלוויזיה / מסך תצוגה (TV)</option>
+              <option value="Scanner">סורק טביעת אצבע (Fingerprint Scanner)</option>
+              <option value="Other">אחר (Other)</option>
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">
-              ×ž×¤×¨×˜ / ×ª×™××•×¨ × ×•×¡×£ (××•×¤×¦×™×•× ×œ×™):
+              מפרט / תיאור נוסף (אופציונלי):
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="×œ×“×•×’×ž×”: ×ž×¢×‘×“ i7-12700, 16GB ×–×™×›×¨×•×Ÿ, ×“×™×¡×§ 512GB..."
+              placeholder="לדוגמה: מעבד i7-12700, 16GB זיכרון, דיסק 512GB..."
               rows={3}
               className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
             />
@@ -99,7 +99,7 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-950/50 border-t border-gray-800">
           <button onClick={onClose} className="px-4 py-2 text-xs text-gray-400 hover:text-white">
-            ×‘×™×˜×•×œ
+            ביטול
           </button>
           <button
             onClick={handleSave}
@@ -107,11 +107,10 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-md shadow-emerald-500/20"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? '×©×•×ž×¨...' : '×©×ž×•×¨ ×”×’×“×¨×•×ª'}</span>
+            <span>{saving ? 'שומר...' : 'שמור הגדרות'}</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
-

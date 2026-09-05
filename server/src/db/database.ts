@@ -85,6 +85,15 @@ export function initDatabase() {
       resolved_by TEXT NOT NULL,
       resolved_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS masha_registry (
+      masha TEXT PRIMARY KEY,
+      name TEXT,
+      category TEXT DEFAULT 'PC',
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   seedDefaultDataIfEmpty();

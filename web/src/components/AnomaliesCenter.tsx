@@ -15,6 +15,10 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
 
   if (!anomalies) return null;
 
+  const unauthorizedTransfers = anomalies.unauthorizedTransfers || [];
+  const quotaDiscrepancies = anomalies.quotaDiscrepancies || [];
+  const discoveredDistribution = anomalies.discoveredDistribution || [];
+
   const handleApproveTransfer = async (serialNumber: string, targetHolderId: string) => {
     setResolvingSn(serialNumber);
     try {
@@ -51,7 +55,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
             <AlertTriangle className="w-4 h-4" />
             <span>ציוד זר בחדר (ללא חתימה)</span>
             <span className="px-2 py-0.5 text-xs rounded-full bg-rose-500/30 text-rose-200">
-              {anomalies.unauthorizedTransfers.length}
+              {unauthorizedTransfers.length}
             </span>
           </button>
 
@@ -66,7 +70,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
             <HelpCircle className="w-4 h-4" />
             <span>פערי חתימות חסרים</span>
             <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500/30 text-amber-200">
-              {anomalies.quotaDiscrepancies.length}
+              {quotaDiscrepancies.length}
             </span>
           </button>
 
@@ -81,7 +85,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
             <BarChart3 className="w-4 h-4" />
             <span>פריסה פיזית לפי חדרים</span>
             <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/30 text-blue-200">
-              {anomalies.discoveredDistribution.length}
+              {discoveredDistribution.length}
             </span>
           </button>
         </div>
@@ -90,7 +94,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
       {/* Tab 1: Unauthorized Items Found in a Room */}
       {activeTab === 'unauthorized' && (
         <div className="space-y-4">
-          {anomalies.unauthorizedTransfers.length === 0 ? (
+          {unauthorizedTransfers.length === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">
               <Check className="w-12 h-12 text-emerald-400 mx-auto mb-2 opacity-80" />
               <p>לא נמצאו פריטים בחדרים של בעלי מצאי ללא חתימה מתאימה.</p>
@@ -110,7 +114,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {anomalies.unauthorizedTransfers.map((item) => (
+                  {unauthorizedTransfers.map((item) => (
                     <tr key={item.serialNumber} className="hover:bg-gray-800/30 transition-colors">
                       <td className="py-4 pr-2">
                         <div className="font-semibold text-white">{item.mashaName}</div>
@@ -160,7 +164,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
       {/* Tab 2: Quota Discrepancies (Signed Quantity vs Discovered Quantity) */}
       {activeTab === 'discrepancies' && (
         <div className="space-y-4">
-          {anomalies.quotaDiscrepancies.length === 0 ? (
+          {quotaDiscrepancies.length === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">
               <Check className="w-12 h-12 text-emerald-400 mx-auto mb-2 opacity-80" />
               <p>כל המכסות החתומות באקסל אומתו בסריקות הפיזיות במלואן!</p>
@@ -178,7 +182,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {anomalies.quotaDiscrepancies.map((d) => (
+                  {quotaDiscrepancies.map((d) => (
                     <tr key={d.holderId + '-' + d.masha} className="hover:bg-gray-800/30 transition-colors">
                       <td className="py-3.5 pr-2 font-bold text-white">
                         {d.holderName}
@@ -210,7 +214,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
       {/* Tab 3: Discovered Physical Distribution across Rooms */}
       {activeTab === 'distribution' && (
         <div className="space-y-4">
-          {anomalies.discoveredDistribution.length === 0 ? (
+          {discoveredDistribution.length === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">
               טרם בוצעו סריקות למיפוי מיקומי הפריטים בחדרים.
             </div>
@@ -226,7 +230,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {anomalies.discoveredDistribution.map((dist, idx) => (
+                  {discoveredDistribution.map((dist, idx) => (
                     <tr key={idx} className="hover:bg-gray-800/30 transition-colors">
                       <td className="py-3.5 pr-2 font-semibold text-white">
                         {dist.holderName}

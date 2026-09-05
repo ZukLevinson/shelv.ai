@@ -185,35 +185,85 @@ inventoryRouter.get('/items', (req, res) => {
   const { search, roomId, holderId, category } = req.query;
 
   let query = `
-    SELECT i.*, r.name as room_name, r.code as room_code, h.name as holder_name
-    FROM official_inventory i
-    JOIN rooms r ON i.room_id = r.id
-    JOIN inventory_holders h ON i.holder_id = h.id
-    WHERE 1=1
+    SELECT 
+      COALESCE(o.serial_number, i.serial_number) as serial_number,
+      COALESCE(o.masha, i.masha) as masha,
+      COALESCE(m.name, i.description, o.product_name_detected, 'פריט') as description,
+      COALESCE(m.category, i.category, 'PC') as category,
+      r.id as room_id,
+      r.name as room_name,
+      r.code as room_code,
+      h.name as holder_name,
+      COALESCE(o.scanned_at, i.created_at) as last_seen_at,
+      COALESCE(o.scanned_by, 'מערכת') as last_scanned_by,
+      o.sticker_owner_text
+    FROM sweep_observations o
+    JOIN rooms r ON o.room_id = r.id
+    JOIN inventory_holders h ON r.holder_id = h.id
+    LEFT JOIN official_inventory i ON o.serial_number = i.serial_number
+    LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
+    WHERE o.id = (
+      SELECT sub.id FROM sweep_observations sub
+      WHERE sub.serial_number = o.serial_number
+      ORDER BY sub.scanned_at DESC LIMIT 1
+    )
   `;
   const params: any[] = [];
 
   if (search) {
-    query += ` AND (i.serial_number LIKE ? OR i.masha LIKE ? OR i.description LIKE ?)`;
+    query += ` AND (o.serial_number LIKE ? OR o.masha LIKE ? OR m.name LIKE ? OR i.description LIKE ?)`;
     const searchPattern = `%${search}%`;
-    params.push(searchPattern, searchPattern, searchPattern);
+    params.push(searchPattern, searchPattern, searchPattern, searchPattern);
   }
   if (roomId) {
-    query += ` AND i.room_id = ?`;
+    query += ` AND r.id = ?`;
     params.push(roomId);
   }
   if (holderId) {
-    query += ` AND i.holder_id = ?`;
+    query += ` AND h.id = ?`;
     params.push(holderId);
   }
   if (category) {
-    query += ` AND i.category = ?`;
+    query += ` AND COALESCE(m.category, i.category, 'PC') = ?`;
     params.push(category);
   }
 
-  query += ` ORDER BY i.created_at DESC`;
+  query += ` ORDER BY last_seen_at DESC`;
 
-  const items = db.prepare(query).all(...params);
+  let items = db.prepare(query).all(...params);
+
+  // If no sweeps yet, fall back to official inventory baseline so catalog isn't blank
+  if (items.length === 0) {
+    let fallbackQuery = `
+      SELECT i.serial_number, i.masha, 
+             COALESCE(m.name, i.description) as description,
+             COALESCE(m.category, i.category) as category,
+             r.id as room_id, r.name as room_name, r.code as room_code, h.name as holder_name,
+             i.created_at as last_seen_at, 'בסיס נתונים' as last_scanned_by, NULL as sticker_owner_text
+      FROM official_inventory i
+      JOIN rooms r ON i.room_id = r.id
+      JOIN inventory_holders h ON i.holder_id = h.id
+      LEFT JOIN masha_registry m ON i.masha = m.masha
+      WHERE 1=1
+    `;
+    const fallbackParams: any[] = [];
+    if (search) {
+      fallbackQuery += ` AND (i.serial_number LIKE ? OR i.masha LIKE ? OR i.description LIKE ?)`;
+      const searchPattern = `%${search}%`;
+      fallbackParams.push(searchPattern, searchPattern, searchPattern);
+    }
+    if (roomId) {
+      fallbackQuery += ` AND i.room_id = ?`;
+      fallbackParams.push(roomId);
+    }
+    if (holderId) {
+      fallbackQuery += ` AND i.holder_id = ?`;
+      fallbackParams.push(holderId);
+    }
+    fallbackQuery += ` ORDER BY i.created_at DESC`;
+    items = db.prepare(fallbackQuery).all(...fallbackParams);
+  }
+
   res.json(items);
 });
 
@@ -247,3 +297,69 @@ inventoryRouter.get('/lookup', (req, res) => {
 
   res.json({ found: !!item, item });
 });
+
+// Masha Registry Endpoints
+inventoryRouter.get('/masha-registry', (req, res) => {
+  try {
+    const list = db.prepare(`
+      WITH all_mashas AS (
+        SELECT masha FROM masha_registry
+        UNION
+        SELECT masha FROM official_inventory WHERE masha IS NOT NULL AND masha != ''
+        UNION
+        SELECT masha FROM sweep_observations WHERE masha IS NOT NULL AND masha != ''
+      )
+      SELECT a.masha, 
+             COALESCE(m.name, '') as name,
+             COALESCE(m.category, (SELECT o.category FROM official_inventory o WHERE o.masha = a.masha LIMIT 1), 'PC') as category,
+             COALESCE(m.description, (SELECT o.description FROM official_inventory o WHERE o.masha = a.masha LIMIT 1), '') as description,
+             (SELECT COUNT(*) FROM official_inventory o WHERE o.masha = a.masha) as total_signed,
+             (SELECT COUNT(DISTINCT s.serial_number) FROM sweep_observations s WHERE s.masha = a.masha) as total_discovered
+      FROM all_mashas a
+      LEFT JOIN masha_registry m ON a.masha = m.masha
+      ORDER BY a.masha ASC
+    `).all();
+    res.json(list);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch masha registry' });
+  }
+});
+
+inventoryRouter.post('/masha-registry/update', (req, res) => {
+  const { masha, name, category, description } = req.body;
+  if (!masha) {
+    return res.status(400).json({ error: 'masha is required' });
+  }
+
+  const cleanMasha = String(masha).trim();
+  const cleanName = (name || '').trim();
+  const cleanCategory = (category || 'PC').trim();
+  const cleanDesc = (description || '').trim();
+
+  try {
+    db.prepare(`
+      INSERT INTO masha_registry (masha, name, category, description, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(masha) DO UPDATE SET
+        name = excluded.name,
+        category = excluded.category,
+        description = excluded.description,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(cleanMasha, cleanName, cleanCategory, cleanDesc);
+
+    // Also update any official inventory items with this masha to keep name/description/category in sync
+    if (cleanName || cleanDesc || cleanCategory) {
+      db.prepare(`
+        UPDATE official_inventory
+        SET description = COALESCE(NULLIF(?, ''), description),
+            category = COALESCE(NULLIF(?, ''), category)
+        WHERE masha = ?
+      `).run(cleanName || cleanDesc, cleanCategory, cleanMasha);
+    }
+
+    broadcast('MASHA_UPDATED', { masha: cleanMasha, name: cleanName, category: cleanCategory, description: cleanDesc });
+    res.json({ success: true, masha: cleanMasha });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update masha' });
+  }
+});
