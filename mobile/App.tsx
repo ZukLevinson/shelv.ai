@@ -1274,6 +1274,16 @@ export default function App() {
                   ) : null}
                 </View>
               </View>
+            ) : ocrLoading ? (
+              <View style={styles.processingOverlay}>
+                <View style={[styles.processingModalCard, { borderColor: '#3b82f6' }]}>
+                  <View style={[styles.processingPulseBadge, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                    <ActivityIndicator size="large" color="#60a5fa" />
+                  </View>
+                  <Text style={[styles.processingTitle, { color: '#60a5fa' }]}>⚡ Gemini מפענח S/N...</Text>
+                  <Text style={styles.processingSubtitle}>מחלץ מספר סידורי ופרטי יצרן מהתמונה שנלכדה</Text>
+                </View>
+              </View>
             ) : (
               <View style={styles.reticleOverlay} pointerEvents="none">
                 <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
@@ -1346,6 +1356,21 @@ export default function App() {
                 ) : null}
               </View>
             ) : null}
+
+            {/* Human Snapshot Shutter Button Overlay for S/N */}
+            {!isProcessingFound && !ocrLoading && (
+              <View style={styles.shutterContainer}>
+                <TouchableOpacity
+                  style={styles.shutterButtonBlue}
+                  onPress={captureAndRecognizeHandwrittenMasha}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.shutterInnerCircle} />
+                  <Text style={styles.shutterText}>📸 צלם S/N לפענוח</Text>
+                </TouchableOpacity>
+                <Text style={styles.shutterHintBlue}>ייצב מול מדבקת המספר הסידורי ולחץ לצילום</Text>
+              </View>
+            )}
 
             {/* Floating Status inside camera bottom */}
             <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
@@ -1450,8 +1475,17 @@ export default function App() {
                 <Text style={styles.quickToolBtnText}>↩️ חזרה</Text>
               </TouchableOpacity>
             </View>
+          </View>
 
-
+          {/* Bottom Bar */}
+          <View style={styles.bottomBarCompact}>
+            <Text style={styles.bottomBarText}>נסרקו בסשן זה: {scannedItemsCount}</Text>
+            <TouchableOpacity
+              onPress={() => setCurrentStep('select_room')}
+              style={styles.cancelButtonCompact}
+            >
+              <Text style={styles.cancelButtonText}>סיום סריקה</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -2802,6 +2836,21 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
+  shutterButtonBlue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1d4ed8',
+    paddingVertical: 14,
+    paddingHorizontal: 26,
+    borderRadius: 36,
+    borderWidth: 2.5,
+    borderColor: '#60a5fa',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 8,
+  },
   shutterInnerCircle: {
     width: 22,
     height: 22,
@@ -2819,6 +2868,15 @@ const styles = StyleSheet.create({
   },
   shutterHint: {
     color: '#a7f3d0',
+    fontSize: 11,
+    marginTop: 6,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  shutterHintBlue: {
+    color: '#bfdbfe',
     fontSize: 11,
     marginTop: 6,
     fontWeight: '600',
