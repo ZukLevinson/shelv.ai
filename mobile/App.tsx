@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
 import { fetchRooms, submitScan, lookupItem } from './src/services/api';
 
@@ -31,6 +32,7 @@ export default function App() {
   const [cameraPermissionError, setCameraPermissionError] = useState<string | null>(null);
   const [scanningStatus, setScanningStatus] = useState<string>('סורק פעיל וממתין לברקוד...');
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -265,6 +267,91 @@ export default function App() {
     }
   };
 
+  // Real OCR capture for handwritten or printed label text from live video frame
+  const captureAndRecognizeHandwrittenMasha = async () => {
+    if (!videoRef.current) {
+      Alert.alert('שגיאה', 'המצלמה אינה פעילה');
+      return;
+    }
+
+    try {
+      setOcrLoading(true);
+      setScanningStatus('מבצע צילום וסריקת OCR (זיהוי כתב יד / טקסט)...');
+
+      const video = videoRef.current;
+      const width = video.videoWidth || 1280;
+      const height = video.videoHeight || 720;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Failed to get 2D context');
+
+      ctx.drawImage(video, 0, 0, width, height);
+
+      // Apply image enhancement for handwriting (grayscale + contrast boost)
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const contrast = (v - 128) * 1.5 + 128;
+        const finalVal = Math.min(255, Math.max(0, contrast));
+        d[i] = finalVal;
+        d[i + 1] = finalVal;
+        d[i + 2] = finalVal;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      // Run Tesseract OCR on processed canvas
+      const worker = await createWorker(['eng', 'heb']);
+      const ret = await worker.recognize(canvas);
+      await worker.terminate();
+
+      const recognizedText = ret.data.text || '';
+      console.log('[OCR Result]:', recognizedText);
+
+      const parsed = parseLabelText(recognizedText);
+
+      if (parsed.masha) {
+        let desc = parsed.productDescription || '';
+        try {
+          const lookup = await lookupItem(undefined, parsed.masha);
+          if (lookup.found && lookup.item) {
+            desc = lookup.item.description;
+          }
+        } catch (e) {}
+
+        setScannedMasha(parsed.masha);
+        setDetectedDescription(desc);
+        setDetectedOwner(parsed.stickerOwner || '');
+        setScanningStatus(`מסח"א ${parsed.masha} פוענח בהצלחה! עבור ל-S/N...`);
+
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try { navigator.vibrate(80); } catch (e) {}
+        }
+
+        setTimeout(() => {
+          setCurrentStep('scan_sn');
+        }, 600);
+      } else {
+        setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או הקלד ידנית');
+        Alert.alert(
+          'זיהוי טקסט (OCR)',
+          recognizedText.trim()
+            ? `הטקסט שנקלט:\n"${recognizedText.trim().substring(0, 150)}"\n\nלא אותר מספר מסח"א (8-10 ספרות). ודא שהמספר ברור ומואר היטב.`
+            : 'לא זוהה טקסט בפריים. קרב את המצלמה למדבקה ונסה שוב.'
+        );
+      }
+    } catch (err: any) {
+      console.error('OCR error:', err);
+      setScanningStatus('שגיאה במהלך פענוח OCR');
+      Alert.alert('שגיאה בסריקת כתב יד', err.message || 'פענוח OCR נכשל');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
   // Simulated CV detection of Masha sticker (Fallback/Demo helper)
   const simulateDetectMasha = async (sampleIndex: number) => {
     let mockText = "";
@@ -467,6 +554,22 @@ export default function App() {
           <View style={styles.statusPill}>
             <Text style={styles.statusPillText}>{scanningStatus}</Text>
           </View>
+
+          {/* Prominent OCR Action Button for Handwritten Stickers */}
+          <TouchableOpacity
+            style={[styles.ocrCaptureButton, ocrLoading && styles.ocrCaptureButtonDisabled]}
+            onPress={captureAndRecognizeHandwrittenMasha}
+            disabled={ocrLoading}
+          >
+            {ocrLoading ? (
+              <View style={styles.ocrLoadingRow}>
+                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.ocrCaptureButtonText}>מפענח טקסט וכתב יד מתוך הפריים (OCR)...</Text>
+              </View>
+            ) : (
+              <Text style={styles.ocrCaptureButtonText}>✍️ צלם וזהה מסח"א כתוב ידנית (OCR)</Text>
+            )}
+          </TouchableOpacity>
 
           {/* Real Scanner Controls + Fallback Tools */}
           <View style={styles.scannerControls}>
@@ -1056,6 +1159,36 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  ocrCaptureButton: {
+    backgroundColor: '#0d9488',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#14b8a6',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  ocrCaptureButtonDisabled: {
+    backgroundColor: '#134e4a',
+    borderColor: '#0f766e',
+    opacity: 0.7,
+  },
+  ocrCaptureButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  ocrLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   simButton: {
     backgroundColor: '#059669',
