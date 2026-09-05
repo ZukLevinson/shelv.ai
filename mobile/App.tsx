@@ -1055,23 +1055,7 @@ export default function App() {
               onChange={handlePhotoSelected}
             />
 
-            {/* Quick Demo Helpers in compact row */}
-            <View style={styles.simControlsCompact}>
-              <View style={styles.quickSimRow}>
-                <TouchableOpacity
-                  style={styles.simButtonCompact}
-                  onPress={() => simulateDetectMasha(1)}
-                >
-                  <Text style={styles.simButtonText}>🏷️ דוגמה 1 (HP Mini)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.simButtonCompact}
-                  onPress={() => simulateDetectMasha(2)}
-                >
-                  <Text style={styles.simButtonText}>🏷️ דוגמה 2 (ניסים)</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+
           </View>
 
           {/* Bottom Bar */}
@@ -1306,22 +1290,7 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.simControlsCompact}>
-              <View style={styles.quickSimRow}>
-                <TouchableOpacity
-                  style={[styles.simButtonCompact, { backgroundColor: '#2563eb' }]}
-                  onPress={() => simulateDetectSn('2UA80920XS')}
-                >
-                  <Text style={styles.simButtonText}>⚡ 2UA80920XS</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.simButtonCompact, { backgroundColor: '#2563eb' }]}
-                  onPress={() => simulateDetectSn('2UA4192N4X')}
-                >
-                  <Text style={styles.simButtonText}>⚡ 2UA4192N4X</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+
           </View>
         </View>
       )}
