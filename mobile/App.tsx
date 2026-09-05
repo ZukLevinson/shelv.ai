@@ -230,6 +230,7 @@ export default function App() {
 
       // Start appropriate scanner based on current step
       if (currentStep === 'scan_sn') {
+        // Dual mode: ZXing instant 1D/2D Barcode scanner + Continuous Gemini Vision Stream
         const controls = await readerRef.current.decodeFromVideoElement(
           videoRef.current,
           (result, error) => {
@@ -239,8 +240,9 @@ export default function App() {
           }
         );
         controlsRef.current = controls;
+        startLiveTextStreamScanner();
       } else if (currentStep === 'scan_masha') {
-        // Start high-speed real-time Text Stream Detector (Hardware Accelerated)
+        // Continuous Gemini Vision Stream Detector
         startLiveTextStreamScanner();
       }
     } catch (err: any) {
@@ -276,7 +278,7 @@ export default function App() {
   };
 
   // Continuous Hands-Free Gemini Vision Stream Detector
-  // Runs continuously in the background whenever camera is pointed at equipment label!
+  // Runs continuously in the background whenever camera is pointed at equipment label or serial number!
   const startLiveTextStreamScanner = () => {
     stopLiveOcrStream();
     if (typeof window === 'undefined') return;
@@ -286,7 +288,8 @@ export default function App() {
     const streamCtx = streamCanvas.getContext('2d', { willReadFrequently: true });
 
     liveOcrIntervalRef.current = setInterval(async () => {
-      if (currentStepRef.current !== 'scan_masha' || !videoRef.current || isOcrRunningRef.current) {
+      const step = currentStepRef.current;
+      if ((step !== 'scan_masha' && step !== 'scan_sn') || !videoRef.current || isOcrRunningRef.current) {
         return;
       }
 
@@ -332,10 +335,11 @@ export default function App() {
         const attemptNum = geminiAttemptsRef.current;
         setGeminiAttempts(attemptNum);
 
+        const targetMode = step === 'scan_sn' ? 'sn' : 'masha';
         setScanningStatus(`✨ Gemini סורק (${attemptNum}/10)...`);
-        const geminiRes = await scanWithGemini(base64Jpg);
+        const geminiRes = await scanWithGemini(base64Jpg, targetMode);
 
-        if (currentStepRef.current !== 'scan_masha') return;
+        if (currentStepRef.current !== step) return;
 
         if (geminiRes.suspicions) {
           setLiveSuspicions(geminiRes.suspicions);
@@ -345,31 +349,55 @@ export default function App() {
           setRecognizedLiveText(geminiRes.rawText);
         }
 
-        if (geminiRes.masha) {
-          // Freeze the live frame immediately!
-          setFrozenImage(base64Jpg);
-          setIsProcessingFound(true);
-          setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
-          stopLiveOcrStream();
-          setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
-          setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}`);
+        if (step === 'scan_masha') {
+          if (geminiRes.masha) {
+            // Freeze the live frame immediately!
+            setFrozenImage(base64Jpg);
+            setIsProcessingFound(true);
+            setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
+            stopLiveOcrStream();
+            setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
+            setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}`);
 
-          await onMashaRecognized({
-            masha: geminiRes.masha,
-            productDescription: geminiRes.productDescription,
-            stickerOwner: geminiRes.stickerOwner,
-            serialNumber: geminiRes.serialNumber,
-          });
-          return;
-        } else if (geminiRes.suspicions?.mashaCandidate) {
-          setLastOcrDiagnosis(`🟡 חושד במסח"א: ${geminiRes.suspicions.mashaCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
-          if (geminiRes.suspicions.hint) {
-            setScanningStatus(`💡 ${geminiRes.suspicions.hint}`);
+            await onMashaRecognized({
+              masha: geminiRes.masha,
+              productDescription: geminiRes.productDescription,
+              stickerOwner: geminiRes.stickerOwner,
+              serialNumber: geminiRes.serialNumber,
+            });
+            return;
+          } else if (geminiRes.suspicions?.mashaCandidate) {
+            setLastOcrDiagnosis(`🟡 חושד במסח"א: ${geminiRes.suspicions.mashaCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
+            if (geminiRes.suspicions.hint) {
+              setScanningStatus(`💡 ${geminiRes.suspicions.hint}`);
+            }
+          } else if (geminiRes.rawText) {
+            setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
+          } else {
+            setScanningStatus(`סורק פעיל (${attemptNum}/10) - כוון למדבקה / מסח"א...`);
           }
-        } else if (geminiRes.rawText) {
-          setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
-        } else {
-          setScanningStatus(`סורק פעיל (${attemptNum}/10) - כוון למדבקה / מסח"א...`);
+        } else if (step === 'scan_sn') {
+          const detectedSn = geminiRes.serialNumber || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).serialNumber : undefined);
+          if (detectedSn) {
+            setFrozenImage(base64Jpg);
+            setIsProcessingFound(true);
+            setFoundInfoText(`מספר סידורי (S/N): ${detectedSn}`);
+            stopLiveOcrStream();
+            setScanningStatus(`⚡ נתונים זוהו! מעבד מספר סידורי: ${detectedSn}...`);
+            setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה S/N: ${detectedSn}`);
+
+            await onSnRecognized(detectedSn);
+            return;
+          } else if (geminiRes.suspicions?.serialCandidate) {
+            setLastOcrDiagnosis(`🟡 חושד ב-S/N: ${geminiRes.suspicions.serialCandidate}${geminiRes.suspicions.productCandidate ? ` • ${geminiRes.suspicions.productCandidate}` : ''}`);
+            if (geminiRes.suspicions.hint) {
+              setScanningStatus(`💡 ${geminiRes.suspicions.hint}`);
+            }
+          } else if (geminiRes.rawText) {
+            setLastOcrDiagnosis(`👀 נקלט טקסט: ${geminiRes.rawText}`);
+          } else {
+            setScanningStatus(`סורק פעיל (${attemptNum}/10) - כוון למדבקת יצרן או ברקוד S/N...`);
+          }
         }
 
         // If after this attempt we hit 10 and still haven't recognized
@@ -401,6 +429,7 @@ export default function App() {
     if (!cleanText) return;
 
     isHandlingBarcodeRef.current = true;
+    stopLiveOcrStream();
     
     // Stop barcode decoding while processing
     if (controlsRef.current) {
@@ -460,6 +489,33 @@ export default function App() {
     isHandlingBarcodeRef.current = false;
   };
 
+  // Shared handler when valid S/N is recognized via Gemini Vision
+  const onSnRecognized = async (sn: string) => {
+    if (!sn) return;
+    stopLiveOcrStream();
+    if (controlsRef.current) {
+      try { controlsRef.current.stop(); } catch (e) {}
+      controlsRef.current = null;
+    }
+
+    const cleanSn = sn.trim().toUpperCase();
+    setScannedSn(cleanSn);
+    setScanningStatus(`S/N ${cleanSn} פוענח בהצלחה! שומר במערכת...`);
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(80); } catch (e) {}
+    }
+
+    await new Promise(res => setTimeout(res, 900));
+
+    await handleCompleteItemScan(
+      cleanSn,
+      scannedMashaRef.current,
+      detectedDescRef.current,
+      detectedOwnerRef.current
+    );
+  };
+
   // Shared handler when valid Masha is recognized (via stream, snapshot, or photo upload)
   const onMashaRecognized = async (parsed: ReturnType<typeof parseLabelText>) => {
     if (!parsed.masha) return;
@@ -489,7 +545,6 @@ export default function App() {
     }, 1200);
   };
 
-  // Process any image source (canvas or image element) with Tesseract across multiple angles
   // Process any image source (canvas or image element) with Gemini Vision
   const processImageForOcr = async (sourceCanvas: HTMLCanvasElement) => {
     if (geminiAttemptsRef.current >= 10) {
@@ -498,6 +553,9 @@ export default function App() {
       setShowScanGuideModal(true);
       return;
     }
+
+    const step = currentStepRef.current;
+    const targetMode = step === 'scan_sn' ? 'sn' : 'masha';
 
     try {
       setOcrLoading(true);
@@ -508,32 +566,53 @@ export default function App() {
       setScanningStatus(`✨ שולח לפענוח ראייה ממוחשבת באמצעות Gemini Vision (${attemptNum}/10)...`);
 
       const base64Jpg = sourceCanvas.toDataURL('image/jpeg', 0.88);
-      const geminiRes = await scanWithGemini(base64Jpg);
+      const geminiRes = await scanWithGemini(base64Jpg, targetMode);
 
       if (geminiRes.rawText) {
         setRecognizedLiveText(geminiRes.rawText);
       }
 
-      if (geminiRes.masha) {
-        setFrozenImage(base64Jpg);
-        setIsProcessingFound(true);
-        setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
-        stopLiveOcrStream();
-        setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
-        setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}${geminiRes.stickerOwner ? ` | בעלים: ${geminiRes.stickerOwner}` : ''}`);
-        await onMashaRecognized({
-          masha: geminiRes.masha,
-          productDescription: geminiRes.productDescription,
-          stickerOwner: geminiRes.stickerOwner,
-          serialNumber: geminiRes.serialNumber,
-        });
-      } else {
-        setScanningStatus(`לא זוהה מסח"א ברור (${attemptNum}/10). נסה שוב או קרב את העדשה למדבקה`);
-        setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
-        if (geminiAttemptsRef.current >= 10) {
+      if (step === 'scan_masha') {
+        if (geminiRes.masha) {
+          setFrozenImage(base64Jpg);
+          setIsProcessingFound(true);
+          setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
           stopLiveOcrStream();
-          setCameraActive(false);
-          setShowScanGuideModal(true);
+          setScanningStatus(`⚡ נתונים זוהו! מעבד פרטי מסח"א: ${geminiRes.masha}...`);
+          setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה מסח"א: ${geminiRes.masha}${geminiRes.productDescription ? ` | ${geminiRes.productDescription}` : ''}${geminiRes.stickerOwner ? ` | בעלים: ${geminiRes.stickerOwner}` : ''}`);
+          await onMashaRecognized({
+            masha: geminiRes.masha,
+            productDescription: geminiRes.productDescription,
+            stickerOwner: geminiRes.stickerOwner,
+            serialNumber: geminiRes.serialNumber,
+          });
+        } else {
+          setScanningStatus(`לא זוהה מסח"א ברור (${attemptNum}/10). נסה שוב או קרב את העדשה למדבקה`);
+          setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
+          if (geminiAttemptsRef.current >= 10) {
+            stopLiveOcrStream();
+            setCameraActive(false);
+            setShowScanGuideModal(true);
+          }
+        }
+      } else if (step === 'scan_sn') {
+        const detectedSn = geminiRes.serialNumber || (geminiRes.rawText ? parseLabelText(geminiRes.rawText).serialNumber : undefined);
+        if (detectedSn) {
+          setFrozenImage(base64Jpg);
+          setIsProcessingFound(true);
+          setFoundInfoText(`מספר סידורי (S/N): ${detectedSn}`);
+          stopLiveOcrStream();
+          setScanningStatus(`⚡ נתונים זוהו! מעבד מספר סידורי: ${detectedSn}...`);
+          setLastOcrDiagnosis(`✨ [Gemini Vision] זוהה S/N: ${detectedSn}`);
+          await onSnRecognized(detectedSn);
+        } else {
+          setScanningStatus(`לא זוהה S/N ברור (${attemptNum}/10). נסה שוב או קרב את העדשה למדבקת היצרן`);
+          setLastOcrDiagnosis(`⚠️ נקלט טקסט: ${geminiRes.rawText || 'לא זוהה טקסט ברור'}`);
+          if (geminiAttemptsRef.current >= 10) {
+            stopLiveOcrStream();
+            setCameraActive(false);
+            setShowScanGuideModal(true);
+          }
         }
       }
     } catch (err: any) {
@@ -554,7 +633,7 @@ export default function App() {
     geminiAttemptsRef.current = 0;
     setGeminiAttempts(0);
     setCameraActive(true);
-    setScanningStatus('מאתחל סריקה... כוון את המצלמה למדבקה');
+    setScanningStatus(currentStep === 'scan_sn' ? 'מאתחל סריקה... כוון למדבקת יצרן או לברקוד S/N' : 'מאתחל סריקה... כוון את המצלמה למדבקה');
   };
 
   // Multi-angle capture directly from live video frame
@@ -1087,9 +1166,49 @@ export default function App() {
               </View>
             )}
 
+            {/* Real-time Gemini Suspicion HUD: Floating badge displaying active hypotheses */}
+            {!isProcessingFound && liveSuspicions && (liveSuspicions.serialCandidate || liveSuspicions.productCandidate || liveSuspicions.mashaCandidate) ? (
+              <View style={[styles.geminiSuspicionHud, { borderColor: '#3b82f6', backgroundColor: 'rgba(15, 23, 42, 0.92)' }]}>
+                <View style={styles.suspicionHeaderRow}>
+                  <View style={[
+                    styles.suspicionIndicatorDot,
+                    { backgroundColor: liveSuspicions.confidence === 'high' ? '#3b82f6' : liveSuspicions.confidence === 'medium' ? '#f59e0b' : '#38bdf8' }
+                  ]} />
+                  <Text style={[styles.suspicionTitle, { color: '#93c5fd' }]}>Gemini סורק S/N בזמן אמת</Text>
+                  {liveSuspicions.confidence ? (
+                    <Text style={[styles.suspicionConfidenceBadge, { color: '#60a5fa', borderColor: '#3b82f6' }]}>
+                      {liveSuspicions.confidence === 'high' ? 'וודאות גבוהה' : liveSuspicions.confidence === 'medium' ? 'ממקד...' : 'בבדיקה'}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {liveSuspicions.serialCandidate ? (
+                  <View style={styles.suspicionChip}>
+                    <Text style={styles.suspicionChipLabel}>S/N משוער:</Text>
+                    <Text style={[styles.suspicionChipValue, { color: '#60a5fa' }]}>{liveSuspicions.serialCandidate}</Text>
+                  </View>
+                ) : null}
+
+                {liveSuspicions.productCandidate ? (
+                  <View style={styles.suspicionChip}>
+                    <Text style={styles.suspicionChipLabel}>דגם/מוצר:</Text>
+                    <Text style={styles.suspicionChipValue} numberOfLines={1}>{liveSuspicions.productCandidate}</Text>
+                  </View>
+                ) : null}
+
+                {liveSuspicions.hint ? (
+                  <Text style={styles.suspicionHintText}>💡 {liveSuspicions.hint}</Text>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Floating Status inside camera bottom */}
             <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
-              <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 6 }]} />
+              {ocrLoading ? (
+                <ActivityIndicator size="small" color="#60a5fa" style={{ marginRight: 6 }} />
+              ) : (
+                <View style={[styles.liveDot, { backgroundColor: '#3b82f6', marginRight: 6 }]} />
+              )}
               <Text style={[styles.statusPillTextCompact, { color: '#93c5fd' }]} numberOfLines={1}>{scanningStatus}</Text>
             </View>
 
@@ -1119,28 +1238,71 @@ export default function App() {
             </View>
           ) : null}
 
+          {/* Real-time OCR Text Inspection Panel (Collapsible/Compact) */}
+          {(recognizedLiveText || lastOcrDiagnosis) ? (
+            <View style={[styles.ocrInspectionCardCompact, { borderColor: '#3b82f6' }]}>
+              <View style={styles.ocrInspectionHeader}>
+                <Text style={[styles.ocrInspectionTitle, { color: '#93c5fd' }]}>🔍 פוענח בזמן אמת (S/N):</Text>
+                <TouchableOpacity onPress={() => { setRecognizedLiveText(''); setLastOcrDiagnosis(''); }}>
+                  <Text style={styles.ocrInspectionClear}>נקה ✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {lastOcrDiagnosis ? (
+                <View style={styles.ocrDiagnosisBox}>
+                  <Text style={styles.ocrDiagnosisText} numberOfLines={2}>{lastOcrDiagnosis}</Text>
+                </View>
+              ) : null}
+
+              {recognizedLiveText ? (
+                <ScrollView style={styles.ocrRawTextScrollCompact} nestedScrollEnabled>
+                  <Text style={styles.ocrRawTextContent}>{recognizedLiveText}</Text>
+                </ScrollView>
+              ) : null}
+
+              <Text style={styles.ocrInspectionTip}>
+                💡 כוון את המצלמה למדבקת המספר הסידורי (Serial No. / S/N / SN) או השתמש בצילום HD.
+              </Text>
+            </View>
+          ) : null}
+
           {/* Controls Dock (Compact) */}
           <View style={styles.scannerControlsCompact}>
             <View style={styles.quickToolsRow}>
               <TouchableOpacity
+                style={styles.quickToolBtn}
+                onPress={() => setCameraActive(prev => !prev)}
+              >
+                <Text style={styles.quickToolBtnText}>{cameraActive ? '⏸️ השהה' : '▶️ הפעל'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.quickToolBtn, { backgroundColor: '#1e293b' }]}
+                onPress={() => fileInputRef.current?.click()}
+                disabled={ocrLoading}
+              >
+                <Text style={styles.quickToolBtnText}>📷 צילום HD</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#059669' }]}
                 onPress={() => handleCompleteItemScan(undefined, scannedMasha, detectedDescription, detectedOwner)}
               >
-                <Text style={styles.quickToolBtnText}>⏩ דלג ושמור ללא S/N</Text>
+                <Text style={styles.quickToolBtnText}>⏩ דלג ללא S/N</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#1e40af' }]}
                 onPress={() => setCurrentStep('manual_entry')}
               >
-                <Text style={styles.quickToolBtnText}>⌨️ הקלדת S/N ידנית</Text>
+                <Text style={styles.quickToolBtnText}>⌨️ הקלדה</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.quickToolBtn, { backgroundColor: '#374151' }]}
                 onPress={() => setCurrentStep('scan_masha')}
               >
-                <Text style={styles.quickToolBtnText}>↩️ חזרה למסח"א</Text>
+                <Text style={styles.quickToolBtnText}>↩️ חזרה</Text>
               </TouchableOpacity>
             </View>
 
