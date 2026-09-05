@@ -45,16 +45,14 @@ export function importOfficialInventoryFromExcel(buffer: Buffer): ImportResult {
       const roomName = String(row['Room'] || row['חדר'] || row['מיקום'] || '').trim();
       const holderName = String(row['Inventory Holder'] || row['בעל מצאי'] || row['Holder'] || '').trim();
 
-      if (!sn) {
-        errors.push(`Row ${rowIdx}: Missing Serial Number`);
-        continue;
-      }
+      const effectiveSN = sn || ('NO-SN-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase());
+
       if (!masha) {
         errors.push(`Row ${rowIdx}: Missing Masha / Catalog #`);
         continue;
       }
       if (!roomName) {
-        errors.push(`Row ${rowIdx}: Missing Room for S/N: ${sn}`);
+        errors.push(`Row ${rowIdx}: Missing Room for item`);
         continue;
       }
 
@@ -78,13 +76,13 @@ export function importOfficialInventoryFromExcel(buffer: Buffer): ImportResult {
         }
       }
 
-      const existing = findItemBySN.get(sn) as any;
+      const existing = sn ? (findItemBySN.get(sn) as any) : null;
       if (existing) {
         updateItem.run(masha, description, category, roomId, holderId, sn);
         updatedCount++;
       } else {
         const itemId = 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-        insertItem.run(itemId, masha, sn, description, category, roomId, holderId);
+        insertItem.run(itemId, masha, effectiveSN, description, category, roomId, holderId);
         insertedCount++;
       }
     }

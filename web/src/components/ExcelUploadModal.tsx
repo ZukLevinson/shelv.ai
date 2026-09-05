@@ -61,7 +61,8 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
         <div className="p-6 space-y-4">
           <p className="text-sm text-gray-400 leading-relaxed">
             העלה קובץ אקסל (.xlsx / .csv) לעדכון רשומות המצאי הרשמיות של הארגון.
-            העמודות הנדרשות: <strong>Catalog # (מסח"א)</strong>, <strong>Serial Number (S/N)</strong>, <strong>תיאור</strong>, <strong>חדר</strong>, <strong>בעל מצאי</strong>.
+            עמודות חובה: <strong>Catalog # (מסח"א)</strong>, <strong>תיאור</strong>, <strong>חדר</strong>.
+            עמודות אופציונליות: <strong>Serial Number (S/N)</strong>, <strong>בעל מצאי</strong>, <strong>קטגוריה</strong>.
           </p>
 
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 flex items-start gap-2">
