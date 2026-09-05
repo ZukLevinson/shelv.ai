@@ -5,41 +5,75 @@ export interface ParsedItemData {
   stickerOwner?: string;
 }
 
+/**
+ * Normalize OCR text errors where numbers are confused with look-alike letters
+ * e.g., 'O' -> '0', 'l'/'I' -> '1', 'S' -> '5', 'B' -> '8'
+ */
+function normalizeDigits(str: string): string {
+  return str
+    .replace(/[Oo]/g, '0')
+    .replace(/[Il|]/g, '1')
+    .replace(/[Ss]/g, '5')
+    .replace(/[Bb]/g, '8')
+    .replace(/[Zz]/g, '2');
+}
+
 export function parseLabelText(rawText: string): ParsedItemData {
   const result: ParsedItemData = {};
   if (!rawText) return result;
 
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  // Split lines and normalize basic punctuation
+  const lines = rawText
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  // Pass 1: Prioritize explicit "Catalog #" or Hebrew equivalents "מסח"א", "מס קטלוגי", "מק"ט", etc.
+  // The user explicitly specified:
+  // "if there is white label with Catalog # - do not scan the barcode. no barcodes should be scanned at all. only the numbers after the Catalog #: ..."
+  const catalogRegex = /(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*קטלוגי|\s*מצאי|\s*סידורי\s*של)?|מק"?ט)\s*[:#\-.\s]+([0-9A-Za-z\s\-]{6,16})/i;
 
   for (const line of lines) {
-    // Clean common OCR noise like pipes, brackets, leading colons
     const cleanLine = line.replace(/[|\[\]{}~_]/g, ' ').trim();
 
-    // 1. Check for Catalog # / מסח"א / מס קטלוגי
-    const catalogMatch = cleanLine.match(/(?:Catalog\s*#?|מס(?:ח"א|\s*קטלוגי|\s*מצאי)?)\s*[:#\-.]?\s*([0-9]{7,12})/i);
-    if (catalogMatch && !result.masha) {
-      result.masha = catalogMatch[1];
-    } else {
-      // Standalone 8 to 10 digit number (standard IDF/Government Masha length)
-      const standaloneNum = cleanLine.match(/\b([0-9]{8,10})\b/);
-      if (standaloneNum && !result.masha) {
-        result.masha = standaloneNum[1];
+    const catMatch = cleanLine.match(catalogRegex);
+    if (catMatch && !result.masha) {
+      // Clean candidate and convert potential OCR char slips to digits
+      const candidateDigits = normalizeDigits(catMatch[1]).replace(/[^0-9]/g, '');
+      if (candidateDigits.length >= 6 && candidateDigits.length <= 14) {
+        result.masha = candidateDigits;
       }
     }
+  }
 
-    // 2. Check for Serial Number (S/N)
-    const snMatch = cleanLine.match(/(?:Serial\s*(?:No\.?|#)?|S\/N|מספר סידורי|מס"ד|סריאלי)\s*[:#\-.]?\s*([A-Z0-9]{7,16})/i);
+  // Pass 1.5: If not found per line, check across entire text block (in case "Catalog #" and digits were split by newline)
+  if (!result.masha) {
+    const multilineMatch = rawText.match(/(?:Catalog\s*(?:#|No\.?|Num\.?|Number)?|Cat\s*#?|מס(?:ח"?א|\s*קטלוגי|\s*מצאי)?|מק"?ט)[\s:#\-.\n]+([0-9A-Za-z\s]{6,16})/i);
+    if (multilineMatch) {
+      const candidateDigits = normalizeDigits(multilineMatch[1]).replace(/[^0-9]/g, '');
+      if (candidateDigits.length >= 6 && candidateDigits.length <= 14) {
+        result.masha = candidateDigits;
+      }
+    }
+  }
+
+  // Pass 2: Extract other metadata (S/N, Description, Owner) and fallback for handwritten Masha digits
+  for (const line of lines) {
+    const cleanLine = line.replace(/[|\[\]{}~_]/g, ' ').trim();
+
+    // S/N matching
+    const snMatch = cleanLine.match(/(?:Serial\s*(?:No\.?|#)?|S\/N|מספר סידורי|מס"ד|סריאלי)\s*[:#\-.]?\s*([A-Z0-9]{6,18})/i);
     if (snMatch && !result.serialNumber) {
       result.serialNumber = snMatch[1].toUpperCase();
     } else {
-      // OEM HP/Lenovo format: e.g., 2UA80920XS, 2UA4192N4X, 3CQ7290K11, PF3XYZ12
+      // OEM HP/Lenovo/Dell format: e.g. 2UA80920XS, PF3XYZ12, 3CQ7290K11
       const hpSnMatch = cleanLine.match(/\b([0-9][A-Z]{2}[0-9]{5,7}[A-Z0-9]{1,3})\b/i);
       if (hpSnMatch && !result.serialNumber) {
         result.serialNumber = hpSnMatch[1].toUpperCase();
       }
     }
 
-    // 3. Product Description (HP EliteDesk, Lenovo, etc.)
+    // Product description
     const descMatch = cleanLine.match(/(?:Description|תיאור)\s*[:#\-.]?\s*(.+)/i);
     if (descMatch && !result.productDescription) {
       result.productDescription = descMatch[1].trim();
@@ -47,18 +81,30 @@ export function parseLabelText(rawText: string): ParsedItemData {
       result.productDescription = cleanLine;
     }
 
-    // 4. Hebrew Sticker Owner (בעל מצאי)
+    // Hebrew Sticker Owner (בעל מצאי)
     const ownerMatch = cleanLine.match(/(?:בעל\s*מצאי|בעלים|אחראי|שם)\s*[:#\-.]?\s*([א-ת\s"״]+)/);
     if (ownerMatch && !result.stickerOwner) {
       result.stickerOwner = ownerMatch[1].trim();
     }
   }
 
-  // Fallback: If no explicit masha found in lines, search entire raw text for any 8-10 digit sequence
+  // Pass 3: Handwritten Masha fallback (standalone 7 to 10 digit sequence)
   if (!result.masha) {
-    const rawMatch = rawText.match(/\b([0-9]{8,10})\b/);
-    if (rawMatch) {
-      result.masha = rawMatch[1];
+    for (const line of lines) {
+      const cleanLine = line.replace(/[^\w\s]/g, ' ').trim();
+      const numMatch = cleanLine.match(/\b([0-9]{7,10})\b/);
+      if (numMatch && numMatch[1] !== result.serialNumber) {
+        result.masha = numMatch[1];
+        break;
+      }
+    }
+  }
+
+  // Pass 4: Raw text fallback for any 8-10 digit sequence
+  if (!result.masha) {
+    const rawDigits = rawText.match(/\b([0-9]{8,10})\b/);
+    if (rawDigits && rawDigits[1] !== result.serialNumber) {
+      result.masha = rawDigits[1];
     }
   }
 

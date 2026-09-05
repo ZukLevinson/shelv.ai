@@ -135,7 +135,7 @@ export default function App() {
     }
 
     setCameraPermissionError(null);
-    setScanningStatus(currentStep === 'scan_sn' ? 'מכוון לברקוד סידורי (S/N)...' : 'מכוון למדבקת מסח"א / ברקוד...');
+    setScanningStatus(currentStep === 'scan_sn' ? 'מכוון לברקוד סידורי (S/N)...' : 'מכוון למדבקת מסח"א / Catalog # (זיהוי טקסט בלבד)...');
 
     try {
       stopLiveCamera();
@@ -191,16 +191,19 @@ export default function App() {
         await videoRef.current.play();
       }
 
-      // Start continuous scanning
-      const controls = await readerRef.current.decodeFromVideoElement(
-        videoRef.current,
-        (result, error) => {
-          if (result && !isHandlingBarcodeRef.current) {
-            handleLiveBarcodeScanned(result.getText());
+      // ONLY start barcode scanning if we are in scan_sn step.
+      // During scan_masha, NO barcodes should be scanned (only text/OCR).
+      if (currentStep === 'scan_sn') {
+        const controls = await readerRef.current.decodeFromVideoElement(
+          videoRef.current,
+          (result, error) => {
+            if (result && !isHandlingBarcodeRef.current) {
+              handleLiveBarcodeScanned(result.getText());
+            }
           }
-        }
-      );
-      controlsRef.current = controls;
+        );
+        controlsRef.current = controls;
+      }
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setCameraPermissionError(err.message || 'אין הרשאת גישה למצלמה בדפדפן');
@@ -209,6 +212,11 @@ export default function App() {
 
   const handleLiveBarcodeScanned = async (barcodeText: string) => {
     if (!barcodeText || isHandlingBarcodeRef.current) return;
+    // Disallow ANY barcode scanning when in Masha step. Masha MUST be recognized via OCR/Text only!
+    if (currentStepRef.current !== 'scan_sn') {
+      return;
+    }
+
     const cleanText = barcodeText.trim();
     if (!cleanText) return;
 
@@ -222,52 +230,24 @@ export default function App() {
       } catch (e) {}
     }
 
-    if (currentStepRef.current === 'scan_masha') {
-      // Step 1: Masha scan
-      const parsed = parseLabelText(cleanText);
-      const detectedMashaVal = parsed.masha || (cleanText.length >= 6 && cleanText.length <= 15 ? cleanText : '');
-      
-      let desc = parsed.productDescription || '';
-      if (detectedMashaVal) {
-        try {
-          const lookup = await lookupItem(undefined, detectedMashaVal);
-          if (lookup.found && lookup.item) {
-            desc = lookup.item.description;
-          }
-        } catch (e) {}
-      }
+    // Step 2: S/N scan
+    const parsed = parseLabelText(cleanText);
+    const snVal = parsed.serialNumber || cleanText.toUpperCase();
 
-      setScannedMasha(detectedMashaVal || cleanText);
-      setDetectedDescription(desc);
-      setDetectedOwner(parsed.stickerOwner || '');
+    setScannedSn(snVal);
+    setScanningStatus(`S/N ${snVal} נסרק! שומר במערכת...`);
 
-      setScanningStatus(`מסח"א ${detectedMashaVal || cleanText} זוהה! עבור לברקוד S/N...`);
+    await handleCompleteItemScan(
+      snVal,
+      scannedMashaRef.current,
+      detectedDescRef.current,
+      detectedOwnerRef.current
+    );
 
-      setTimeout(() => {
-        setCurrentStep('scan_sn');
-        isHandlingBarcodeRef.current = false;
-      }, 500);
-
-    } else if (currentStepRef.current === 'scan_sn') {
-      // Step 2: S/N scan
-      const parsed = parseLabelText(cleanText);
-      const snVal = parsed.serialNumber || cleanText.toUpperCase();
-
-      setScannedSn(snVal);
-      setScanningStatus(`S/N ${snVal} נסרק! שומר במערכת...`);
-
-      await handleCompleteItemScan(
-        snVal,
-        scannedMashaRef.current,
-        detectedDescRef.current,
-        detectedOwnerRef.current
-      );
-
-      isHandlingBarcodeRef.current = false;
-    }
+    isHandlingBarcodeRef.current = false;
   };
 
-  // Real OCR capture for handwritten or printed label text from live video frame
+  // Multi-angle & contrast-enhanced OCR capture for handwritten or printed label text
   const captureAndRecognizeHandwrittenMasha = async () => {
     if (!videoRef.current) {
       Alert.alert('שגיאה', 'המצלמה אינה פעילה');
@@ -276,56 +256,90 @@ export default function App() {
 
     try {
       setOcrLoading(true);
-      setScanningStatus('מבצע צילום וסריקת OCR (זיהוי כתב יד / טקסט)...');
+      setScanningStatus('מבצע צילום ופענוח OCR רב-כיווני (0°, 90°, 180°, 270°)...');
 
       const video = videoRef.current;
-      const width = video.videoWidth || 1280;
-      const height = video.videoHeight || 720;
+      const srcWidth = video.videoWidth || 1280;
+      const srcHeight = video.videoHeight || 720;
 
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Failed to get 2D context');
+      // Base canvas
+      const baseCanvas = document.createElement('canvas');
+      baseCanvas.width = srcWidth;
+      baseCanvas.height = srcHeight;
+      const baseCtx = baseCanvas.getContext('2d');
+      if (!baseCtx) throw new Error('Failed to get 2D context');
+      baseCtx.drawImage(video, 0, 0, srcWidth, srcHeight);
 
-      ctx.drawImage(video, 0, 0, width, height);
+      // Helper to generate rotated & preprocessed canvas
+      const createPreprocessedCanvas = (angleDeg: number) => {
+        const rotCanvas = document.createElement('canvas');
+        const is90or270 = angleDeg === 90 || angleDeg === 270;
+        const targetW = is90or270 ? srcHeight : srcWidth;
+        const targetH = is90or270 ? srcWidth : srcHeight;
+        rotCanvas.width = targetW;
+        rotCanvas.height = targetH;
+        const ctx = rotCanvas.getContext('2d');
+        if (!ctx) return rotCanvas;
 
-      // Apply image enhancement for handwriting (grayscale + contrast boost)
-      const imgData = ctx.getImageData(0, 0, width, height);
-      const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        const contrast = (v - 128) * 1.5 + 128;
-        const finalVal = Math.min(255, Math.max(0, contrast));
-        d[i] = finalVal;
-        d[i + 1] = finalVal;
-        d[i + 2] = finalVal;
-      }
-      ctx.putImageData(imgData, 0, 0);
+        ctx.save();
+        ctx.translate(targetW / 2, targetH / 2);
+        ctx.rotate((angleDeg * Math.PI) / 180);
+        ctx.drawImage(baseCanvas, -srcWidth / 2, -srcHeight / 2);
+        ctx.restore();
 
-      // Run Tesseract OCR on processed canvas
+        // Image enhancement: grayscale + high contrast for handwriting / printed digits
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          // Contrast stretch
+          const contrast = (lum - 128) * 1.8 + 128;
+          const finalVal = Math.min(255, Math.max(0, contrast));
+          d[i] = finalVal;
+          d[i + 1] = finalVal;
+          d[i + 2] = finalVal;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return rotCanvas;
+      };
+
+      // Create OCR worker
       const worker = await createWorker(['eng', 'heb']);
-      const ret = await worker.recognize(canvas);
+
+      const angles = [0, 90, 270, 180];
+      let bestParsed: ReturnType<typeof parseLabelText> | null = null;
+      let allRecognizedTexts: string[] = [];
+
+      for (const angle of angles) {
+        setScanningStatus(`מפענח טקסט בזווית ${angle}°...`);
+        const processedCanvas = createPreprocessedCanvas(angle);
+        const ret = await worker.recognize(processedCanvas);
+        const recognizedText = ret.data.text || '';
+        console.log(`[OCR Result ${angle}°]:`, recognizedText);
+        allRecognizedTexts.push(`[${angle}°]: ${recognizedText.trim()}`);
+
+        const parsed = parseLabelText(recognizedText);
+        if (parsed.masha) {
+          bestParsed = parsed;
+          break; // Found valid Masha!
+        }
+      }
+
       await worker.terminate();
 
-      const recognizedText = ret.data.text || '';
-      console.log('[OCR Result]:', recognizedText);
-
-      const parsed = parseLabelText(recognizedText);
-
-      if (parsed.masha) {
-        let desc = parsed.productDescription || '';
+      if (bestParsed && bestParsed.masha) {
+        let desc = bestParsed.productDescription || '';
         try {
-          const lookup = await lookupItem(undefined, parsed.masha);
+          const lookup = await lookupItem(undefined, bestParsed.masha);
           if (lookup.found && lookup.item) {
             desc = lookup.item.description;
           }
         } catch (e) {}
 
-        setScannedMasha(parsed.masha);
+        setScannedMasha(bestParsed.masha);
         setDetectedDescription(desc);
-        setDetectedOwner(parsed.stickerOwner || '');
-        setScanningStatus(`מסח"א ${parsed.masha} פוענח בהצלחה! עבור ל-S/N...`);
+        setDetectedOwner(bestParsed.stickerOwner || '');
+        setScanningStatus(`מסח"א ${bestParsed.masha} פוענח בהצלחה! עבור ל-S/N...`);
 
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try { navigator.vibrate(80); } catch (e) {}
@@ -336,10 +350,11 @@ export default function App() {
         }, 600);
       } else {
         setScanningStatus('לא זוהה מסח"א ברור בתמונה. נסה שוב או הקלד ידנית');
+        const summaryText = allRecognizedTexts.filter(t => t.length > 8).join('\n');
         Alert.alert(
           'זיהוי טקסט (OCR)',
-          recognizedText.trim()
-            ? `הטקסט שנקלט:\n"${recognizedText.trim().substring(0, 150)}"\n\nלא אותר מספר מסח"א (8-10 ספרות). ודא שהמספר ברור ומואר היטב.`
+          summaryText
+            ? `הטקסט שנקלט בזוויות השונות:\n${summaryText.substring(0, 250)}\n\nלא אותר מספר מסח"א (7-10 ספרות). ודא שהמספר ברור ומואר היטב.`
             : 'לא זוהה טקסט בפריים. קרב את המצלמה למדבקה ונסה שוב.'
         );
       }
@@ -505,7 +520,7 @@ export default function App() {
             </View>
             <Text style={styles.stepTitle}>כוון את המצלמה למדבקת המסח"א (Catalog #)</Text>
             <Text style={styles.stepHint}>
-              חפש את הברקוד או המספר במדבקה הלבנה בחזית המכשיר
+              זיהוי טקסט בלבד (ללא ברקוד). סורק את המספר שאחרי Catalog #: או כתב יד בכל זווית
             </Text>
           </View>
 
