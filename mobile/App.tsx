@@ -1058,37 +1058,6 @@ export default function App() {
               </View>
             )}
 
-            {/* Human Snapshot Shutter Button Overlay - shown when camera is live */}
-            {!isProcessingFound && !ocrLoading && !frozenImage && (
-              <View style={styles.shutterContainer}>
-                <TouchableOpacity
-                  style={styles.shutterButton}
-                  onPress={captureAndRecognizeHandwrittenMasha}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.shutterInnerCircle} />
-                  <Text style={styles.shutterText}>📸 צלם מדבקה לפענוח</Text>
-                </TouchableOpacity>
-                <Text style={styles.shutterHint}>ייצב מול המדבקה ולחץ לצילום</Text>
-              </View>
-            )}
-
-            {/* Retake Button Overlay - shown when image is frozen and not processing */}
-            {!isProcessingFound && !ocrLoading && frozenImage && (
-              <View style={styles.shutterContainer}>
-                <TouchableOpacity
-                  style={[styles.shutterButton, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
-                  onPress={() => {
-                    setFrozenImage(null);
-                    setScanError(null);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Floating Status Pill inside camera - only when live */}
             {!frozenImage && !ocrLoading && !isProcessingFound && (
               <View style={styles.floatingStatusPill}>
@@ -1109,6 +1078,37 @@ export default function App() {
               </View>
             ) : null}
           </View>
+
+          {/* Human Snapshot Shutter Button - shown below the image when camera is live */}
+          {!isProcessingFound && !ocrLoading && !frozenImage && (
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={styles.shutterButton}
+                onPress={captureAndRecognizeHandwrittenMasha}
+                activeOpacity={0.8}
+              >
+                <View style={styles.shutterInnerCircle} />
+                <Text style={styles.shutterText}>📸 צלם מדבקה לפענוח</Text>
+              </TouchableOpacity>
+              <Text style={styles.shutterHint}>ייצב מול המדבקה ולחץ לצילום</Text>
+            </View>
+          )}
+
+          {/* Retake Button - shown below the image when image is frozen and not processing */}
+          {!isProcessingFound && !ocrLoading && frozenImage && (
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={[styles.shutterButton, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
+                onPress={() => {
+                  setFrozenImage(null);
+                  setScanError(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Status & Processing Info Card - Converted from Modal to below the image */}
           {isProcessingFound ? (
@@ -1338,37 +1338,6 @@ export default function App() {
               </View>
             )}
 
-            {/* Human Snapshot Shutter Button Overlay for S/N - shown when camera is live */}
-            {!isProcessingFound && !ocrLoading && !frozenImage && (
-              <View style={styles.shutterContainer}>
-                <TouchableOpacity
-                  style={styles.shutterButtonBlue}
-                  onPress={captureAndRecognizeHandwrittenMasha}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.shutterInnerCircle} />
-                  <Text style={styles.shutterText}>📸 צלם S/N לפענוח</Text>
-                </TouchableOpacity>
-                <Text style={styles.shutterHintBlue}>ייצב מול מדבקת המספר הסידורי ולחץ לצילום</Text>
-              </View>
-            )}
-
-            {/* Retake Button Overlay - shown when image is frozen and not processing */}
-            {!isProcessingFound && !ocrLoading && frozenImage && (
-              <View style={styles.shutterContainer}>
-                <TouchableOpacity
-                  style={[styles.shutterButtonBlue, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
-                  onPress={() => {
-                    setFrozenImage(null);
-                    setScanError(null);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Floating Status inside camera bottom - only when live */}
             {!frozenImage && !ocrLoading && !isProcessingFound && (
               <View style={[styles.floatingStatusPill, { borderColor: '#3b82f6' }]}>
@@ -1389,6 +1358,37 @@ export default function App() {
               </View>
             ) : null}
           </View>
+
+          {/* Human Snapshot Shutter Button for S/N - shown below the image when camera is live */}
+          {!isProcessingFound && !ocrLoading && !frozenImage && (
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={styles.shutterButtonBlue}
+                onPress={captureAndRecognizeHandwrittenMasha}
+                activeOpacity={0.8}
+              >
+                <View style={styles.shutterInnerCircle} />
+                <Text style={styles.shutterText}>📸 צלם S/N לפענוח</Text>
+              </TouchableOpacity>
+              <Text style={styles.shutterHintBlue}>ייצב מול מדבקת המספר הסידורי ולחץ לצילום</Text>
+            </View>
+          )}
+
+          {/* Retake Button for S/N - shown below the image when image is frozen and not processing */}
+          {!isProcessingFound && !ocrLoading && frozenImage && (
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={[styles.shutterButtonBlue, { backgroundColor: '#1e293b', borderColor: '#475569' }]}
+                onPress={() => {
+                  setFrozenImage(null);
+                  setScanError(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.shutterText}>🔄 צלם שוב (חזור למצלמה)</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Status & Processing Info Card - Converted from Modal to below the image */}
           {isProcessingFound ? (
@@ -1955,7 +1955,7 @@ const styles = StyleSheet.create({
   },
   viewfinderExpanded: {
     flex: 1,
-    minHeight: 380,
+    minHeight: 300,
     backgroundColor: '#030712',
     borderRadius: 14,
     borderWidth: 1.5,
@@ -2913,13 +2913,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   shutterContainer: {
-    position: 'absolute',
-    bottom: 24,
-    left: 0,
-    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 15,
+    marginVertical: 8,
+    width: '100%',
   },
   shutterButton: {
     flexDirection: 'row',
