@@ -38,6 +38,7 @@ export default function App() {
   const [lastOcrDiagnosis, setLastOcrDiagnosis] = useState<string>('');
   const [geminiAttempts, setGeminiAttempts] = useState(0);
   const [showScanGuideModal, setShowScanGuideModal] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const geminiAttemptsRef = useRef(0);
 
   // Scan state
@@ -124,6 +125,7 @@ export default function App() {
     setDetectedOwner('');
     setRecognizedLiveText('');
     setLastOcrDiagnosis('');
+    setScanError(null);
     setGeminiAttempts(0);
     geminiAttemptsRef.current = 0;
     isHandlingBarcodeRef.current = false;
@@ -356,6 +358,9 @@ export default function App() {
         }
       } catch (streamErr: any) {
         console.warn('Live Gemini scan tick warning:', streamErr.message);
+        const errMsg = streamErr?.message || 'שגיאה בתקשורת עם שירות הפענוח';
+        setScanError(`שגיאה בפענוח: ${errMsg}`);
+        setScanningStatus(`⚠️ שגיאה בפענוח: ${errMsg}`);
       } finally {
         isOcrRunningRef.current = false;
       }
@@ -470,8 +475,11 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Gemini Vision scan error:', err);
-      setScanningStatus('שגיאה במהלך פענוח Gemini Vision');
-      setLastOcrDiagnosis(`❌ שגיאה בפענוח: ${err.message || 'פענוח נכשל'}`);
+      const errMsg = err?.message || 'פענוח נכשל';
+      setScanError(`שגיאה בפענוח Gemini: ${errMsg}`);
+      setScanningStatus(`שגיאה במהלך פענוח Gemini Vision: ${errMsg}`);
+      setLastOcrDiagnosis(`❌ שגיאה בפענוח: ${errMsg}`);
+      Alert.alert('שגיאת פענוח', `אירעה שגיאה בסריקה: ${errMsg}`);
     } finally {
       setOcrLoading(false);
     }
@@ -479,6 +487,7 @@ export default function App() {
 
   const handleResumeScanning = () => {
     setShowScanGuideModal(false);
+    setScanError(null);
     geminiAttemptsRef.current = 0;
     setGeminiAttempts(0);
     setCameraActive(true);
@@ -746,6 +755,19 @@ export default function App() {
             ) : null}
           </View>
 
+          {/* User Scan Error Notification Banner */}
+          {scanError ? (
+            <View style={styles.scanErrorNotification}>
+              <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
+              <TouchableOpacity
+                style={styles.dismissScanErrorBtn}
+                onPress={() => setScanError(null)}
+              >
+                <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           {/* Live Scanner Real-time Status Badge */}
           <View style={styles.statusPill}>
             {ocrLoading ? (
@@ -931,6 +953,19 @@ export default function App() {
               </View>
             ) : null}
           </View>
+
+          {/* User Scan Error Notification Banner */}
+          {scanError ? (
+            <View style={styles.scanErrorNotification}>
+              <Text style={styles.scanErrorNotificationText}>⚠️ {scanError}</Text>
+              <TouchableOpacity
+                style={styles.dismissScanErrorBtn}
+                onPress={() => setScanError(null)}
+              >
+                <Text style={styles.dismissScanErrorText}>סגור ✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {/* Live Scanner Real-time Status */}
           <View style={[styles.statusPill, { borderColor: '#3b82f6', flexDirection: 'row', justifyContent: 'center' }]}>
