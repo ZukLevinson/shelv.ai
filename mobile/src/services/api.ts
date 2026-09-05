@@ -56,6 +56,7 @@ export interface GeminiSuspicions {
   ownerCandidate?: string | null;
   confidence?: 'high' | 'medium' | 'low' | 'none';
   hint?: string;
+  box_2d?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0..1000
 }
 
 export interface GeminiFrameQualification {
@@ -63,6 +64,7 @@ export interface GeminiFrameQualification {
   probability: 'high' | 'medium' | 'low';
   elementType?: 'masha_label' | 'serial_label' | 'barcode' | 'equipment_label' | 'none';
   hint: string;
+  box_2d?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0..1000
 }
 
 export interface GeminiScanResponse {
@@ -73,6 +75,7 @@ export interface GeminiScanResponse {
   stickerOwner?: string;
   rawText?: string;
   suspicions?: GeminiSuspicions;
+  box_2d?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0..1000
 }
 
 export async function qualifyWithGemini(

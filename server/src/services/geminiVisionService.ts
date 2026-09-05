@@ -52,6 +52,7 @@ export interface GeminiSuspicions {
   ownerCandidate?: string | null;
   confidence?: 'high' | 'medium' | 'low' | 'none';
   hint?: string;
+  box_2d?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0..1000
 }
 
 export interface GeminiFrameQualification {
@@ -59,6 +60,7 @@ export interface GeminiFrameQualification {
   probability: 'high' | 'medium' | 'low';
   elementType?: 'masha_label' | 'serial_label' | 'barcode' | 'equipment_label' | 'none';
   hint: string;
+  box_2d?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0..1000
 }
 
 export async function qualifyFrameWithGemini(
@@ -72,13 +74,15 @@ export async function qualifyFrameWithGemini(
 Task: Extremely rapid visual triage.
 Determine in <0.2s if this camera image contains a clear, in-focus IT asset sticker, barcode, or serial plate relevant to: ${targetMode}.
 Is it close enough, oriented, and focused with HIGH probability that OCR/deciphering will succeed?
+If an asset label or barcode is visible, provide its approximate 2D bounding box in normalized [ymin, xmin, ymax, xmax] scaled 0 to 1000.
 
 Return JSON ONLY:
 {
   "isRelevant": true/false,
   "probability": "high" | "medium" | "low",
   "elementType": "masha_label" | "serial_label" | "barcode" | "equipment_label" | "none",
-  "hint": "short Hebrew advice max 4 words (e.g. 'קרב מצלמה', 'מדבקה זוהתה! ייצב', 'תמונה מטושטשת')"
+  "hint": "short Hebrew advice max 4 words (e.g. 'קרב מצלמה', 'מדבקה זוהתה! ייצב', 'תמונה מטושטשת')",
+  "box_2d": [ymin, xmin, ymax, xmax] or null
 }
 `;
 
@@ -105,7 +109,7 @@ Return JSON ONLY:
     const response = await model.generateContent(request);
     const textResponse = response.response?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textResponse) {
-      return { isRelevant: false, probability: 'low', elementType: 'none', hint: 'כוון למדבקה' };
+      return { isRelevant: false, probability: 'low', elementType: 'none', hint: 'כוון למדבקה', box_2d: null };
     }
 
     const parsed = JSON.parse(textResponse);
@@ -114,10 +118,11 @@ Return JSON ONLY:
       probability: parsed.probability || (parsed.isRelevant ? 'high' : 'low'),
       elementType: parsed.elementType || 'none',
       hint: parsed.hint || (parsed.isRelevant ? 'מדבקה זוהתה' : 'כוון למדבקה'),
+      box_2d: Array.isArray(parsed.box_2d) && parsed.box_2d.length === 4 ? parsed.box_2d : null,
     };
   } catch (err: any) {
     console.warn('[Gemini Fast Qualify] Fallback:', err.message);
-    return { isRelevant: false, probability: 'low', elementType: 'none', hint: 'כוון למדבקה' };
+    return { isRelevant: false, probability: 'low', elementType: 'none', hint: 'כוון למדבקה', box_2d: null };
   }
 }
 
@@ -128,6 +133,7 @@ export interface GeminiLabelInspectionResult {
   stickerOwner?: string;
   rawText?: string;
   detected: boolean;
+  box_2d?: [number, number, number, number] | null;
   suspicions?: GeminiSuspicions;
 }
 
@@ -141,12 +147,14 @@ Your task is to inspect the provided image of an IT equipment sticker/barcode an
 Currently, the scanner is specifically searching for: ${targetMode === 'sn' ? 'SERIAL NUMBER (S/N) of manufacturer/hardware' : targetMode === 'masha' ? 'MASHA (מסח"א / Catalog #)' : 'BOTH MASHA and SERIAL NUMBER'}.
 Even if characters are partially blurry, cut off, or not 100% confirmed, provide your best hunch/suspicions in "suspicions".
 
+If you spot the target label, barcode, or key text, return its bounding box "box_2d" as [ymin, xmin, ymax, xmax] normalized on a 0 to 1000 scale (where 0 is top/left, 1000 is bottom/right).
+
 Look specifically for:
 1. "masha" (מסח"א / מספר קטלוגי / Catalog # / מק"ט):
    - A sequence of 7 to 10 digits (sometimes 6-12 digits).
    - Might follow "Catalog #", "Cat #", "מסח"א", "מק"ט", "מספר קטלוגי", or written directly in handwriting/label numbers.
    - Do NOT confuse it with phone numbers, dates, or order numbers.
-2. "serialNumber" (S/N / Serial No. / Serial # / Serial Number / מס"ד / מספר סידורי / SN):
+2. "serialNumber" (S/N / Serial No. / Serial No / Serial # / SN: / מספר סידורי / מס"ד / SN):
    - Manufacturer hardware serial number (e.g., HP/Lenovo/Dell format like 2UA..., PF..., 5CD..., CN..., or 1D/2D barcode alphanumeric value).
    - Often preceded by labels like "S/N", "Serial No.", "Serial No", "Serial #", "SN:", "מספר סידורי", "מס"ד", or directly next to a barcode.
 3. "productDescription":
@@ -162,13 +170,15 @@ Return JSON only in this exact format:
   "productDescription": "complete string or null",
   "stickerOwner": "string or null",
   "rawText": "brief summary of detected label text",
+  "box_2d": [ymin, xmin, ymax, xmax],
   "suspicions": {
     "mashaCandidate": "partial or tentative digits if spotted (e.g. '94312...' or '943121160') or null",
     "serialCandidate": "partial or tentative serial number or null",
     "productCandidate": "detected device or brand snippet or null",
     "ownerCandidate": "potential owner name or null",
     "confidence": "high" | "medium" | "low" | "none",
-    "hint": "short Hebrew phrase for user, e.g. 'מזהה מספר סידורי, ייצב מצלמה' or 'מזהה ספרות מסח\"א, ייצב מצלמה' or 'כוון למדבקת יצרן S/N' or 'זוהתה מדבקת מחשב'"
+    "hint": "short Hebrew phrase for user, e.g. 'מזהה מספר סידורי, ייצב מצלמה' or 'מזהה ספרות מסח\"א, ייצב מצלמה' or 'כוון למדבקת יצרן S/N' or 'זוהתה מדבקת מחשב'",
+    "box_2d": [ymin, xmin, ymax, xmax]
   }
 }
 
@@ -180,13 +190,15 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
   "productDescription": null,
   "stickerOwner": null,
   "rawText": "",
+  "box_2d": null,
   "suspicions": {
     "mashaCandidate": null,
     "serialCandidate": null,
     "productCandidate": null,
     "ownerCandidate": null,
     "confidence": "none",
-    "hint": "${targetMode === 'sn' ? 'כוון את המצלמה למדבקת היצרן או לברקוד S/N' : 'כוון את המצלמה ישירות למדבקה'}"
+    "hint": "${targetMode === 'sn' ? 'כוון את המצלמה למדבקת היצרן או לברקוד S/N' : 'כוון את המצלמה ישירות למדבקה'}",
+    "box_2d": null
   }
 }
 `;
@@ -214,22 +226,27 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
   const textResponse = response.response?.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!textResponse) {
-    return { detected: false, rawText: '' };
+    return { detected: false, rawText: '', box_2d: null };
   }
 
   try {
     const parsed = JSON.parse(textResponse);
+    const box2d = Array.isArray(parsed.box_2d) && parsed.box_2d.length === 4
+      ? parsed.box_2d
+      : (Array.isArray(parsed.suspicions?.box_2d) && parsed.suspicions.box_2d.length === 4 ? parsed.suspicions.box_2d : null);
+
     return {
-      detected: Boolean(parsed.masha),
+      detected: Boolean(parsed.masha || parsed.serialNumber),
       masha: parsed.masha || undefined,
       serialNumber: parsed.serialNumber || undefined,
       productDescription: parsed.productDescription || undefined,
       stickerOwner: parsed.stickerOwner || undefined,
       rawText: parsed.rawText || '',
-      suspicions: parsed.suspicions || undefined,
+      box_2d: box2d,
+      suspicions: parsed.suspicions ? { ...parsed.suspicions, box_2d: parsed.suspicions.box_2d || box2d } : undefined,
     };
   } catch (err) {
     console.error('[Gemini Vision] Failed to parse JSON response:', textResponse);
-    return { detected: false, rawText: textResponse };
+    return { detected: false, rawText: textResponse, box_2d: null };
   }
 }

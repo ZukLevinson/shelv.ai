@@ -47,6 +47,7 @@ export default function App() {
   const [frozenImage, setFrozenImage] = useState<string | null>(null);
   const [isProcessingFound, setIsProcessingFound] = useState(false);
   const [foundInfoText, setFoundInfoText] = useState<string>('');
+  const [activeBoundingBox, setActiveBoundingBox] = useState<{ box_2d: [number, number, number, number]; label?: string; confidence?: string } | null>(null);
   const geminiAttemptsRef = useRef(0);
   const isDecipheringRef = useRef<boolean>(false);
 
@@ -141,6 +142,7 @@ export default function App() {
     setFrozenImage(null);
     setIsProcessingFound(false);
     setFoundInfoText('');
+    setActiveBoundingBox(null);
     setGeminiAttempts(0);
     geminiAttemptsRef.current = 0;
     isHandlingBarcodeRef.current = false;
@@ -361,12 +363,20 @@ export default function App() {
 
         // Frame is not yet relevant or low probability -> keep searching
         if (!qualification.isRelevant || qualification.probability === 'low') {
+          setActiveBoundingBox(null);
           setScanStage('searching');
           setScanningStatus(qualification.hint || (step === 'scan_sn' ? 'כוון למדבקת יצרן או ברקוד...' : 'כוון למדבקת מסח"א...'));
           return;
         }
 
         // --- STAGE 2: Frame Qualified! Trigger Deep Deciphering ---
+        if (qualification.box_2d) {
+          setActiveBoundingBox({
+            box_2d: qualification.box_2d,
+            label: step === 'scan_sn' ? 'מדבקת יצרן / S/N' : 'מדבקת מסח"א',
+            confidence: qualification.probability,
+          });
+        }
         setScanStage('qualified');
         isDecipheringRef.current = true;
         setScanningStatus(`🎯 ${qualification.hint || 'מדבקה זוהתה!'} - מייצב ומפענח נתונים...`);
@@ -389,6 +399,20 @@ export default function App() {
         const geminiRes = await scanWithGemini(hiResJpg, targetMode);
 
         if (currentStepRef.current !== step) return;
+
+        if (geminiRes.box_2d) {
+          setActiveBoundingBox({
+            box_2d: geminiRes.box_2d,
+            label: geminiRes.masha ? `מסח"א: ${geminiRes.masha}` : geminiRes.serialNumber ? `S/N: ${geminiRes.serialNumber}` : step === 'scan_sn' ? 'מיקוד S/N' : 'מיקוד מסח"א',
+            confidence: 'high',
+          });
+        } else if (geminiRes.suspicions?.box_2d) {
+          setActiveBoundingBox({
+            box_2d: geminiRes.suspicions.box_2d,
+            label: geminiRes.suspicions.mashaCandidate ? `חשד מסח"א: ${geminiRes.suspicions.mashaCandidate}` : geminiRes.suspicions.serialCandidate ? `חשד S/N: ${geminiRes.suspicions.serialCandidate}` : 'אזור חשוד',
+            confidence: geminiRes.suspicions.confidence || 'medium',
+          });
+        }
 
         if (geminiRes.suspicions) {
           setLiveSuspicions(geminiRes.suspicions);
@@ -614,6 +638,20 @@ export default function App() {
 
       const base64Jpg = sourceCanvas.toDataURL('image/jpeg', 0.88);
       const geminiRes = await scanWithGemini(base64Jpg, targetMode);
+
+      if (geminiRes.box_2d) {
+        setActiveBoundingBox({
+          box_2d: geminiRes.box_2d,
+          label: geminiRes.masha ? `מסח"א: ${geminiRes.masha}` : geminiRes.serialNumber ? `S/N: ${geminiRes.serialNumber}` : 'מיקוד Gemini',
+          confidence: 'high',
+        });
+      } else if (geminiRes.suspicions?.box_2d) {
+        setActiveBoundingBox({
+          box_2d: geminiRes.suspicions.box_2d,
+          label: geminiRes.suspicions.mashaCandidate ? `חשד מסח"א: ${geminiRes.suspicions.mashaCandidate}` : 'אזור חשוד',
+          confidence: geminiRes.suspicions.confidence || 'medium',
+        });
+      }
 
       if (geminiRes.rawText) {
         setRecognizedLiveText(geminiRes.rawText);
@@ -1042,6 +1080,40 @@ export default function App() {
               </View>
             )}
 
+            {/* Gemini Suspicion Target Bounding Box Overlay */}
+            {activeBoundingBox && activeBoundingBox.box_2d && (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.boundingBoxContainer,
+                  {
+                    top: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[0] / 1000) * 100))}%` as any,
+                    left: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[1] / 1000) * 100))}%` as any,
+                    height: `${Math.max(8, Math.min(94, ((activeBoundingBox.box_2d[2] - activeBoundingBox.box_2d[0]) / 1000) * 100))}%` as any,
+                    width: `${Math.max(12, Math.min(94, ((activeBoundingBox.box_2d[3] - activeBoundingBox.box_2d[1]) / 1000) * 100))}%` as any,
+                    borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b',
+                  },
+                ]}
+              >
+                {/* HUD Corner Accents */}
+                <View style={[styles.cornerTL, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
+                <View style={[styles.cornerTR, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
+                <View style={[styles.cornerBL, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
+                <View style={[styles.cornerBR, { borderColor: scanStage === 'success' ? '#10b981' : scanStage === 'deciphering' ? '#38bdf8' : '#f59e0b' }]} />
+
+                {/* Floating Tag over the suspected item */}
+                <View style={[
+                  styles.boundingBoxBadge,
+                  { backgroundColor: scanStage === 'success' ? 'rgba(16, 185, 129, 0.92)' : scanStage === 'deciphering' ? 'rgba(14, 165, 233, 0.92)' : 'rgba(245, 158, 11, 0.92)' }
+                ]}>
+                  <Text style={styles.boundingBoxBadgeText}>
+                    {activeBoundingBox.label || '🎯 זוהתה מדבקה'}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+
             {/* Real-time Gemini Suspicion HUD: Floating badge displaying active hypotheses */}
             {!isProcessingFound && liveSuspicions && (liveSuspicions.mashaCandidate || liveSuspicions.productCandidate || liveSuspicions.serialCandidate) ? (
               <View style={styles.geminiSuspicionHud}>
@@ -1277,6 +1349,36 @@ export default function App() {
               <View style={styles.reticleOverlay} pointerEvents="none">
                 <View style={[styles.reticle, { borderColor: '#3b82f6' }]} />
                 <View style={[styles.scanLaser, { backgroundColor: '#3b82f6' }]} />
+              </View>
+            )}
+
+            {/* Gemini Suspicion Target Bounding Box Overlay for S/N */}
+            {activeBoundingBox && activeBoundingBox.box_2d && (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.boundingBoxContainer,
+                  {
+                    top: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[0] / 1000) * 100))}%` as any,
+                    left: `${Math.max(2, Math.min(88, (activeBoundingBox.box_2d[1] / 1000) * 100))}%` as any,
+                    height: `${Math.max(8, Math.min(94, ((activeBoundingBox.box_2d[2] - activeBoundingBox.box_2d[0]) / 1000) * 100))}%` as any,
+                    width: `${Math.max(12, Math.min(94, ((activeBoundingBox.box_2d[3] - activeBoundingBox.box_2d[1]) / 1000) * 100))}%` as any,
+                    borderColor: '#38bdf8',
+                  },
+                ]}
+              >
+                {/* HUD Corner Accents */}
+                <View style={[styles.cornerTL, { borderColor: '#38bdf8' }]} />
+                <View style={[styles.cornerTR, { borderColor: '#38bdf8' }]} />
+                <View style={[styles.cornerBL, { borderColor: '#38bdf8' }]} />
+                <View style={[styles.cornerBR, { borderColor: '#38bdf8' }]} />
+
+                {/* Floating Tag over suspected S/N */}
+                <View style={[styles.boundingBoxBadge, { backgroundColor: 'rgba(2, 132, 199, 0.92)' }]}>
+                  <Text style={styles.boundingBoxBadgeText}>
+                    {activeBoundingBox.label || '🎯 זוהה אזור S/N'}
+                  </Text>
+                </View>
               </View>
             )}
 
@@ -1897,6 +1999,71 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: '#10b981',
     opacity: 0.85,
+  },
+  boundingBoxContainer: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    zIndex: 9,
+  },
+  cornerTL: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    width: 14,
+    height: 14,
+    borderTopWidth: 3.5,
+    borderLeftWidth: 3.5,
+    borderTopLeftRadius: 4,
+  },
+  cornerTR: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderTopWidth: 3.5,
+    borderRightWidth: 3.5,
+    borderTopRightRadius: 4,
+  },
+  cornerBL: {
+    position: 'absolute',
+    bottom: -2,
+    left: -2,
+    width: 14,
+    height: 14,
+    borderBottomWidth: 3.5,
+    borderLeftWidth: 3.5,
+    borderBottomLeftRadius: 4,
+  },
+  cornerBR: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderBottomWidth: 3.5,
+    borderRightWidth: 3.5,
+    borderBottomRightRadius: 4,
+  },
+  boundingBoxBadge: {
+    position: 'absolute',
+    top: -24,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+  },
+  boundingBoxBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   geminiSuspicionHud: {
     position: 'absolute',
