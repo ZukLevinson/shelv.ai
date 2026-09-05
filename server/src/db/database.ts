@@ -8,16 +8,39 @@ const __dirname = path.dirname(__filename);
 
 export const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../shelv.db');
 const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+let _db: Database.Database | null = null;
+
+export function openDatabase(): Database.Database {
+  if (!_db) {
+    const dbDir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    _db = new Database(DB_PATH);
+    _db.pragma('journal_mode = WAL');
+    _db.pragma('foreign_keys = ON');
+  }
+  return _db;
 }
 
-export const db = new Database(DB_PATH);
-
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Transparent Proxy so all existing db.prepare(...) / db.exec(...) calls work without rewrite
+export const db: Database.Database = new Proxy({} as Database.Database, {
+  get(_target, prop, receiver) {
+    const instance = openDatabase();
+    const value = Reflect.get(instance, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    return value;
+  },
+  set(_target, prop, value, receiver) {
+    const instance = openDatabase();
+    return Reflect.set(instance, prop, value, receiver);
+  }
+});
 
 export function initDatabase() {
+  openDatabase();
   db.exec(`
     CREATE TABLE IF NOT EXISTS inventory_holders (
       id TEXT PRIMARY KEY,
