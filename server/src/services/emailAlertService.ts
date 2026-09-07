@@ -69,12 +69,13 @@ export function getLoggedInHolder(holderId: string): LoggedInHolderInfo | null {
 export function isAlertThrottled(referenceKey: string, cooldownMinutes: number = 60): boolean {
   if (!referenceKey) return false;
 
+  const normalizedKey = referenceKey.trim().toUpperCase();
   const recent = db.prepare(`
     SELECT id, created_at FROM email_alerts 
-    WHERE reference_key = ? 
+    WHERE reference_key = ? COLLATE NOCASE
       AND created_at >= datetime('now', '-' || ? || ' minutes')
     LIMIT 1
-  `).get(referenceKey, cooldownMinutes) as any;
+  `).get(normalizedKey, cooldownMinutes) as any;
 
   return !!recent;
 }
@@ -259,7 +260,8 @@ export async function alertOnUnauthorizedScan(scanData: {
   scannedAt?: string;
 }): Promise<SendAlertResult[]> {
   const results: SendAlertResult[] = [];
-  const itemIdentifier = scanData.serialNumber ? `S/N ${scanData.serialNumber}` : `מסח"א ${scanData.masha}`;
+  const cleanId = String(scanData.serialNumber || scanData.masha).trim().toUpperCase();
+  const itemIdentifier = scanData.serialNumber ? `S/N ${scanData.serialNumber.trim().toUpperCase()}` : `מסח"א ${scanData.masha}`;
   const timestamp = scanData.scannedAt ? new Date(scanData.scannedAt).toLocaleString('he-IL') : new Date().toLocaleString('he-IL');
   const itemDesc = scanData.description || `מסח"א ${scanData.masha}`;
 
@@ -275,7 +277,7 @@ export async function alertOnUnauthorizedScan(scanData: {
         reason: 'בעל המצאי הרשמי טרם התחבר למערכת',
       });
     } else {
-      const refKey = `unauthorized_official:${scanData.serialNumber || scanData.masha}:${scanData.scannedRoomId}`;
+      const refKey = `unauthorized_official:${cleanId}:${scanData.scannedRoomId}`;
       if (isAlertThrottled(refKey, 60)) {
         results.push({
           holderId: scanData.officialHolderId,
@@ -294,7 +296,7 @@ export async function alertOnUnauthorizedScan(scanData: {
           <div class="card">
             <div class="item-prop"><span class="prop-label">תיאור פריט:</span><span class="prop-val">${itemDesc}</span></div>
             <div class="item-prop"><span class="prop-label">מסח"א:</span><span class="prop-val" style="font-family: monospace;">${scanData.masha}</span></div>
-            ${scanData.serialNumber ? `<div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="font-family: monospace;">${scanData.serialNumber}</span></div>` : ''}
+            ${scanData.serialNumber ? `<div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="font-family: monospace;">${scanData.serialNumber.trim().toUpperCase()}</span></div>` : ''}
             <div class="item-prop"><span class="prop-label">נמצא בחדר:</span><span class="prop-val-highlight">${scanData.scannedRoomName}</span></div>
             <div class="item-prop"><span class="prop-label">בעל המצאי של החדר:</span><span class="prop-val-highlight">${scanData.scannedHolderName}</span></div>
             <div class="item-prop"><span class="prop-label">נסרק ע"י:</span><span class="prop-val">${scanData.scannedBy}</span></div>
@@ -338,7 +340,7 @@ export async function alertOnUnauthorizedScan(scanData: {
         reason: 'בעל מצאי החדר שבו נסרק הפריט טרם התחבר למערכת',
       });
     } else {
-      const refKey = `unauthorized_scanned_room:${scanData.serialNumber || scanData.masha}:${scanData.scannedRoomId}`;
+      const refKey = `unauthorized_scanned_room:${cleanId}:${scanData.scannedRoomId}`;
       if (isAlertThrottled(refKey, 60)) {
         results.push({
           holderId: scanData.scannedHolderId,

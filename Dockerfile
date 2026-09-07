@@ -3,7 +3,8 @@ ARG BRANCH_NAME=""
 ARG APP_VERSION=""
 
 # Base stage with Node and pnpm
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
@@ -42,7 +43,7 @@ RUN pnpm run build && \
     pnpm prune --prod --yes
 
 # Production runner stage (minimal size, lowest memory footprint)
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 ARG COMMIT_SHA=""
 ARG BRANCH_NAME=""
 ARG APP_VERSION=""
