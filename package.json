@@ -11,6 +11,9 @@
     "build:server": "pnpm --dir server build",
     "dev:web": "pnpm --dir web dev",
     "dev:mobile": "pnpm --dir mobile web",
-    "dev:server": "pnpm --dir server dev"
+    "dev:server": "pnpm --dir server dev",
+    "version:check": "node scripts/sync-version.cjs --check",
+    "version:sync": "node scripts/sync-version.cjs",
+    "version:bump": "node scripts/sync-version.cjs"
   }
 }

@@ -54,18 +54,27 @@ authRouter.post('/google', async (req, res) => {
 
       const id = profile.sub || 'user-' + Date.now();
       db.prepare(`
-        INSERT INTO users (id, email, name, role, holder_id)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO users (id, email, name, role, holder_id, last_login_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       `).run(id, email, name, role, autoHolderId);
 
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
     } else {
-      // Update name if changed
+      // Auto-couple if user is currently uncoupled and an inventory holder has the same email
+      let currentHolderId = user.holder_id;
+      if (!currentHolderId) {
+        const matchingHolder = db.prepare('SELECT id FROM inventory_holders WHERE email = ? COLLATE NOCASE').get(email) as any;
+        if (matchingHolder) {
+          currentHolderId = matchingHolder.id;
+        }
+      }
+
+      // Update name, holder_id (if newly discovered), and last_login_at
       db.prepare(`
         UPDATE users 
-        SET name = ?, updated_at = CURRENT_TIMESTAMP 
+        SET name = ?, holder_id = COALESCE(?, holder_id), last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
         WHERE id = ?
-      `).run(name, user.id);
+      `).run(name, currentHolderId || null, user.id);
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as any;
     }
 
@@ -108,21 +117,29 @@ authRouter.post(['/quick-login', '/dev-login'], (req, res) => {
   const cleanEmail = (email || (cleanRole === 'manager' ? 'admin@shelv.ai' : 'owner@shelv.ai')).toLowerCase().trim();
   const cleanName = (name || (cleanRole === 'manager' ? 'הרשאת עריכה' : 'בעל מצאי')).trim();
 
+  let resolvedHolderId = (holder_id || '').trim() || null;
+  if (!resolvedHolderId) {
+    const matchingHolder = db.prepare('SELECT id FROM inventory_holders WHERE email = ? COLLATE NOCASE').get(cleanEmail) as any;
+    if (matchingHolder) {
+      resolvedHolderId = matchingHolder.id;
+    }
+  }
+
   let user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail) as any;
 
   if (!user) {
     const id = 'user-' + Math.random().toString(36).substring(2, 9);
     db.prepare(`
-      INSERT INTO users (id, email, name, role, holder_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, cleanEmail, cleanName, cleanRole, holder_id || null);
+      INSERT INTO users (id, email, name, role, holder_id, last_login_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(id, cleanEmail, cleanName, cleanRole, resolvedHolderId);
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
   } else {
     db.prepare(`
       UPDATE users 
-      SET role = ?, name = ?, holder_id = COALESCE(?, holder_id), updated_at = CURRENT_TIMESTAMP 
+      SET role = ?, name = ?, holder_id = COALESCE(?, holder_id), last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `).run(cleanRole, cleanName, holder_id || null, user.id);
+    `).run(cleanRole, cleanName, resolvedHolderId, user.id);
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as any;
   }
 

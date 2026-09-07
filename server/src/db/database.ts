@@ -134,6 +134,7 @@ export function initDatabase() {
       name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'inventory_owner',
       holder_id TEXT,
+      last_login_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE SET NULL
@@ -152,12 +153,30 @@ export function initDatabase() {
       state_before TEXT,
       state_after TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS email_alerts (
+      id TEXT PRIMARY KEY,
+      recipient_email TEXT NOT NULL,
+      recipient_name TEXT,
+      holder_id TEXT,
+      exception_type TEXT NOT NULL,
+      reference_key TEXT,
+      subject TEXT NOT NULL,
+      body_html TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'sent',
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE SET NULL
+    );
   `);
 
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_holder_id ON users(holder_id);
+      CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login_at);
+      CREATE INDEX IF NOT EXISTS idx_email_alerts_ref ON email_alerts(reference_key, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_email_alerts_holder ON email_alerts(holder_id);
       CREATE INDEX IF NOT EXISTS idx_action_history_performed_at ON action_history(performed_at);
       CREATE INDEX IF NOT EXISTS idx_action_history_entity ON action_history(entity_type, entity_id);
       CREATE INDEX IF NOT EXISTS idx_sweep_obs_sn_scanned ON sweep_observations(serial_number, scanned_at DESC);
@@ -168,6 +187,16 @@ export function initDatabase() {
     `);
   } catch (err) {
     console.error('[DB] Error creating indexes:', err);
+  }
+
+  // Ensure last_login_at column exists on users for existing databases
+  try {
+    const userCols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+    if (!userCols.some(col => col.name === 'last_login_at')) {
+      db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for last_login_at:', err);
   }
 
   // Ensure import_id column exists on official_inventory
