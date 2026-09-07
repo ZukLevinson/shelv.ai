@@ -83,7 +83,7 @@ export function revertAction(actionId: string, revertedBy: string) {
     throw new Error('פעולה זו כבר בוטלה בעבר');
   }
 
-  const user = revertedBy || 'מנהל מערכת';
+  const user = revertedBy || 'משתמש מערכת';
   const stateBefore = action.state_before ? JSON.parse(action.state_before) : null;
 
   switch (action.action_type) {
