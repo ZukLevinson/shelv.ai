@@ -58,12 +58,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // 1. Fetch public Google Client ID configuration from server
+        // 1. Fetch public Google Client ID configuration from server environment
         try {
           const cfgRes = await axios.get(`${API_BASE_URL}/api/auth/config`);
           if (cfgRes.data?.googleClientId) {
             setGoogleClientId(cfgRes.data.googleClientId);
-            localStorage.setItem(CLIENT_ID_KEY, cfgRes.data.googleClientId);
           } else if (import.meta.env.VITE_GOOGLE_CLIENT_ID) {
             setGoogleClientId(import.meta.env.VITE_GOOGLE_CLIENT_ID);
           }
@@ -149,7 +148,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         loginWithGoogle,
         quickLogin,
         devLogin,
-        updateGoogleClientId,
         logout,
         refreshUser,
       }}

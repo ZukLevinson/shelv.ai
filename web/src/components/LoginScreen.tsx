@@ -10,15 +10,12 @@ declare global {
 }
 
 export const LoginScreen: React.FC = () => {
-  const { googleClientId, loginWithGoogle, quickLogin, devLogin, updateGoogleClientId, isLoading } = useAuth();
+  const { googleClientId, loginWithGoogle, quickLogin, devLogin, isLoading } = useAuth();
   const loginAction = quickLogin || devLogin;
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [customEmail, setCustomEmail] = useState('');
   const [customName, setCustomName] = useState('');
-  const [clientIdInput, setClientIdInput] = useState('');
-  const [savingClientId, setSavingClientId] = useState(false);
-  const [showConfigInput, setShowConfigInput] = useState(false);
 
   useEffect(() => {
     if (!googleClientId || !window.google?.accounts?.id || !googleBtnRef.current) {
@@ -62,21 +59,6 @@ export const LoginScreen: React.FC = () => {
       );
     } catch (err: any) {
       setAuthError(err.response?.data?.error || err.message || 'שגיאה בהתחברות');
-    }
-  };
-
-  const handleSaveClientId = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clientIdInput.trim()) return;
-    setSavingClientId(true);
-    setAuthError(null);
-    try {
-      await updateGoogleClientId(clientIdInput.trim());
-      setShowConfigInput(false);
-    } catch (err: any) {
-      setAuthError('שגיאה בשמירת מזהה Google Client ID');
-    } finally {
-      setSavingClientId(false);
     }
   };
 
@@ -135,59 +117,15 @@ export const LoginScreen: React.FC = () => {
             התחברות מאובטחת באמצעות Google
           </label>
 
-          {googleClientId && !showConfigInput ? (
-            <div className="space-y-2">
-              <div className="flex justify-center min-h-[44px]">
-                <div ref={googleBtnRef} />
-              </div>
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setClientIdInput(googleClientId);
-                    setShowConfigInput(true);
-                  }}
-                  className="text-[10px] text-gray-500 hover:text-gray-400 underline cursor-pointer"
-                >
-                  הגדרת מזהה Google Client ID אחר
-                </button>
-              </div>
+          {googleClientId ? (
+            <div className="flex justify-center min-h-[44px]">
+              <div ref={googleBtnRef} />
             </div>
           ) : (
-            <form onSubmit={handleSaveClientId} className="p-3.5 bg-gray-950/90 border border-gray-800 rounded-2xl space-y-2.5">
-              <div className="flex items-center justify-between text-xs text-gray-300 font-semibold">
-                <span>הגדרת Google Client ID:</span>
-                {googleClientId && (
-                  <button
-                    type="button"
-                    onClick={() => setShowConfigInput(false)}
-                    className="text-[10px] text-gray-500 hover:text-white"
-                  >
-                    ביטול
-                  </button>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-400">
-                הדבק כאן את מזהה הלקוח (Client ID) מ-Google Cloud Console להפעלת כפתור ההתחברות:
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  dir="ltr"
-                  value={clientIdInput}
-                  onChange={(e) => setClientIdInput(e.target.value)}
-                  placeholder="xxxx-xxxx.apps.googleusercontent.com"
-                  className="flex-1 px-3 py-2 text-xs bg-gray-900 border border-gray-700 rounded-xl text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"
-                />
-                <button
-                  type="submit"
-                  disabled={savingClientId || !clientIdInput.trim()}
-                  className="px-3.5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-xl transition-all disabled:opacity-50 shrink-0 cursor-pointer"
-                >
-                  {savingClientId ? 'שומר...' : 'הפעל כפתור'}
-                </button>
-              </div>
-            </form>
+            <div className="p-3 bg-gray-950/60 border border-gray-800 rounded-2xl text-center text-xs text-gray-400 space-y-1">
+              <p>התחברות Google טרם הופעלה בשרת (חסר משתנה סביבה GOOGLE_CLIENT_ID).</p>
+              <p className="text-[11px] text-gray-500">ניתן להשתמש בהתחברות מהירה מטה.</p>
+            </div>
           )}
         </div>
 

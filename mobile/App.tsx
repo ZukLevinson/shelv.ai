@@ -51,6 +51,14 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Presence & Online status
+  const [isServerConnected, setIsServerConnected] = useState(false);
+  const presenceManagerRef = useRef<ScannerPresenceManager | null>(null);
+  const sweeperNameRef = useRef(sweeperName);
+  sweeperNameRef.current = sweeperName;
+  const selectedRoomRef = useRef(selectedRoom);
+  selectedRoomRef.current = selectedRoom;
+
   // Reversibility & Scan History state
   const [sessionScans, setSessionScans] = useState<ScannedRecord[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -134,7 +142,29 @@ export default function App() {
 
   useEffect(() => {
     loadRooms();
+
+    const manager = new ScannerPresenceManager({
+      getScannerName: () => sweeperNameRef.current,
+      getRoomId: () => selectedRoomRef.current?.id,
+      getRoomName: () => selectedRoomRef.current?.name,
+      onStatusChange: (status) => {
+        setIsServerConnected(status.connected);
+      },
+    });
+    manager.start();
+    presenceManagerRef.current = manager;
+
+    return () => {
+      manager.destroy();
+      presenceManagerRef.current = null;
+    };
   }, []);
+
+  useEffect(() => {
+    if (presenceManagerRef.current) {
+      presenceManagerRef.current.update();
+    }
+  }, [sweeperName, selectedRoom]);
 
   // Initialize and clean up camera when entering / leaving scanning steps
   useEffect(() => {
@@ -1096,7 +1126,15 @@ export default function App() {
       <View style={styles.header}>
         <View style={styles.headerFlexRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
+              <View style={[styles.onlineStatusPill, isServerConnected ? styles.onlinePillActive : styles.onlinePillInactive]}>
+                <View style={[styles.onlineStatusDot, isServerConnected ? styles.onlineDotActive : styles.onlineDotInactive]} />
+                <Text style={[styles.onlineStatusText, isServerConnected ? styles.onlineTextActive : styles.onlineTextInactive]}>
+                  {isServerConnected ? 'אונליין' : 'מתחבר...'}
+                </Text>
+              </View>
+            </View>
             <Text style={styles.headerSubtitle}>
               {selectedRoom ? `סורק ב: ${selectedRoom.name}` : 'בחר חדר לביצוע סריקה'}
             </Text>
