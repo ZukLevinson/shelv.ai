@@ -10,10 +10,22 @@ steps:
         if [ -z "$$COMMIT_VAL" ] || [ "$$COMMIT_VAL" = "dev" ]; then
           COMMIT_VAL="${COMMIT_SHA:-production}"
         fi
+        BRANCH_VAL="$BRANCH_NAME"
+        if [ -z "$$BRANCH_VAL" ]; then
+          BRANCH_VAL="main"
+        fi
+        APP_VERSION_VAL="$TAG_NAME"
+        if [ -z "$$APP_VERSION_VAL" ]; then
+          APP_VERSION_VAL=$(node -p "require('./package.json').version" 2>/dev/null || echo "1.0.0")
+        else
+          APP_VERSION_VAL="${APP_VERSION_VAL#v}"
+        fi
         docker build \
           --cache-from europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
           --build-arg COMMIT_SHA=$$COMMIT_VAL \
+          --build-arg BRANCH_NAME=$$BRANCH_VAL \
+          --build-arg APP_VERSION=$$APP_VERSION_VAL \
           -t europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA \
           -t europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest \
           .
@@ -73,7 +85,7 @@ steps:
       - '--concurrency'
       - '80'
       - '--set-env-vars'
-      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA'
+      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA,BRANCH_NAME=$BRANCH_NAME'
 
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA'

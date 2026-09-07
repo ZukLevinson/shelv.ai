@@ -1,4 +1,6 @@
 ARG COMMIT_SHA=""
+ARG BRANCH_NAME=""
+ARG APP_VERSION=""
 
 # Base stage with Node and pnpm
 FROM node:20-alpine AS base
@@ -9,7 +11,11 @@ RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 # Build stage 1: Build React Frontend
 FROM base AS web-builder
 ARG COMMIT_SHA=""
+ARG BRANCH_NAME=""
+ARG APP_VERSION=""
 ENV VITE_COMMIT_SHA=$COMMIT_SHA
+ENV VITE_BRANCH_NAME=$BRANCH_NAME
+ENV VITE_APP_VERSION=$APP_VERSION
 WORKDIR /app/web
 COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -38,6 +44,8 @@ RUN pnpm run build && \
 # Production runner stage (minimal size, lowest memory footprint)
 FROM node:20-alpine AS runner
 ARG COMMIT_SHA=""
+ARG BRANCH_NAME=""
+ARG APP_VERSION=""
 WORKDIR /app
 
 # better-sqlite3 needs runtime dependencies
@@ -49,6 +57,8 @@ ENV DB_PATH=/data/shelv.db
 ENV CLIENT_BUILD_PATH=/app/web/dist
 ENV MOBILE_BUILD_PATH=/app/mobile/dist
 ENV COMMIT_SHA=$COMMIT_SHA
+ENV BRANCH_NAME=$BRANCH_NAME
+ENV APP_VERSION=$APP_VERSION
 
 # Copy server production dependencies (already compiled with better-sqlite3 native bindings)
 WORKDIR /app/server
