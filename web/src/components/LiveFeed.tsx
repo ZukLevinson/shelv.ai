@@ -42,21 +42,21 @@ export const LiveFeed: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4 shadow-xl">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-lg sm:shadow-xl">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-emerald-400" />
-          <h3 className="font-bold text-white text-base">זרם סריקות חי (Real-time Feed)</h3>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+          <h3 className="font-bold text-white text-xs sm:text-base">זרם סריקות חי (Live Feed)</h3>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
-          <Radio className={`w-3.5 h-3.5 ${connected ? 'text-emerald-400 animate-pulse' : 'text-gray-600'}`} />
-          <span>{connected ? 'מחובר בזמן אמת' : 'מתחבר...'}</span>
+        <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs text-gray-400">
+          <Radio className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${connected ? 'text-emerald-400 animate-pulse' : 'text-gray-600'}`} />
+          <span className="hidden xs:inline">{connected ? 'מחובר' : 'מתחבר...'}</span>
         </div>
       </div>
 
-      <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
         {events.length === 0 ? (
-          <div className="text-xs text-gray-500 py-6 text-center">
+          <div className="text-[11px] sm:text-xs text-gray-500 py-4 sm:py-6 text-center">
             ממתין לסריקות ראשונות מהאפליקציה הניידת...
           </div>
         ) : (
@@ -66,24 +66,24 @@ export const LiveFeed: React.FC = () => {
             return (
               <div
                 key={ev.observationId}
-                className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition-all ${
+                className={`p-2.5 sm:p-3 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs flex items-center justify-between gap-2.5 sm:gap-3 transition-all ${
                   isMismatch
                     ? 'bg-rose-500/10 border-rose-500/30 text-rose-200'
                     : 'bg-gray-800/40 border-gray-800 text-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
                   {isMismatch ? (
-                    <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                    <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
                   ) : (
-                    <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
                   )}
-                  <div>
-                    <div className="font-semibold text-white">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white truncate">
                       {ev.officialItem?.description || 'פריט חדש'}
                     </div>
-                    <div className="text-[11px] text-gray-400">
-                      S/N: <span className="font-mono text-gray-300">{ev.serialNumber}</span> | נסרק ב: {ev.scannedRoom.name}
+                    <div className="text-[10px] sm:text-[11px] text-gray-400 truncate">
+                      S/N: <span className="font-mono text-gray-300">{ev.serialNumber}</span> | {ev.scannedRoom.name}
                     </div>
                   </div>
                 </div>

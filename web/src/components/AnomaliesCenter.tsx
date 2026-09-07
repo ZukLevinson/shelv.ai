@@ -36,40 +36,40 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-xl max-w-full overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-gray-800 pb-4">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400 shrink-0" />
-          <h2 className="text-lg sm:text-xl font-bold text-white">מרכז חריגות וחלוקת מצאי</h2>
+    <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-6 shadow-lg sm:shadow-xl max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 border-b border-gray-800 pb-3 sm:pb-4">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <ShieldAlert className="w-4 h-4 sm:w-6 sm:h-6 text-rose-400 shrink-0" />
+          <h2 className="text-base sm:text-xl font-bold text-white">מרכז חריגות וחלוקת מצאי</h2>
         </div>
 
-        <div className="flex gap-1.5 p-1 bg-gray-950 rounded-xl border border-gray-800 overflow-x-auto scrollbar-thin max-w-full">
+        <div className="flex gap-1 p-0.5 sm:p-1 bg-gray-950 rounded-lg sm:rounded-xl border border-gray-800 overflow-x-auto scrollbar-thin max-w-full">
           <button
             onClick={() => setActiveTab('unauthorized')}
-            className={'flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
+            className={'flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-4 sm:py-2 text-[11px] sm:text-sm font-medium rounded-md sm:rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
               activeTab === 'unauthorized'
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                 : 'text-gray-400 hover:text-white'
             )}
           >
-            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span>ציוד זר בחדר</span>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-rose-500/30 text-rose-200 font-bold">
+            <span className="px-1.5 py-0.2 text-[10px] sm:text-xs rounded-full bg-rose-500/30 text-rose-200 font-bold">
               {unauthorizedTransfers.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('discrepancies')}
-            className={'flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
+            className={'flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-4 sm:py-2 text-[11px] sm:text-sm font-medium rounded-md sm:rounded-lg transition-all shrink-0 whitespace-nowrap ' + (
               activeTab === 'discrepancies'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-gray-400 hover:text-white'
             )}
           >
-            <HelpCircle className="w-4 h-4 shrink-0" />
-            <span>פערי חתימות חסרים</span>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500/30 text-amber-200 font-bold">
+            <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>פערי חתימות</span>
+            <span className="px-1.5 py-0.2 text-[10px] sm:text-xs rounded-full bg-amber-500/30 text-amber-200 font-bold">
               {quotaDiscrepancies.length}
             </span>
           </button>

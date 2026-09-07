@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { detectAnomalies, approveTransfer, confirmInternalMove, revertResolution } from '../services/anomalyService.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { db } from '../db/database.js';
+import { optionalToken, AuthenticatedRequest } from '../auth/authMiddleware.js';
 
 export const anomalyRouter = Router();
 
@@ -15,9 +16,9 @@ anomalyRouter.get('/', (req, res) => {
   }
 });
 
-anomalyRouter.post('/approve-transfer', (req, res) => {
+anomalyRouter.post('/approve-transfer', optionalToken, (req: AuthenticatedRequest, res) => {
   const { serialNumber, targetRoomId, targetHolderId, resolvedBy } = req.body;
-  const user = resolvedBy || 'מנהל מערכת';
+  const user = resolvedBy || req.user?.name || 'מנהל מערכת';
 
   if (!serialNumber || (!targetRoomId && !targetHolderId)) {
     return res.status(400).json({ error: 'serialNumber and targetRoomId (or targetHolderId) are required' });

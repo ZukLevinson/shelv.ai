@@ -7,6 +7,9 @@ import { initSocketServer, broadcast } from './sockets/socketServer.js';
 import { inventoryRouter } from './routes/inventoryRoutes.js';
 import { sweepRouter } from './routes/sweepRoutes.js';
 import { anomalyRouter } from './routes/anomalyRoutes.js';
+import { authRouter } from './routes/authRoutes.js';
+import { userRouter } from './routes/userRoutes.js';
+import { authenticateToken, requireRole } from './auth/authMiddleware.js';
 import { importOfficialInventoryFromExcel, generateSampleExcelBuffer } from './services/excelImportService.js';
 import { detectAnomalies } from './services/anomalyService.js';
 
@@ -40,11 +43,13 @@ initDatabase();
 initGcsSync();
 initSocketServer(server);
 
+app.use('/api/auth', authRouter);
+app.use('/api/users', userRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/sweep', sweepRouter);
 app.use('/api/anomalies', anomalyRouter);
 
-app.post('/api/upload-excel', upload.single('file'), (req, res) => {
+app.post('/api/upload-excel', authenticateToken, requireRole(['manager']), upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No Excel file provided' });
   }

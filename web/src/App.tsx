@@ -73,32 +73,32 @@ export function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-2.5 sm:p-6 md:p-8 space-y-3.5 sm:space-y-8 max-w-full overflow-x-hidden">
       {/* Top Header */}
-      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-gray-800/80 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 sm:p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-xl sm:text-2xl shrink-0">
+      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 border-b border-gray-800/80 pb-3 sm:pb-5">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-lg sm:text-2xl shrink-0">
             S
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">shelv.ai</h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white">shelv.ai</h1>
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 Live Anomaly Engine
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+            <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 line-clamp-1">
               מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full xl:w-auto">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 sm:gap-3 w-full xl:w-auto">
           {/* Navigation View Switcher (Horizontally scrollable on mobile) */}
           <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
             <button
               onClick={() => setActiveView('overview')}
-              className={'whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
+              className={'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'overview' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -106,7 +106,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('scans')}
-              className={'whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
+              className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'scans' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -115,7 +115,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('holders')}
-              className={'whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
+              className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'holders' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -124,7 +124,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('masha_registry')}
-              className={'whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
+              className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'masha_registry' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -133,7 +133,7 @@ export function App() {
             </button>
             <button
               onClick={() => setActiveView('items')}
-              className={'whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-lg transition-all shrink-0 ' + (
+              className={'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
                 activeView === 'items' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
               )}
             >
@@ -142,29 +142,29 @@ export function App() {
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 sm:gap-2">
             <button
               onClick={fetchData}
               disabled={loading}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-all"
+              className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-medium text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-lg sm:rounded-xl hover:border-gray-700 transition-all"
             >
-              <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
+              <RefreshCw className={'w-3 h-3 sm:w-3.5 sm:h-3.5 ' + (loading ? 'animate-spin' : '')} />
               <span>רענן</span>
             </button>
 
             <button
               onClick={() => setRoomModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all"
+              className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg sm:rounded-xl transition-all"
             >
-              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
               <span>ניהול חדרים</span>
             </button>
 
             <button
               onClick={() => setUploadModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all"
+              className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg sm:rounded-xl shadow-lg shadow-emerald-500/20 transition-all"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span>ייבוא אקסל</span>
             </button>
 
@@ -172,10 +172,10 @@ export function App() {
               href="/scanner/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all"
+              className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg sm:rounded-xl transition-all"
               title="פתח סורק נייד בסמארטפון או בדפדפן"
             >
-              <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+              <Smartphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400" />
               <span>סורק נייד</span>
             </a>
           </div>
@@ -184,49 +184,49 @@ export function App() {
 
       {/* Metric Quick Cards */}
       {anomalies && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-gray-400 text-xs">
-              <span>סך פריטים חתומים (באקסל)</span>
-              <BarChart3 className="w-4 h-4 text-blue-400" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+            <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+              <span className="truncate">חתומים באקסל</span>
+              <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-white mt-2">
+            <div className="text-xl sm:text-2xl font-black text-white mt-1 sm:mt-2">
               {anomalies.stats?.totalExpectedItems ?? (anomalies.stats as any)?.totalOfficialItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">מכסת החתימות של בעלי המצאי</div>
+            <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מכסת החתימות הכוללת</div>
           </div>
 
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-gray-400 text-xs">
-              <span>פריטים פיזיים שנסרקו</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+            <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+              <span className="truncate">נסרקו פיזית</span>
+              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-emerald-400 mt-2">
+            <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1 sm:mt-2">
               {anomalies.stats?.totalDiscoveredItems ?? (anomalies.stats as any)?.totalSweptItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות העובדים</div>
+            <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">אומתו בסריקות העובדים</div>
           </div>
 
-          <div className="bg-gray-900 border border-rose-900/30 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-rose-300 text-xs">
-              <span>העברות ללא חתימה (חריגות)</span>
-              <AlertOctagon className="w-4 h-4 text-rose-400" />
+          <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+            <div className="flex items-center justify-between text-rose-300 text-[11px] sm:text-xs">
+              <span className="truncate">העברות ללא חתימה</span>
+              <AlertOctagon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-rose-400 mt-2">
+            <div className="text-xl sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2">
               {anomalies.stats?.unauthorizedCount ?? 0}
             </div>
-            <div className="text-[11px] text-rose-300/70 mt-1">פריטים בחדר של בעל מצאי שאין לו חתימה</div>
+            <div className="text-[10px] sm:text-[11px] text-rose-300/70 mt-0.5 sm:mt-1 truncate">פריטים זרים בחדרים</div>
           </div>
 
-          <div className="bg-gray-900 border border-amber-900/30 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-amber-300 text-xs">
-              <span>פער חסר מסך החתימות</span>
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
+          <div className="bg-gray-900 border border-amber-900/30 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+            <div className="flex items-center justify-between text-amber-300 text-[11px] sm:text-xs">
+              <span className="truncate">פער חסר מחתימות</span>
+              <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-amber-400 mt-2">
+            <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1 sm:mt-2">
               {anomalies.stats?.missingCount ?? 0}
             </div>
-            <div className="text-[11px] text-amber-300/70 mt-1">פריטים שעדיין לא נמצאו בשום סריקה</div>
+            <div className="text-[10px] sm:text-[11px] text-amber-300/70 mt-0.5 sm:mt-1 truncate">טרם נמצאו בסריקות</div>
           </div>
         </div>
       )}
@@ -234,7 +234,7 @@ export function App() {
       {/* Tab: Overview */}
       {activeView === 'overview' && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-6">
             <div className="lg:col-span-2">
               <RoomGrid rooms={rooms} onManageRooms={() => setRoomModalOpen(true)} />
             </div>

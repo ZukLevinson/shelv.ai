@@ -238,48 +238,48 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Top Header & Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-gray-400 text-xs">
-            <span>סך סריקות שנמצאו</span>
-            <History className="w-4 h-4 text-emerald-400" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+            <span className="truncate">סך סריקות</span>
+            <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-white mt-2">{total}</div>
-          <div className="text-[11px] text-gray-500 mt-1">רשומות סריקה לפי הסינון הנוכחי</div>
+          <div className="text-xl sm:text-2xl font-black text-white mt-1 sm:mt-2">{total}</div>
+          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">לפי הסינון הנוכחי</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-gray-400 text-xs">
-            <span>פריטים ייחודיים שנסרקו</span>
-            <Tag className="w-4 h-4 text-blue-400" />
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+            <span className="truncate">פריטים שנסרקו</span>
+            <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-blue-400 mt-2">{metrics.uniqueItems}</div>
-          <div className="text-[11px] text-gray-500 mt-1">מספרים סידוריים שונים שזוהו</div>
+          <div className="text-xl sm:text-2xl font-black text-blue-400 mt-1 sm:mt-2">{metrics.uniqueItems}</div>
+          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מספרים שונים שזוהו</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-gray-400 text-xs">
-            <span>סורקים פעילים (Who)</span>
-            <User className="w-4 h-4 text-purple-400" />
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+            <span className="truncate">סורקים (Who)</span>
+            <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-purple-400 mt-2">{metrics.uniqueScanners}</div>
-          <div className="text-[11px] text-gray-500 mt-1">אנשי צוות שביצעו סריקות</div>
+          <div className="text-xl sm:text-2xl font-black text-purple-400 mt-1 sm:mt-2">{metrics.uniqueScanners}</div>
+          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">אנשי צוות סורקים</div>
         </div>
 
-        <div className="bg-gray-900 border border-rose-900/30 rounded-2xl p-5 shadow-lg">
-          <div className="flex items-center justify-between text-rose-300 text-xs">
-            <span>חריגות מיקום שזוהו</span>
-            <AlertTriangle className="w-4 h-4 text-rose-400" />
+        <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-rose-300 text-[11px] sm:text-xs">
+            <span className="truncate">חריגות מיקום</span>
+            <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-rose-400 mt-2">{metrics.mismatches}</div>
-          <div className="text-[11px] text-rose-300/70 mt-1">נמצאו בחדר אחר מזה שחתום עליו</div>
+          <div className="text-xl sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2">{metrics.mismatches}</div>
+          <div className="text-[10px] sm:text-[11px] text-rose-300/70 mt-0.5 sm:mt-1 truncate">נמצאו בחדר לא מתאים</div>
         </div>
       </div>
 
       {/* Filter Toolbar ("מי סרק, מה, איפה ומתי") */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl max-w-full overflow-hidden">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-lg sm:shadow-xl max-w-full overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-800 pb-3">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-emerald-400 shrink-0" />

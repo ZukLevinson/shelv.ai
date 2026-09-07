@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
+import { authenticateToken, requireRole, optionalToken } from '../auth/authMiddleware.js';
 
 export const inventoryRouter = Router();
 
@@ -154,7 +155,9 @@ inventoryRouter.get('/holders', (req, res) => {
             JOIN rooms r ON o.room_id = r.id 
             WHERE r.holder_id = h.id) as swept_items_count,
            (SELECT json_group_array(json_object('id', r.id, 'name', r.name, 'code', r.code))
-            FROM rooms r WHERE r.holder_id = h.id) as rooms_json
+            FROM rooms r WHERE r.holder_id = h.id) as rooms_json,
+           (SELECT u.email FROM users u WHERE u.holder_id = h.id LIMIT 1) as coupled_user_email,
+           (SELECT u.name FROM users u WHERE u.holder_id = h.id LIMIT 1) as coupled_user_name
     FROM inventory_holders h
     ORDER BY h.name ASC
   `).all();
@@ -168,7 +171,7 @@ inventoryRouter.get('/holders', (req, res) => {
   res.json(formatted);
 });
 
-inventoryRouter.post('/holders', (req, res) => {
+inventoryRouter.post('/holders', authenticateToken, requireRole(['manager']), (req, res) => {
   const { name, personal_number, phone } = req.body;
   const cleanName = (name || '').trim();
   if (!cleanName) {
@@ -193,7 +196,7 @@ inventoryRouter.post('/holders', (req, res) => {
   res.status(201).json({ success: true, id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone });
 });
 
-inventoryRouter.put('/holders/:id', (req, res) => {
+inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']), (req, res) => {
   const { id } = req.params;
   const { name, personal_number, phone } = req.body;
 
@@ -244,7 +247,7 @@ inventoryRouter.put('/holders/:id', (req, res) => {
   });
 });
 
-inventoryRouter.delete('/holders/:id', (req, res) => {
+inventoryRouter.delete('/holders/:id', authenticateToken, requireRole(['manager']), (req, res) => {
   const { id } = req.params;
 
   const existing = db.prepare('SELECT * FROM inventory_holders WHERE id = ?').get(id) as any;
@@ -470,7 +473,7 @@ inventoryRouter.get('/excel-imports', async (req, res) => {
   }
 });
 
-inventoryRouter.delete('/excel-imports/:id', async (req, res) => {
+inventoryRouter.delete('/excel-imports/:id', authenticateToken, requireRole(['manager']), async (req, res) => {
   const { id } = req.params;
   try {
     const { deleteExcelImport } = await import('../services/excelImportService.js');
@@ -491,7 +494,7 @@ inventoryRouter.delete('/excel-imports/:id', async (req, res) => {
   }
 });
 
-inventoryRouter.post('/baseline/reset', async (req, res) => {
+inventoryRouter.post('/baseline/reset', authenticateToken, requireRole(['manager']), async (req, res) => {
   try {
     const { resetAllOfficialInventory } = await import('../services/excelImportService.js');
     const { detectAnomalies } = await import('../services/anomalyService.js');

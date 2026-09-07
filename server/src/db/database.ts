@@ -127,7 +127,27 @@ export function initDatabase() {
       inserted_count INTEGER NOT NULL DEFAULT 0,
       updated_count INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'inventory_owner',
+      holder_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE SET NULL
+    );
   `);
+
+  try {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_holder_id ON users(holder_id);
+    `);
+  } catch (err) {
+    console.error('[DB] Error creating users indexes:', err);
+  }
 
   // Ensure import_id column exists on official_inventory
   try {
