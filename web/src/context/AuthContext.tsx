@@ -14,6 +14,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loginWithGoogle: (credential: string) => Promise<void>;
   devLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
+  updateGoogleClientId: (id: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -21,11 +22,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'shelv_token';
+const CLIENT_ID_KEY = 'shelv_google_client_id';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [googleClientId, setGoogleClientId] = useState<string>('');
+  const [googleClientId, setGoogleClientId] = useState<string>(() => localStorage.getItem(CLIENT_ID_KEY) || '');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Set default axios Authorization header
@@ -40,6 +42,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(data.token);
     localStorage.setItem(TOKEN_KEY, data.token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+  };
+
+  const updateGoogleClientId = async (newId: string) => {
+    const clean = newId.trim();
+    setGoogleClientId(clean);
+    localStorage.setItem(CLIENT_ID_KEY, clean);
+    try {
+      await axios.post(`${API_BASE_URL}/api/auth/config`, { googleClientId: clean });
+    } catch (err) {
+      console.warn('[Auth] Failed to persist client id to server:', err);
+    }
   };
 
   const refreshUser = async () => {
@@ -57,11 +70,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // 1. Fetch public Google Client ID configuration
+        // 1. Fetch public Google Client ID configuration from server
         try {
           const cfgRes = await axios.get(`${API_BASE_URL}/api/auth/config`);
           if (cfgRes.data?.googleClientId) {
             setGoogleClientId(cfgRes.data.googleClientId);
+            localStorage.setItem(CLIENT_ID_KEY, cfgRes.data.googleClientId);
+          } else if (import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+            setGoogleClientId(import.meta.env.VITE_GOOGLE_CLIENT_ID);
           }
         } catch (e) {
           console.warn('[Auth] Could not fetch server auth config');
@@ -142,6 +158,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated,
         loginWithGoogle,
         devLogin,
+        updateGoogleClientId,
         logout,
         refreshUser,
       }}
