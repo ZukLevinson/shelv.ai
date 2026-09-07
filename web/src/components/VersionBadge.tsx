@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { GitCommit, Check, Copy, ExternalLink } from 'lucide-react';
+import { GitCommit, GitBranch, Check, Copy, ExternalLink } from 'lucide-react';
 import {
   APP_VERSION,
+  BRANCH_NAME,
   COMMIT_SHA,
   getFormattedBuildTime,
   getFullVersionSummary,
   copyVersionToClipboard,
   GITHUB_COMMIT_URL,
+  GITHUB_BRANCH_URL,
 } from '../version';
 
 interface VersionBadgeProps {
@@ -31,6 +33,7 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
 
   const formattedTime = getFormattedBuildTime();
   const hasCommit = Boolean(COMMIT_SHA && COMMIT_SHA !== 'dev');
+  const hasBranch = Boolean(BRANCH_NAME);
 
   if (variant === 'minimal') {
     return (
@@ -41,6 +44,12 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
         className={`inline-flex items-center gap-1 text-[10px] font-mono text-gray-500 hover:text-gray-300 transition-colors cursor-pointer select-none ${className}`}
       >
         <span>v{APP_VERSION}</span>
+        {hasBranch && (
+          <>
+            <span>•</span>
+            <span className="text-cyan-400/80">{BRANCH_NAME}</span>
+          </>
+        )}
         {hasCommit && (
           <>
             <span>•</span>
@@ -62,6 +71,12 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
           <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px]">
             v{APP_VERSION}
           </span>
+          {hasBranch && (
+            <div className="flex items-center gap-1 font-mono text-[10px] text-cyan-400/90 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+              <GitBranch className="w-3 h-3" />
+              <span>{BRANCH_NAME}</span>
+            </div>
+          )}
           {hasCommit && (
             <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-400/90 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
               <GitCommit className="w-3 h-3" />
@@ -76,6 +91,18 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {GITHUB_BRANCH_URL && (
+            <a
+              href={GITHUB_BRANCH_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-cyan-400 transition-colors"
+              title={`צפה בענף ${BRANCH_NAME} ב-GitHub`}
+            >
+              <GitBranch className="w-2.5 h-2.5" />
+              <span>{BRANCH_NAME}</span>
+            </a>
+          )}
           {GITHUB_COMMIT_URL && (
             <a
               href={GITHUB_COMMIT_URL}
@@ -112,9 +139,10 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
   }
 
   // Default: compact pill badge for header / login
-  const tooltip = hasCommit
-    ? `גרסה v${APP_VERSION} (Commit: ${COMMIT_SHA})${formattedTime ? ` | נבנה ב: ${formattedTime}` : ''} | לחץ להעתקה`
-    : `גרסה v${APP_VERSION}${formattedTime ? ` | נבנה ב: ${formattedTime}` : ''} | לחץ להעתקה`;
+  const branchInfo = hasBranch ? ` (ענף: ${BRANCH_NAME})` : '';
+  const commitInfo = hasCommit ? ` [Commit: ${COMMIT_SHA}]` : '';
+  const timeInfo = formattedTime ? ` | נבנה ב: ${formattedTime}` : '';
+  const tooltip = `גרסה v${APP_VERSION}${branchInfo}${commitInfo}${timeInfo} | לחץ להעתקה`;
 
   return (
     <button
@@ -127,6 +155,16 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
         <GitCommit className="w-3 h-3 text-emerald-400 shrink-0" />
         <span>v{APP_VERSION}</span>
       </div>
+
+      {hasBranch && (
+        <>
+          <span className="text-gray-600">|</span>
+          <div className="flex items-center gap-0.5 text-cyan-400/90">
+            <GitBranch className="w-2.5 h-2.5" />
+            <span className="font-mono text-[9px] sm:text-[10px]">{BRANCH_NAME}</span>
+          </div>
+        </>
+      )}
 
       {hasCommit && (
         <>
