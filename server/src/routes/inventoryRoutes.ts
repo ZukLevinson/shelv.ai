@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../db/database.js';
+import { db, syncPendingHoldersCoupling } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { authenticateToken, requireRole, optionalToken } from '../auth/authMiddleware.js';
 import { logAction } from '../services/actionService.js';
@@ -223,6 +223,15 @@ inventoryRouter.post('/holders', authenticateToken, requireRole(['manager']), as
 
   broadcast('HOLDERS_UPDATED', { id, action: 'created', name: cleanName });
 
+  // Auto-couple any pending logged-in user with this personal number
+  if (cleanPersonalNumber) {
+    try {
+      syncPendingHoldersCoupling();
+    } catch (err) {
+      console.error('[Holders API] Error syncing pending holder couplings:', err);
+    }
+  }
+
   const { logAction } = await import('../services/actionService.js');
   const actionId = logAction({
     actionType: 'holder_created',
@@ -265,6 +274,15 @@ inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']),
   `).run(cleanName, cleanPersonalNumber, cleanPhone, id);
 
   broadcast('HOLDERS_UPDATED', { id, action: 'updated', name: cleanName });
+
+  // Auto-couple any pending logged-in user with this personal number
+  if (cleanPersonalNumber) {
+    try {
+      syncPendingHoldersCoupling();
+    } catch (err) {
+      console.error('[Holders API] Error syncing pending holder couplings:', err);
+    }
+  }
 
   const { logAction } = await import('../services/actionService.js');
   const actionId = logAction({

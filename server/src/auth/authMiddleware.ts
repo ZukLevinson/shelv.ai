@@ -34,13 +34,33 @@ export function optionalToken(req: AuthenticatedRequest, res: Response, next: Ne
   next();
 }
 
+export function requireManagement() {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'נדרשת התחברות למערכת (Authentication required)' });
+    }
+
+    if (!req.user.is_manager) {
+      return res.status(403).json({ 
+        error: 'פעולה זו דורשת הרשאת ניהול במערכת (Management permission required)' 
+      });
+    }
+
+    next();
+  };
+}
+
 export function requireRole(allowedRoles: Array<'manager' | 'inventory_owner' | 'scanner'>) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: 'נדרשת התחברות למערכת' });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    // If 'manager' is in allowedRoles, allow users with is_manager = true
+    const isAllowedAsManager = allowedRoles.includes('manager') && Boolean(req.user.is_manager);
+    const isAllowedByRole = allowedRoles.includes(req.user.role as any);
+
+    if (!isAllowedAsManager && !isAllowedByRole) {
       return res.status(403).json({ 
         error: `אין לך הרשאה מתאימה לפעולה זו. נדרשת הרשאת: ${allowedRoles.join(' / ')}` 
       });

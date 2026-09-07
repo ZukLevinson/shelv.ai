@@ -11,10 +11,13 @@ interface AuthContextType {
   googleClientId: string;
   isManager: boolean;
   isInventoryOwner: boolean;
+  isScanner: boolean;
+  needsOnboarding: boolean;
   isAuthenticated: boolean;
   loginWithGoogle: (credential: string) => Promise<void>;
-  quickLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
-  devLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
+  loginAsScanner: (name?: string) => Promise<void>;
+  completeOnboarding: (role: 'inventory_owner' | 'scanner', personalNumber?: string) => Promise<{ coupled: boolean; holderName?: string; message?: string }>;
+  updatePersonalNumber: (newPersonalNumber: string) => Promise<{ coupled: boolean; holderName?: string; message?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -102,19 +105,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const quickLogin = async (
-    role: 'manager' | 'inventory_owner',
-    email?: string,
-    name?: string,
-    holder_id?: string
-  ) => {
+  const loginAsScanner = async (name?: string) => {
     setIsLoading(true);
     try {
-      const res = await axios.post<AuthResponse>(`${API_BASE_URL}/api/auth/quick-login`, {
-        role,
-        email,
-        name,
-        holder_id,
+      const res = await axios.post<AuthResponse>(`${API_BASE_URL}/api/auth/scanner-login`, {
+        name: name || 'סורק מצאי',
       });
       applyAuthResponse(res.data);
     } finally {
@@ -122,7 +117,68 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const devLogin = quickLogin;
+  const completeOnboarding = async (
+    role: 'inventory_owner' | 'scanner',
+    personalNumber?: string
+  ): Promise<{ coupled: boolean; holderName?: string; message?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await axios.post<{
+        token: string;
+        user: User;
+        coupled: boolean;
+        holder_name?: string;
+        message?: string;
+      }>(`${API_BASE_URL}/api/auth/onboarding`, {
+        role,
+        personal_number: personalNumber,
+      });
+
+      applyAuthResponse({
+        token: res.data.token,
+        user: res.data.user,
+      });
+
+      return {
+        coupled: res.data.coupled,
+        holderName: res.data.holder_name,
+        message: res.data.message,
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updatePersonalNumber = async (
+    newPersonalNumber: string
+  ): Promise<{ coupled: boolean; holderName?: string; message?: string }> => {
+    setIsLoading(true);
+    try {
+      const res = await axios.put<{
+        success: boolean;
+        token: string;
+        user: User;
+        coupled: boolean;
+        holder_name?: string;
+        message?: string;
+      }>(`${API_BASE_URL}/api/users/me/personal-number`, {
+        personal_number: newPersonalNumber,
+      });
+
+      applyAuthResponse({
+        token: res.data.token,
+        user: res.data.user,
+      });
+
+      return {
+        coupled: res.data.coupled,
+        holderName: res.data.holder_name,
+        message: res.data.message,
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
@@ -131,8 +187,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(null);
   };
 
-  const isManager = user?.role === 'manager';
+  const isManager = Boolean(user?.is_manager && user?.role === 'inventory_owner');
   const isInventoryOwner = user?.role === 'inventory_owner';
+  const isScanner = user?.role === 'scanner';
+  const needsOnboarding = Boolean(user && !user.onboarding_completed);
   const isAuthenticated = Boolean(user && token);
 
   return (
@@ -144,10 +202,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         googleClientId,
         isManager,
         isInventoryOwner,
+        isScanner,
+        needsOnboarding,
         isAuthenticated,
         loginWithGoogle,
-        quickLogin,
-        devLogin,
+        loginAsScanner,
+        completeOnboarding,
+        updatePersonalNumber,
         logout,
         refreshUser,
       }}

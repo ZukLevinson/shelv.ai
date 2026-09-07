@@ -1,5 +1,5 @@
 import xlsx from 'xlsx';
-import { db } from '../db/database.js';
+import { db, syncPendingHoldersCoupling } from '../db/database.js';
 
 export interface ImportResult {
   importId: string;
@@ -216,6 +216,13 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
   });
 
   runTransaction();
+
+  // Automatically couple any logged-in users whose personal_number matches newly imported holders
+  try {
+    syncPendingHoldersCoupling();
+  } catch (err) {
+    console.error('[Excel Import] Error syncing pending holder couplings:', err);
+  }
 
   return { importId, filename: originalFilename, insertedCount, updatedCount, errors };
 }

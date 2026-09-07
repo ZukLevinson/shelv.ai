@@ -15,8 +15,11 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  is_manager: boolean;
+  personal_number?: string | null;
   holder_id?: string | null;
   holder_name?: string | null;
+  onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
 }

@@ -8,8 +8,10 @@ const oauthClient = new OAuth2Client(GOOGLE_CLIENT_ID || undefined);
 export interface TokenPayload {
   userId: string;
   email: string;
-  role: 'manager' | 'inventory_owner' | 'scanner';
+  role: 'inventory_owner' | 'scanner';
+  is_manager: boolean;
   holderId?: string | null;
+  personal_number?: string | null;
   name: string;
   iat?: number;
   exp?: number;

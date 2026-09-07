@@ -133,7 +133,10 @@ export function initDatabase() {
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'inventory_owner',
+      is_manager INTEGER NOT NULL DEFAULT 0,
+      personal_number TEXT,
       holder_id TEXT,
+      onboarding_completed INTEGER NOT NULL DEFAULT 0,
       last_login_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -170,20 +173,41 @@ export function initDatabase() {
     );
   `);
 
-  // Ensure last_login_at column exists on users for existing databases
+  // Ensure user columns exist for existing databases
   try {
     const userCols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     if (!userCols.some(col => col.name === 'last_login_at')) {
       db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
     }
+    if (!userCols.some(col => col.name === 'is_manager')) {
+      db.exec("ALTER TABLE users ADD COLUMN is_manager INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!userCols.some(col => col.name === 'personal_number')) {
+      db.exec("ALTER TABLE users ADD COLUMN personal_number TEXT");
+    }
+    if (!userCols.some(col => col.name === 'onboarding_completed')) {
+      db.exec("ALTER TABLE users ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Role & permission migrations:
+    // Convert legacy 'manager' role to 'inventory_owner' with is_manager = 1
+    db.exec("UPDATE users SET is_manager = 1 WHERE role = 'manager'");
+    db.exec("UPDATE users SET role = 'inventory_owner' WHERE role = 'manager'");
+
+    // Always ensure zuklevinson@gmail.com has management permission enabled
+    db.exec("UPDATE users SET is_manager = 1 WHERE LOWER(email) = 'zuklevinson@gmail.com'");
+
+    // Ensure users who already had a holder_id or personal_number are marked as onboarding_completed
+    db.exec("UPDATE users SET onboarding_completed = 1 WHERE holder_id IS NOT NULL OR personal_number IS NOT NULL");
   } catch (err) {
-    console.error('[DB] Migration error for last_login_at:', err);
+    console.error('[DB] Migration error for user columns:', err);
   }
 
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_holder_id ON users(holder_id);
+      CREATE INDEX IF NOT EXISTS idx_users_personal_number ON users(personal_number);
       CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login_at);
       CREATE INDEX IF NOT EXISTS idx_email_alerts_ref ON email_alerts(reference_key, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_email_alerts_holder ON email_alerts(holder_id);
@@ -311,5 +335,38 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[DB] Migration error cleaning up Dev user names:', err);
+  }
+}
+
+/**
+ * Automatically couples uncoupled inventory owners to inventory holders
+ * when a matching personal number (מ"א) is discovered.
+ */
+export function syncPendingHoldersCoupling(): number {
+  try {
+    const res = db.prepare(`
+      UPDATE users
+      SET holder_id = (
+        SELECT h.id FROM inventory_holders h 
+        WHERE TRIM(h.personal_number) = TRIM(users.personal_number) COLLATE NOCASE
+        LIMIT 1
+      ),
+      updated_at = CURRENT_TIMESTAMP
+      WHERE role = 'inventory_owner'
+        AND (holder_id IS NULL OR holder_id = '')
+        AND personal_number IS NOT NULL
+        AND TRIM(personal_number) != ''
+        AND EXISTS (
+          SELECT 1 FROM inventory_holders h
+          WHERE TRIM(h.personal_number) = TRIM(users.personal_number) COLLATE NOCASE
+        )
+    `).run();
+    if (res.changes > 0) {
+      console.log(`[DB Sync] Auto-coupled ${res.changes} pending user(s) to matching inventory holder(s)`);
+    }
+    return res.changes;
+  } catch (err) {
+    console.error('[DB Sync] Error coupling pending users:', err);
+    return 0;
   }
 }

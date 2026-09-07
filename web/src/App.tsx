@@ -1,21 +1,32 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  NavLink,
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+} from 'react-router-dom';
 import type { Room, OfficialItem, AnomalyReport, InventoryHolder, OnlineScannerInfo } from './types';
-import { RoomGrid } from './components/RoomGrid';
-import { AnomaliesCenter } from './components/AnomaliesCenter';
-import { LiveFeed } from './components/LiveFeed';
-import { InventoryCatalog } from './components/InventoryCatalog';
 import { ExcelUploadModal } from './components/ExcelUploadModal';
-import { MashaRegistryTable } from './components/MashaRegistryTable';
 import { RoomManagementModal } from './components/RoomManagementModal';
-import { HoldersManagement } from './components/HoldersManagement';
-import { ScanManagement } from './components/ScanManagement';
-import { UserManagement } from './components/UserManagement';
 import { LoginScreen } from './components/LoginScreen';
 import { UndoToast, type UndoToastData } from './components/UndoToast';
 import { ActionHistoryModal } from './components/ActionHistoryModal';
 import { VersionBadge } from './components/VersionBadge';
+import { OnboardingModal } from './components/OnboardingModal';
+import { EditPersonalNumberModal } from './components/EditPersonalNumberModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { OverviewPage } from './pages/OverviewPage';
+import { ScansPage } from './pages/ScansPage';
+import { HoldersPage } from './pages/HoldersPage';
+import { MashaRegistryPage } from './pages/MashaRegistryPage';
+import { ItemsPage } from './pages/ItemsPage';
+import { UsersPage } from './pages/UsersPage';
 import { 
   ShieldCheck, 
   Upload, 
@@ -33,12 +44,21 @@ import {
   Filter,
   Info,
   RotateCcw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowRight,
+  ArrowLeft,
+  Edit2
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
 function AppContent() {
-  const { user, logout, isManager, isInventoryOwner, isLoading, isAuthenticated } = useAuth();
+  const { user, logout, isManager, isInventoryOwner, isScanner, needsOnboarding, isLoading, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navType = useNavigationType();
+
+  const [isEditPNModalOpen, setIsEditPNModalOpen] = useState(false);
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [items, setItems] = useState<OfficialItem[]>([]);
   const [anomalies, setAnomalies] = useState<AnomalyReport | null>(null);
@@ -50,10 +70,41 @@ function AppContent() {
   const [isRoomModalOpen, setRoomModalOpen] = useState(false);
   const [isActionHistoryOpen, setActionHistoryOpen] = useState(false);
   const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
-  const [activeView, setActiveView] = useState<'overview' | 'scans' | 'holders' | 'masha_registry' | 'items' | 'users'>('overview');
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [myInventoryOnly, setMyInventoryOnly] = useState(false);
+
+  // Track session history position for back/forward capability
+  const currentIdx = (typeof window !== 'undefined' && window.history.state && typeof window.history.state.idx === 'number')
+    ? window.history.state.idx
+    : 0;
+
+  const [maxIdx, setMaxIdx] = useState<number>(currentIdx);
+
+  useEffect(() => {
+    if (navType === 'PUSH') {
+      setMaxIdx(currentIdx);
+    } else {
+      setMaxIdx((prev) => Math.max(prev, currentIdx));
+    }
+  }, [currentIdx, navType]);
+
+  const canGoBack = currentIdx > 0;
+  const canGoForward = currentIdx < maxIdx;
+
+  const goBack = () => {
+    if (canGoBack) {
+      navigate(-1);
+    } else if (location.pathname !== '/') {
+      navigate('/');
+    }
+  };
+
+  const goForward = () => {
+    if (canGoForward) {
+      navigate(1);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -117,7 +168,7 @@ function AppContent() {
         ) {
           fetchData();
         }
-      } catch (err) {}
+      } catch {}
     };
 
     return () => ws.close();
@@ -181,12 +232,18 @@ function AppContent() {
       <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 border-b border-gray-800/80 pb-3 sm:pb-5">
         <div className="flex items-center justify-between xl:justify-start gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="p-2 sm:p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-lg sm:text-2xl shrink-0">
+            <Link
+              to="/"
+              className="p-2 sm:p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-lg sm:text-2xl shrink-0 hover:opacity-90 transition-opacity"
+              title="חזור למבט על"
+            >
               S
-            </div>
+            </Link>
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white">shelv.ai</h1>
+                <Link to="/" className="text-lg sm:text-2xl font-black tracking-tight text-white hover:text-emerald-300 transition-colors">
+                  shelv.ai
+                </Link>
                 <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   Live Anomaly Engine
                 </span>
@@ -211,64 +268,118 @@ function AppContent() {
         </div>
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 sm:gap-3 w-full xl:w-auto">
-          {/* Navigation View Switcher */}
-          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
-            <button
-              onClick={() => setActiveView('overview')}
-              className={'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
-                activeView === 'overview' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
-              )}
-            >
-              מבט על וחריגות
-            </button>
-            <button
-              onClick={() => setActiveView('scans')}
-              className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
-                activeView === 'scans' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
-              )}
-            >
-              <ClipboardList className="w-3.5 h-3.5" />
-              <span>ניהול ותחקור סריקות</span>
-            </button>
-            <button
-              onClick={() => setActiveView('holders')}
-              className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
-                activeView === 'holders' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
-              )}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>בעלי מצאי ({holders.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveView('masha_registry')}
-              className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
-                activeView === 'masha_registry' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
-              )}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>הגדרת מסחאות ({mashaList.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveView('items')}
-              className={'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
-                activeView === 'items' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-gray-400 hover:text-white'
-              )}
-            >
-              קטלוג פריטים ({items.length})
-            </button>
-
-            {/* Manager-only User Management Tab */}
-            {isManager && (
+          {/* Back & Forth Navigation Controls + Navigation View Switcher */}
+          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+            {/* History Back-Forth Buttons */}
+            <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl shrink-0">
               <button
-                onClick={() => setActiveView('users')}
-                className={'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' + (
-                  activeView === 'users' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' : 'text-purple-400/80 hover:text-purple-300'
-                )}
+                type="button"
+                onClick={goBack}
+                disabled={!canGoBack && location.pathname === '/'}
+                title={canGoBack ? 'חזור לעמוד הקודם (Back)' : (location.pathname !== '/' ? 'חזור למבט על' : 'אין עמודים קודמים בהיסטוריה')}
+                aria-label="חזור אחורה"
+                className={`p-1.5 rounded-lg text-xs transition-all flex items-center justify-center ${
+                  canGoBack || location.pathname !== '/'
+                    ? 'text-gray-300 hover:text-white hover:bg-gray-800 cursor-pointer active:scale-95 shadow-sm'
+                    : 'text-gray-600 cursor-not-allowed opacity-30'
+                }`}
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>ניהול משתמשים</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
-            )}
+              <button
+                type="button"
+                onClick={goForward}
+                disabled={!canGoForward}
+                title={canGoForward ? 'קדימה לעמוד הבא (Forward)' : 'אין עמודים הבאים בהיסטוריה'}
+                aria-label="קדימה"
+                className={`p-1.5 rounded-lg text-xs transition-all flex items-center justify-center ${
+                  canGoForward
+                    ? 'text-gray-300 hover:text-white hover:bg-gray-800 cursor-pointer active:scale-95 shadow-sm'
+                    : 'text-gray-600 cursor-not-allowed opacity-30'
+                }`}
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Navigation View Switcher */}
+            <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                  (isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-gray-400 hover:text-white border border-transparent')
+                }
+              >
+                מבט על וחריגות
+              </NavLink>
+              <NavLink
+                to="/scans"
+                className={({ isActive }) =>
+                  'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                  (isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-gray-400 hover:text-white border border-transparent')
+                }
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span>ניהול ותחקור סריקות</span>
+              </NavLink>
+              <NavLink
+                to="/holders"
+                className={({ isActive }) =>
+                  'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                  (isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-gray-400 hover:text-white border border-transparent')
+                }
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>בעלי מצאי ({holders.length})</span>
+              </NavLink>
+              <NavLink
+                to="/masha-registry"
+                className={({ isActive }) =>
+                  'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                  (isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-gray-400 hover:text-white border border-transparent')
+                }
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>הגדרת מסחאות ({mashaList.length})</span>
+              </NavLink>
+              <NavLink
+                to="/items"
+                className={({ isActive }) =>
+                  'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                  (isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-gray-400 hover:text-white border border-transparent')
+                }
+              >
+                קטלוג פריטים ({items.length})
+              </NavLink>
+
+              {/* Manager-only User Management Tab */}
+              {isManager && (
+                <NavLink
+                  to="/users"
+                  className={({ isActive }) =>
+                    'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                    (isActive
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                      : 'text-purple-400/80 hover:text-purple-300 border border-transparent')
+                  }
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>ניהול משתמשים</span>
+                </NavLink>
+              )}
+            </div>
           </div>
 
           {/* Action Buttons & Profile */}
@@ -390,19 +501,33 @@ function AppContent() {
                   <span className="font-semibold text-white max-w-[120px] truncate">{user?.name}</span>
                   {isManager ? (
                     <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 text-[9px] font-bold rounded border border-purple-500/40">
-                      הרשאת עריכה
+                      הרשאת ניהול
                     </span>
-                  ) : (
+                  ) : isInventoryOwner ? (
                     <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 text-[9px] font-bold rounded border border-blue-500/40">
                       בעל מצאי
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 text-[9px] font-bold rounded border border-cyan-500/40">
+                      סורק
                     </span>
                   )}
                 </div>
 
                 {isInventoryOwner && (
-                  <span className="text-[10px] text-gray-400">
-                    {user?.holder_name ? `משויך: ${user.holder_name}` : 'לא מקושר לפרופיל'}
-                  </span>
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                    <span>{user?.holder_name ? `משויך: ${user.holder_name}` : 'ממתין לקליטה'}</span>
+                    {user?.personal_number && (
+                      <span className="text-gray-500 font-mono">({user.personal_number})</span>
+                    )}
+                    <button
+                      onClick={() => setIsEditPNModalOpen(true)}
+                      title="ערוך מספר אישי (מ''א)"
+                      className="p-0.5 text-gray-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
+                    >
+                      <Edit2 className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -420,16 +545,26 @@ function AppContent() {
 
       {/* Inventory Owner Banner if uncoupled */}
       {isInventoryOwner && !user?.holder_id && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs text-amber-200">
-          <div className="flex items-center gap-2.5">
-            <Info className="w-5 h-5 text-amber-400 shrink-0" />
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-200">
+          <div className="flex items-start gap-2.5">
+            <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <strong className="font-semibold text-amber-100">חשבונך מוגדר כבעל מצאי אך טרם שויך לפרופיל בעל מצאי במערכת.</strong>
+              <strong className="font-semibold text-amber-100">
+                אתה מחובר כבעל מצאי {user?.personal_number ? `(מ"א: ${user.personal_number})` : ''} - פרטי המצאי שלך טרם נקלטו במערכת.
+              </strong>
               <p className="text-amber-300/80 text-[11px] mt-0.5">
-                ניתן לפנות לבעלי הרשאת עריכה על מנת לקשר את חשבון ה-Google לפרופיל בעל המצאי, או לבצע שיוך דרך טבלת המשתמשים.
+                ברגע שמנהל יטען את קובץ המצאי או יזין את פרטיך במערכת, החשבון יסונכרן אוטומטית. אם נפלה טעות במספר האישי, ניתן לעדכן אותו כעת.
               </p>
             </div>
           </div>
+
+          <button
+            onClick={() => setIsEditPNModalOpen(true)}
+            className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer text-xs self-end sm:self-auto"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            <span>ערוך מ"א</span>
+          </button>
         </div>
       )}
 
@@ -438,7 +573,17 @@ function AppContent() {
         <div className="flex items-center justify-between bg-gray-900/80 border border-gray-800 px-4 py-2.5 rounded-2xl text-xs">
           <div className="flex items-center gap-2 text-gray-300">
             <UserCheck className="w-4 h-4 text-teal-400" />
-            <span>אתה מחובר כבעל המצאי: <strong className="text-teal-300">{user.holder_name}</strong></span>
+            <span>
+              אתה מחובר כבעל המצאי: <strong className="text-teal-300">{user.holder_name}</strong>
+              {user.personal_number && <span className="text-gray-400 font-mono text-[11px] mr-1">(מ"א: {user.personal_number})</span>}
+            </span>
+            <button
+              onClick={() => setIsEditPNModalOpen(true)}
+              className="p-1 text-gray-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
+              title="ערוך מספר אישי (מ''א)"
+            >
+              <Edit2 className="w-3 h-3" />
+            </button>
           </div>
 
           <button
@@ -455,100 +600,158 @@ function AppContent() {
         </div>
       )}
 
-      {/* Metric Quick Cards */}
+      {/* Scanner Banner for Scanner role */}
+      {isScanner && (
+        <div className="flex items-center justify-between bg-cyan-500/10 border border-cyan-500/30 px-4 py-2.5 rounded-2xl text-xs text-cyan-200">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-cyan-400" />
+            <span>
+              אתה מחובר כ<strong>סורק מצאי</strong>. באפשרותך לבצע סריקות פיזיות בשטח או לתחקר סריקות קיימות.
+            </span>
+          </div>
+
+          <a
+            href="/scanner/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer text-xs"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>פתח סורק נייד</span>
+          </a>
+        </div>
+      )}
+
+      {/* Metric Quick Cards (Clickable navigation links) */}
       {anomalies && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-gray-400 text-xs">
+          <Link
+            to="/items"
+            className="bg-gray-900 border border-gray-800 hover:border-blue-500/40 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            title="מעבר לקטלוג הפריטים"
+          >
+            <div className="flex items-center justify-between text-gray-400 group-hover:text-blue-300 text-xs transition-colors">
               <span>סך פריטים חתומים (באקסל)</span>
               <BarChart3 className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-2xl font-black text-white mt-2">
               {anomalies.stats?.totalExpectedItems ?? (anomalies.stats as any)?.totalOfficialItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">מכסת החתימות של בעלי המצאי</div>
-          </div>
+            <div className="text-[11px] text-gray-500 mt-1">מכסת החתימות של בעלי המצאי ↗</div>
+          </Link>
 
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-gray-400 text-xs">
+          <Link
+            to="/scans"
+            className="bg-gray-900 border border-gray-800 hover:border-emerald-500/40 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            title="מעבר לניהול ותחקור סריקות"
+          >
+            <div className="flex items-center justify-between text-gray-400 group-hover:text-emerald-300 text-xs transition-colors">
               <span>פריטים פיזיים שנסרקו</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl font-black text-emerald-400 mt-2">
               {anomalies.stats?.totalDiscoveredItems ?? (anomalies.stats as any)?.totalSweptItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות המצאי</div>
-          </div>
+            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות המצאי ↗</div>
+          </Link>
 
-          <div className="bg-gray-900 border border-rose-900/30 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-rose-300 text-xs">
+          <Link
+            to="/"
+            className="bg-gray-900 border border-rose-900/30 hover:border-rose-500/50 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            title="מעבר למרכז החריגות במבט על"
+          >
+            <div className="flex items-center justify-between text-rose-300 group-hover:text-rose-200 text-xs transition-colors">
               <span>העברות ללא חתימה (חריגות)</span>
               <AlertOctagon className="w-4 h-4 text-rose-400" />
             </div>
             <div className="text-2xl font-black text-rose-400 mt-2">
               {anomalies.stats?.unauthorizedCount ?? 0}
             </div>
-            <div className="text-[11px] text-rose-300/70 mt-1">פריטים בחדר של בעל מצאי שאין לו חתימה</div>
-          </div>
+            <div className="text-[11px] text-rose-300/70 mt-1">פריטים בחדר של בעל מצאי שאין לו חתימה ↗</div>
+          </Link>
 
-          <div className="bg-gray-900 border border-amber-900/30 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-amber-300 text-xs">
+          <Link
+            to="/items"
+            className="bg-gray-900 border border-amber-900/30 hover:border-amber-500/50 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            title="מעבר לקטלוג הפריטים"
+          >
+            <div className="flex items-center justify-between text-amber-300 group-hover:text-amber-200 text-xs transition-colors">
               <span>פער חסר מסך החתימות</span>
               <ShieldCheck className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-2xl font-black text-amber-400 mt-2">
               {anomalies.stats?.missingCount ?? 0}
             </div>
-            <div className="text-[11px] text-amber-300/70 mt-1">פריטים שעדיין לא נמצאו בשום סריקה</div>
-          </div>
+            <div className="text-[11px] text-amber-300/70 mt-1">פריטים שעדיין לא נמצאו בשום סריקה ↗</div>
+          </Link>
         </div>
       )}
 
-      {/* Tab: Overview */}
-      {activeView === 'overview' && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <RoomGrid rooms={displayRooms} onManageRooms={() => setRoomModalOpen(true)} />
-            </div>
-            <div>
-              <LiveFeed onlineScannersCount={onlineScannersCount} onlineScanners={onlineScanners} />
-            </div>
-          </div>
-
-          <AnomaliesCenter anomalies={anomalies} onRefresh={fetchData} />
-        </>
-      )}
-
-      {/* Tab: Scan Management & Investigation */}
-      {activeView === 'scans' && (
-        <ScanManagement rooms={rooms} onlineScannersCount={onlineScannersCount} onlineScanners={onlineScanners} />
-      )}
-
-      {/* Tab: Holders Management */}
-      {activeView === 'holders' && (
-        <HoldersManagement
-          holders={holders}
-          rooms={rooms}
-          onRefresh={fetchData}
-          onOpenRoomModal={() => setRoomModalOpen(true)}
-        />
-      )}
-
-      {/* Tab: Masha Registry (Name, Category, Description manager) */}
-      {activeView === 'masha_registry' && (
-        <MashaRegistryTable mashaList={mashaList} onRefresh={fetchData} />
-      )}
-
-      {/* Tab: Items Catalog */}
-      {activeView === 'items' && (
-        <InventoryCatalog items={displayItems} />
-      )}
-
-      {/* Tab: Users Management (Manager only) */}
-      {activeView === 'users' && isManager && (
-        <UserManagement holders={holders} onRefreshHolders={fetchData} />
-      )}
+      {/* Page Routes with Back & Forth support */}
+      <main>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <OverviewPage
+                rooms={displayRooms}
+                anomalies={anomalies}
+                onlineScannersCount={onlineScannersCount}
+                onlineScanners={onlineScanners}
+                onManageRooms={() => setRoomModalOpen(true)}
+                onRefresh={fetchData}
+              />
+            }
+          />
+          <Route path="/overview" element={<Navigate to="/" replace />} />
+          <Route
+            path="/scans"
+            element={
+              <ScansPage
+                rooms={rooms}
+                onlineScannersCount={onlineScannersCount}
+                onlineScanners={onlineScanners}
+              />
+            }
+          />
+          <Route
+            path="/holders"
+            element={
+              <HoldersPage
+                holders={holders}
+                rooms={rooms}
+                onRefresh={fetchData}
+                onOpenRoomModal={() => setRoomModalOpen(true)}
+              />
+            }
+          />
+          <Route
+            path="/masha-registry"
+            element={
+              <MashaRegistryPage
+                mashaList={mashaList}
+                onRefresh={fetchData}
+              />
+            }
+          />
+          <Route path="/masha" element={<Navigate to="/masha-registry" replace />} />
+          <Route
+            path="/items"
+            element={<ItemsPage items={displayItems} />}
+          />
+          <Route path="/catalog" element={<Navigate to="/items" replace />} />
+          <Route
+            path="/users"
+            element={
+              <UsersPage
+                holders={holders}
+                onRefreshHolders={fetchData}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
 
       {/* Excel Upload Modal */}
       {isManager && (
@@ -586,6 +789,16 @@ function AppContent() {
         onActionReverted={() => fetchData()}
       />
 
+      {/* Onboarding Modal for First Login / Role & מ"א Setup */}
+      <OnboardingModal isOpen={needsOnboarding} />
+
+      {/* Edit Personal Number (מ"א) Modal */}
+      <EditPersonalNumberModal
+        isOpen={isEditPNModalOpen}
+        onClose={() => setIsEditPNModalOpen(false)}
+        onSuccess={fetchData}
+      />
+
       {/* Footer with version indication and details */}
       <footer className="pt-6 pb-2 border-t border-gray-900/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
         <div className="flex items-center gap-2">
@@ -601,9 +814,11 @@ function AppContent() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

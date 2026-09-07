@@ -20,6 +20,22 @@ authRouter.get('/config', (_req, res) => {
   });
 });
 
+// Helper to format user response
+function formatUserResponse(user: any) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    is_manager: Boolean(user.is_manager),
+    personal_number: user.personal_number || null,
+    holder_id: user.holder_id || null,
+    holder_name: user.holder_name || null,
+    onboarding_completed: Boolean(user.onboarding_completed),
+    created_at: user.created_at,
+  };
+}
+
 // POST /api/auth/google - Sign in / Register with Google ID token
 authRouter.post('/google', async (req, res) => {
   const token = req.body.credential || req.body.idToken;
@@ -32,18 +48,14 @@ authRouter.post('/google', async (req, res) => {
     const email = profile.email.toLowerCase().trim();
     const name = profile.name.trim();
 
+    const isZuk = email === 'zuklevinson@gmail.com';
+
     let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
 
     if (!user) {
-      // If no users exist yet or email is in INITIAL_MANAGER_EMAILS, assign 'manager'
-      const totalUsers = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
-      const initialAdmins = (process.env.INITIAL_MANAGER_EMAILS || '')
-        .split(',')
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-
-      const isManager = totalUsers === 0 || initialAdmins.includes(email);
-      const role = isManager ? 'manager' : 'inventory_owner';
+      // zuklevinson@gmail.com is granted management permission by default
+      const isManager = isZuk ? 1 : 0;
+      const role = 'inventory_owner';
 
       // Auto-couple if an existing inventory holder has the same email
       let autoHolderId: string | null = null;
@@ -54,55 +66,66 @@ authRouter.post('/google', async (req, res) => {
 
       const id = profile.sub || 'user-' + Date.now();
       db.prepare(`
-        INSERT INTO users (id, email, name, role, holder_id, last_login_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `).run(id, email, name, role, autoHolderId);
+        INSERT INTO users (id, email, name, role, is_manager, holder_id, onboarding_completed, last_login_at)
+        VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+      `).run(id, email, name, role, isManager, autoHolderId);
 
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
     } else {
-      // Auto-couple if user is currently uncoupled and an inventory holder has the same email
+      // If user is zuklevinson@gmail.com, ensure is_manager is 1
+      const isManager = isZuk ? 1 : user.is_manager;
+
+      // Auto-couple if user is currently uncoupled:
+      // 1. By personal_number if set
+      // 2. By email
       let currentHolderId = user.holder_id;
+      if (!currentHolderId && user.personal_number) {
+        const matchingHolderByPN = db.prepare(`
+          SELECT id FROM inventory_holders 
+          WHERE TRIM(personal_number) = TRIM(?) COLLATE NOCASE 
+          LIMIT 1
+        `).get(user.personal_number) as any;
+        if (matchingHolderByPN) {
+          currentHolderId = matchingHolderByPN.id;
+        }
+      }
       if (!currentHolderId) {
-        const matchingHolder = db.prepare('SELECT id FROM inventory_holders WHERE email = ? COLLATE NOCASE').get(email) as any;
-        if (matchingHolder) {
-          currentHolderId = matchingHolder.id;
+        const matchingHolderByEmail = db.prepare('SELECT id FROM inventory_holders WHERE email = ? COLLATE NOCASE').get(email) as any;
+        if (matchingHolderByEmail) {
+          currentHolderId = matchingHolderByEmail.id;
         }
       }
 
-      // Update name, holder_id (if newly discovered), and last_login_at
+      // Update name, is_manager, holder_id, and last_login_at
       db.prepare(`
         UPDATE users 
-        SET name = ?, holder_id = COALESCE(?, holder_id), last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+        SET name = ?, is_manager = ?, holder_id = COALESCE(?, holder_id), last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
         WHERE id = ?
-      `).run(name, currentHolderId || null, user.id);
+      `).run(name, isManager, currentHolderId || null, user.id);
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as any;
     }
 
-    // Fetch holder name if coupled
+    // Fetch holder details if coupled
     let holderName: string | null = null;
     if (user.holder_id) {
       const holder = db.prepare('SELECT name FROM inventory_holders WHERE id = ?').get(user.holder_id) as any;
       holderName = holder ? holder.name : null;
     }
+    user.holder_name = holderName;
 
     const sessionToken = signSessionToken({
       userId: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
+      is_manager: Boolean(user.is_manager),
       holderId: user.holder_id,
+      personal_number: user.personal_number,
     });
 
     res.json({
       token: sessionToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        holder_id: user.holder_id,
-        holder_name: holderName,
-      },
+      user: formatUserResponse(user),
     });
   } catch (err: any) {
     console.error('[Auth API] Google sign-in failed:', err);
@@ -110,63 +133,190 @@ authRouter.post('/google', async (req, res) => {
   }
 });
 
-// POST /api/auth/quick-login (and /dev-login for backwards compatibility)
-authRouter.post(['/quick-login', '/dev-login'], (req, res) => {
-  const { role, email, name, holder_id } = req.body;
-  const cleanRole = role === 'manager' ? 'manager' : 'inventory_owner';
-  const cleanEmail = (email || (cleanRole === 'manager' ? 'admin@shelv.ai' : 'owner@shelv.ai')).toLowerCase().trim();
-  const cleanName = (name || (cleanRole === 'manager' ? 'הרשאת עריכה' : 'בעל מצאי')).trim();
-
-  let resolvedHolderId = (holder_id || '').trim() || null;
-  if (!resolvedHolderId) {
-    const matchingHolder = db.prepare('SELECT id FROM inventory_holders WHERE email = ? COLLATE NOCASE').get(cleanEmail) as any;
-    if (matchingHolder) {
-      resolvedHolderId = matchingHolder.id;
-    }
+// POST /api/auth/onboarding - Complete onboarding step after login (choose role and couple by מ"א)
+authRouter.post('/onboarding', authenticateToken, (req: AuthenticatedRequest, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  let user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail) as any;
+  const { role, personal_number } = req.body;
 
+  if (!['inventory_owner', 'scanner'].includes(role)) {
+    return res.status(400).json({ error: 'תפקיד לא חוקי. מותר רק בעל מצאי (inventory_owner) או סורק (scanner)' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.userId) as any;
   if (!user) {
-    const id = 'user-' + Math.random().toString(36).substring(2, 9);
-    db.prepare(`
-      INSERT INTO users (id, email, name, role, holder_id, last_login_at)
-      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(id, cleanEmail, cleanName, cleanRole, resolvedHolderId);
-    user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
-  } else {
+    return res.status(404).json({ error: 'User not found in system' });
+  }
+
+  let coupled = false;
+  let holderId: string | null = null;
+  let holderName: string | null = null;
+  let cleanPN: string | null = null;
+
+  if (role === 'inventory_owner') {
+    if (user.id === 'scanner-guest' || user.email === 'scanner@shelv.ai') {
+      return res.status(403).json({ error: 'הרשאת בעל מצאי מחייבת התחברות באמצעות חשבון Google בלבד' });
+    }
+    cleanPN = (personal_number !== undefined ? String(personal_number).trim() : (user.personal_number || '')).trim();
+    if (!cleanPN) {
+      return res.status(400).json({ error: 'חובה להזין מספר אישי (מ"א) עבור בעל מצאי' });
+    }
+
+    // Attempt to couple with existing inventory holder by personal_number
+    const matchingHolder = db.prepare(`
+      SELECT id, name FROM inventory_holders 
+      WHERE TRIM(personal_number) = TRIM(?) COLLATE NOCASE 
+      LIMIT 1
+    `).get(cleanPN) as any;
+
+    if (matchingHolder) {
+      holderId = matchingHolder.id;
+      holderName = matchingHolder.name;
+      coupled = true;
+    } else {
+      // User entered מ"א but holder entity is not in system yet
+      holderId = null;
+      coupled = false;
+    }
+
     db.prepare(`
       UPDATE users 
-      SET role = ?, name = ?, holder_id = COALESCE(?, holder_id), last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+      SET role = 'inventory_owner', 
+          personal_number = ?, 
+          holder_id = ?, 
+          onboarding_completed = 1, 
+          updated_at = CURRENT_TIMESTAMP 
       WHERE id = ?
-    `).run(cleanRole, cleanName, resolvedHolderId, user.id);
-    user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as any;
+    `).run(cleanPN, holderId, user.id);
+  } else {
+    // Role: scanner
+    // Only zuklevinson@gmail.com can retain is_manager if ever assigned
+    const keepManager = user.email.toLowerCase() === 'zuklevinson@gmail.com' ? user.is_manager : 0;
+
+    db.prepare(`
+      UPDATE users 
+      SET role = 'scanner', 
+          personal_number = NULL, 
+          holder_id = NULL, 
+          is_manager = ?,
+          onboarding_completed = 1, 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(keepManager, user.id);
   }
 
-  let holderName: string | null = null;
-  if (user.holder_id) {
-    const holder = db.prepare('SELECT name FROM inventory_holders WHERE id = ?').get(user.holder_id) as any;
-    holderName = holder ? holder.name : null;
+  const updatedUser = db.prepare(`
+    SELECT u.*, h.name as holder_name
+    FROM users u
+    LEFT JOIN inventory_holders h ON u.holder_id = h.id
+    WHERE u.id = ?
+  `).get(user.id) as any;
+
+  const sessionToken = signSessionToken({
+    userId: updatedUser.id,
+    email: updatedUser.email,
+    name: updatedUser.name,
+    role: updatedUser.role,
+    is_manager: Boolean(updatedUser.is_manager),
+    holderId: updatedUser.holder_id,
+    personal_number: updatedUser.personal_number,
+  });
+
+  res.json({
+    token: sessionToken,
+    user: formatUserResponse(updatedUser),
+    coupled,
+    holder_name: holderName,
+    message: coupled
+      ? `שויכת בהצלחה לבעל המצאי: ${holderName}`
+      : role === 'inventory_owner'
+        ? 'המספר האישי נשמר בהצלחה. פרטי בעל המצאי טרם הוזנו למערכת, החשבון יסונכרן אוטומטית בעת טעינת המצאי.'
+        : 'הוגדרת כסורק בהצלחה.',
+  });
+});
+
+// POST /api/auth/scanner-login - Log in as a scanner without Google
+authRouter.post('/scanner-login', (req, res) => {
+  const customName = req.body.name ? String(req.body.name).trim() : 'סורק מצאי';
+  const scannerId = 'scanner-guest';
+  const email = 'scanner@shelv.ai';
+
+  let user = db.prepare('SELECT * FROM users WHERE id = ?').get(scannerId) as any;
+  if (!user) {
+    db.prepare(`
+      INSERT INTO users (id, email, name, role, is_manager, holder_id, personal_number, onboarding_completed, last_login_at)
+      VALUES (?, ?, ?, 'scanner', 0, NULL, NULL, 1, CURRENT_TIMESTAMP)
+    `).run(scannerId, email, customName);
+    user = db.prepare('SELECT * FROM users WHERE id = ?').get(scannerId) as any;
+  } else {
+    // Ensure role is scanner, is_manager is 0, and uncoupled
+    db.prepare(`
+      UPDATE users 
+      SET name = ?, role = 'scanner', is_manager = 0, holder_id = NULL, personal_number = NULL, onboarding_completed = 1, last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(customName, scannerId);
+    user = db.prepare('SELECT * FROM users WHERE id = ?').get(scannerId) as any;
   }
 
   const sessionToken = signSessionToken({
     userId: user.id,
     email: user.email,
     name: user.name,
-    role: user.role,
-    holderId: user.holder_id,
+    role: 'scanner',
+    is_manager: false,
+    holderId: null,
+    personal_number: null,
   });
 
   res.json({
     token: sessionToken,
-    user: {
-      id: user.id,
+    user: formatUserResponse(user),
+  });
+});
+
+// Legacy quick login endpoints - only allowed for scanner, all other roles require Google
+authRouter.all(['/quick-login', '/dev-login'], (req, res) => {
+  if (req.method === 'POST' && req.body?.role === 'scanner') {
+    const customName = req.body.name ? String(req.body.name).trim() : 'סורק מצאי';
+    const scannerId = 'scanner-guest';
+    const email = 'scanner@shelv.ai';
+
+    let user = db.prepare('SELECT * FROM users WHERE id = ?').get(scannerId) as any;
+    if (!user) {
+      db.prepare(`
+        INSERT INTO users (id, email, name, role, is_manager, holder_id, personal_number, onboarding_completed, last_login_at)
+        VALUES (?, ?, ?, 'scanner', 0, NULL, NULL, 1, CURRENT_TIMESTAMP)
+      `).run(scannerId, email, customName);
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(scannerId) as any;
+    } else {
+      db.prepare(`
+        UPDATE users 
+        SET name = ?, role = 'scanner', is_manager = 0, holder_id = NULL, personal_number = NULL, onboarding_completed = 1, last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(customName, scannerId);
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(scannerId) as any;
+    }
+
+    const sessionToken = signSessionToken({
+      userId: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
-      holder_id: user.holder_id,
-      holder_name: holderName,
-    },
+      role: 'scanner',
+      is_manager: false,
+      holderId: null,
+      personal_number: null,
+    });
+
+    return res.json({
+      token: sessionToken,
+      user: formatUserResponse(user),
+    });
+  }
+
+  res.status(403).json({
+    error: 'התחברות ללא Google מותרת אך ורק לתפקיד סורק. עבור הרשאות בעל מצאי או ניהול, חובה להתחבר באמצעות חשבון Google בלבד.',
   });
 });
 
@@ -176,7 +326,7 @@ authRouter.get('/me', authenticateToken, (req: AuthenticatedRequest, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const user = db.prepare(`
+  let user = db.prepare(`
     SELECT u.*, h.name as holder_name, h.personal_number as holder_personal_number
     FROM users u
     LEFT JOIN inventory_holders h ON u.holder_id = h.id
@@ -187,15 +337,26 @@ authRouter.get('/me', authenticateToken, (req: AuthenticatedRequest, res) => {
     return res.status(404).json({ error: 'User not found in system' });
   }
 
+  // If user is uncoupled inventory owner with personal_number, check if a matching holder was added
+  if (user.role === 'inventory_owner' && !user.holder_id && user.personal_number) {
+    const matchingHolder = db.prepare(`
+      SELECT id, name FROM inventory_holders 
+      WHERE TRIM(personal_number) = TRIM(?) COLLATE NOCASE 
+      LIMIT 1
+    `).get(user.personal_number) as any;
+
+    if (matchingHolder) {
+      db.prepare('UPDATE users SET holder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(matchingHolder.id, user.id);
+      user = db.prepare(`
+        SELECT u.*, h.name as holder_name, h.personal_number as holder_personal_number
+        FROM users u
+        LEFT JOIN inventory_holders h ON u.holder_id = h.id
+        WHERE u.id = ?
+      `).get(user.id) as any;
+    }
+  }
+
   res.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      holder_id: user.holder_id,
-      holder_name: user.holder_name,
-      created_at: user.created_at,
-    },
+    user: formatUserResponse(user),
   });
 });
