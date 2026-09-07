@@ -35,3 +35,12 @@ body {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: rgba(75, 85, 99, 1);
 }
+
+/* Hide scrollbar for clean touch carousel / tabs on mobile */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

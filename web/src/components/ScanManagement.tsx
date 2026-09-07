@@ -247,30 +247,28 @@ export const ScanManagement: React.FC<Props> = ({
     <div className="space-y-4 sm:space-y-6">
       {/* Top Header & Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">סך סריקות</span>
             <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-2 tracking-tight leading-tight">{total}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">לפי הסינון הנוכחי</div>
+          <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-1.5 tracking-tight leading-tight">{total}</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">פריטים שנסרקו</span>
             <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-blue-400 mt-1 sm:mt-2 tracking-tight leading-tight">{metrics.uniqueItems}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מספרים שונים שזוהו</div>
+          <div className="text-lg sm:text-2xl font-black text-blue-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">{metrics.uniqueItems}</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">סורקים (Who)</span>
             <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
           </div>
-          <div className="flex items-baseline gap-2 mt-1 sm:mt-2">
+          <div className="flex items-baseline gap-2 mt-1 sm:mt-1.5">
             <div className="text-lg sm:text-2xl font-black text-purple-400 tracking-tight leading-tight">{metrics.uniqueScanners}</div>
             {onlineScannersCount > 0 && (
               <span className="text-[10px] sm:text-[11px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-1">
@@ -279,18 +277,14 @@ export const ScanManagement: React.FC<Props> = ({
               </span>
             )}
           </div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">
-            {onlineScannersCount > 0 ? `${onlineScannersCount} סורקים מחוברים כעת` : 'מבצעי סריקה'}
-          </div>
         </div>
 
-        <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-rose-300 text-[11px] sm:text-xs gap-1">
             <span className="truncate">חריגות מיקום</span>
             <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2 tracking-tight leading-tight">{metrics.mismatches}</div>
-          <div className="text-[10px] sm:text-[11px] text-rose-300/70 mt-0.5 sm:mt-1 truncate">נמצאו בחדר לא מתאים</div>
+          <div className="text-lg sm:text-2xl font-black text-rose-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">{metrics.mismatches}</div>
         </div>
       </div>
 
@@ -307,7 +301,7 @@ export const ScanManagement: React.FC<Props> = ({
             <button
               onClick={() => fetchScans()}
               disabled={loading}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-950 border border-gray-800 hover:border-gray-700 rounded-xl transition-all"
+              className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-xl transition-all cursor-pointer"
             >
               <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>רענן נתונים</span>
@@ -315,9 +309,9 @@ export const ScanManagement: React.FC<Props> = ({
             <button
               onClick={handleExportCSV}
               disabled={scans.length === 0}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all disabled:opacity-50"
+              className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 rounded-xl transition-all shadow-sm disabled:opacity-50 cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
               <span>ייצוא CSV</span>
             </button>
           </div>

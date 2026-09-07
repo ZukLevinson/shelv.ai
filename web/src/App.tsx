@@ -43,7 +43,9 @@ import {
   Info, 
   RotateCcw, 
   FileSpreadsheet, 
-  Edit2 
+  Edit2,
+  LayoutDashboard,
+  Package
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
@@ -304,12 +306,13 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-2.5 sm:p-6 md:p-8 space-y-3.5 sm:space-y-8 max-w-full overflow-x-hidden">
       {/* Top Header */}
-      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 border-b border-gray-800/80 pb-3 sm:pb-5">
-        <div className="flex items-center justify-between xl:justify-start gap-3">
+      <header className="flex flex-col gap-3 sm:gap-3.5 border-b border-gray-800/80 pb-3.5 sm:pb-4">
+        {/* Tier 1: Brand, Context & User Profile */}
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <Link
               to="/"
-              className="p-2 sm:p-3 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-lg sm:text-2xl shrink-0 hover:opacity-90 transition-opacity"
+              className="p-2 sm:p-2.5 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-lg sm:text-xl shrink-0 hover:opacity-90 transition-opacity"
               title="חזור למבט על"
             >
               S
@@ -340,79 +343,139 @@ function AppContent() {
             </div>
           </div>
 
-          {/* User Profile Pill (Mobile right-aligned) */}
-          <div className="flex items-center gap-2 xl:hidden">
+          {/* User Profile Pill & Logout */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* User Profile Card (Expanded on sm+, compact avatar on mobile) */}
+            <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 h-9 px-2.5 rounded-xl text-xs">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                {user?.name.charAt(0).toUpperCase()}
+              </div>
+
+              <div className="hidden sm:flex items-center gap-1.5 text-right">
+                <span className="font-semibold text-white max-w-[120px] truncate">{user?.name}</span>
+                {isManager ? (
+                  <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 text-[9px] font-bold rounded border border-purple-500/40">
+                    הרשאת ניהול
+                  </span>
+                ) : isInventoryOwner ? (
+                  <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 text-[9px] font-bold rounded border border-blue-500/40">
+                    בעל מצאי
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 text-[9px] font-bold rounded border border-cyan-500/40">
+                    סורק
+                  </span>
+                )}
+                {isInventoryOwner && user?.personal_number && (
+                  <span className="text-gray-500 font-mono text-[10px]">({user.personal_number})</span>
+                )}
+                {isInventoryOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditPNModalOpen(true)}
+                    title="ערוך מספר אישי (מ''א)"
+                    className="p-0.5 text-gray-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
+                  >
+                    <Edit2 className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <button
+              type="button"
               onClick={logout}
               title="התנתק מהמערכת"
-              className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+              className="h-9 px-2.5 flex items-center justify-center gap-1.5 text-xs font-medium text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 border border-gray-800 hover:border-rose-500/30 rounded-xl transition-colors cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">התנתק</span>
             </button>
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 sm:gap-3 w-full xl:w-auto">
-          {/* Navigation View Switcher */}
-          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
+        {/* Tier 2: Page Navigation and Action Buttons Toolbar */}
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2.5 pt-1 border-t border-gray-800/50">
+          {/* Navigation View Switcher (Page buttons) */}
+          <div className="flex items-center gap-1 bg-gray-900/90 border border-gray-800/80 p-1 rounded-xl overflow-x-auto scrollbar-none max-w-full shrink-0">
             <NavLink
               to="/"
               end
               className={({ isActive }) =>
-                'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                (isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'text-gray-400 hover:text-white border border-transparent')
+                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                  isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
+                }`
               }
             >
-              מבט על וחריגות
+              <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+              <span>מבט על וחריגות</span>
             </NavLink>
+
             <NavLink
               to="/scans"
               className={({ isActive }) =>
-                'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                (isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'text-gray-400 hover:text-white border border-transparent')
+                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                  isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
+                }`
               }
             >
-              <ClipboardList className="w-3.5 h-3.5" />
+              <ClipboardList className="w-3.5 h-3.5 shrink-0" />
               <span>ניהול ותחקור סריקות</span>
             </NavLink>
+
             <NavLink
               to="/holders"
               className={({ isActive }) =>
-                'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                (isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'text-gray-400 hover:text-white border border-transparent')
+                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                  isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
+                }`
               }
             >
-              <Users className="w-3.5 h-3.5" />
-              <span>בעלי מצאי ({holders.length})</span>
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>בעלי מצאי</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50">
+                {holders.length}
+              </span>
             </NavLink>
+
             <NavLink
               to="/masha-registry"
               className={({ isActive }) =>
-                'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                (isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'text-gray-400 hover:text-white border border-transparent')
+                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                  isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
+                }`
               }
             >
-              <Tag className="w-3.5 h-3.5" />
-              <span>הגדרת מסחאות ({mashaList.length})</span>
+              <Tag className="w-3.5 h-3.5 shrink-0" />
+              <span>הגדרת מסחאות</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50">
+                {mashaList.length}
+              </span>
             </NavLink>
+
             <NavLink
               to="/items"
               className={({ isActive }) =>
-                'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                (isActive
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'text-gray-400 hover:text-white border border-transparent')
+                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                  isActive
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
+                }`
               }
             >
-              קטלוג פריטים ({displayItems.length})
+              <Package className="w-3.5 h-3.5 shrink-0" />
+              <span>קטלוג פריטים</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50">
+                {displayItems.length}
+              </span>
             </NavLink>
 
             {/* Manager-only User Management Tab */}
@@ -420,21 +483,47 @@ function AppContent() {
               <NavLink
                 to="/users"
                 className={({ isActive }) =>
-                  'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                  (isActive
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                    : 'text-purple-400/80 hover:text-purple-300 border border-transparent')
+                  `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                    isActive
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm shadow-purple-950/40 font-semibold'
+                      : 'text-purple-400/80 hover:text-purple-300 hover:bg-purple-950/30 border-transparent hover:border-purple-800/40'
+                  }`
                 }
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 <span>ניהול משתמשים</span>
               </NavLink>
             )}
           </div>
 
-          {/* Action Buttons & Profile */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Filter Toggle: "ציוד שלי בלבד" - Enabled only if user has correspondent inventory owner */}
+          {/* Action Toolbar (Export and so on action buttons) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none py-0.5 max-w-full">
+            {/* Export to Excel */}
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={exporting}
+              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              title="ייצוא כלל הנתונים לקובץ אקסל (סריקות, מצאי רשמי מתוקנן ודגלי חריגות)"
+            >
+              <FileSpreadsheet className={'w-3.5 h-3.5 text-emerald-400 shrink-0 ' + (exporting ? 'animate-pulse' : '')} />
+              <span>{exporting ? 'מייצא...' : 'ייצוא לאקסל'}</span>
+            </button>
+
+            {/* Excel Upload - Manager only */}
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => setUploadModalOpen(true)}
+                className="h-9 shrink-0 flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-emerald-100 bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-600 border border-emerald-500 rounded-xl shadow-sm shadow-emerald-950/40 transition-all cursor-pointer"
+                title="ייבוא קובץ אקסל חתימות מצאי"
+              >
+                <Upload className="w-3.5 h-3.5 shrink-0" />
+                <span>ייבוא אקסל</span>
+              </button>
+            )}
+
+            {/* Filter Toggle: "ציוד שלי בלבד" */}
             <button
               type="button"
               onClick={() => {
@@ -448,100 +537,84 @@ function AppContent() {
                   ? (myInventoryOnly ? 'הצג את כלל ציוד הארגון (בטל סינון)' : 'סנן לציוד שלי בלבד')
                   : 'סינון מושבת: המשתמש אינו משויך לבעל מצאי'
               }
-              className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
+              className={`h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium rounded-xl border transition-all ${
                 !hasCorrespondentOwner
                   ? 'bg-gray-900/40 text-gray-600 border-gray-800/60 cursor-not-allowed opacity-50'
                   : myInventoryOnly
                   ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/20 cursor-pointer'
-                  : 'bg-gray-900 text-gray-300 hover:text-white border-gray-800 hover:border-gray-700 cursor-pointer'
+                  : 'bg-gray-900 text-gray-300 hover:text-white hover:bg-gray-800 border-gray-800 hover:border-gray-700 cursor-pointer'
               }`}
             >
-              <Filter className={`w-3.5 h-3.5 ${myInventoryOnly ? 'text-teal-400' : hasCorrespondentOwner ? 'text-gray-400' : 'text-gray-600'}`} />
+              <Filter className={`w-3.5 h-3.5 shrink-0 ${myInventoryOnly ? 'text-teal-400' : hasCorrespondentOwner ? 'text-gray-400' : 'text-gray-600'}`} />
               <span>{myInventoryOnly ? 'מציג ציוד שלי' : 'ציוד שלי בלבד'}</span>
               {hasCorrespondentOwner && myInventoryOnly && (
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse mr-0.5" />
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
               )}
             </button>
 
+            {/* Manage Rooms */}
             <button
-              onClick={fetchData}
-              disabled={loading}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-all cursor-pointer"
-            >
-              <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
-              <span>רענן</span>
-            </button>
-
-            <button
-              onClick={() => setActionHistoryOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all cursor-pointer shadow-sm"
-              title="צפה בהיסטוריית כל הפעולות ובטל פעולות קודמות"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-              <span>היסטוריית ביטולים ↩️</span>
-            </button>
-
-            <button
+              type="button"
               onClick={() => setRoomModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all cursor-pointer"
+              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/25 border border-indigo-500/30 rounded-xl transition-all cursor-pointer shadow-sm"
+              title="ניהול חדרים, שיוך בעלי מצאי והגדרות"
             >
-              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span>ניהול חדרים</span>
             </button>
 
-            {/* Excel Upload - Manager only */}
-            {isManager && (
-              <button
-                onClick={() => setUploadModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>ייבוא אקסל</span>
-              </button>
-            )}
-
-            {/* Export to Excel (3-sheet full audit export) */}
+            {/* Action History / Undo */}
             <button
-              onClick={handleExportExcel}
-              disabled={exporting}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all cursor-pointer disabled:opacity-50"
-              title="ייצוא כלל הנתונים לקובץ אקסל (סריקות, מצאי רשמי מתוקנן ודגלי חריגות)"
+              type="button"
+              onClick={() => setActionHistoryOpen(true)}
+              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 active:bg-amber-500/25 border border-amber-500/30 rounded-xl transition-all cursor-pointer shadow-sm"
+              title="צפה בהיסטוריית כל הפעולות ובטל פעולות קודמות"
             >
-              <FileSpreadsheet className={'w-3.5 h-3.5 text-emerald-400 ' + (exporting ? 'animate-pulse' : '')} />
-              <span>{exporting ? 'מייצא...' : 'ייצוא לאקסל'}</span>
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>היסטוריית ביטולים</span>
+            </button>
+
+            {/* Refresh Data */}
+            <button
+              type="button"
+              onClick={fetchData}
+              disabled={loading}
+              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-xl transition-all cursor-pointer"
+              title="רענן נתוני מערכת"
+            >
+              <RefreshCw className={'w-3.5 h-3.5 text-gray-400 shrink-0 ' + (loading ? 'animate-spin' : '')} />
+              <span>רענן</span>
             </button>
 
             {/* Public Scanner shortcut with live online scanners indication */}
-            <div className="relative group">
+            <div className="relative group shrink-0">
               <a
                 href="/scanner/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all shadow-sm"
+                className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all shadow-sm"
                 title="פתח סורק נייד בסמארטפון או בדפדפן"
               >
-                <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                <Smartphone className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span>סורק נייד</span>
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all ${
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border leading-none transition-all ${
                     onlineScannersCount > 0
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
-                      : 'bg-gray-800/80 text-gray-400 border-gray-700'
+                      : 'bg-gray-800 text-gray-400 border-gray-700'
                   }`}
                 >
-                  <span className="relative flex h-2 w-2">
+                  <span className="relative flex h-1.5 w-1.5">
                     {onlineScannersCount > 0 && (
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     )}
                     <span
-                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                      className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
                         onlineScannersCount > 0 ? 'bg-emerald-400' : 'bg-gray-500'
                       }`}
                     ></span>
                   </span>
-                  <span>
-                    {onlineScannersCount} {onlineScannersCount === 1 ? 'מחובר' : 'מחוברים'}
-                  </span>
+                  <span>{onlineScannersCount}</span>
                 </span>
               </a>
 
@@ -567,56 +640,6 @@ function AppContent() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* User Profile Badge & Logout (Desktop) */}
-            <div className="hidden xl:flex items-center gap-2 bg-gray-900 border border-gray-800 py-1 px-2.5 rounded-xl text-xs">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-[10px] font-bold text-white">
-                {user?.name.charAt(0).toUpperCase()}
-              </div>
-
-              <div className="flex flex-col text-right">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold text-white max-w-[120px] truncate">{user?.name}</span>
-                  {isManager ? (
-                    <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 text-[9px] font-bold rounded border border-purple-500/40">
-                      הרשאת ניהול
-                    </span>
-                  ) : isInventoryOwner ? (
-                    <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 text-[9px] font-bold rounded border border-blue-500/40">
-                      בעל מצאי
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 text-[9px] font-bold rounded border border-cyan-500/40">
-                      סורק
-                    </span>
-                  )}
-                </div>
-
-                {isInventoryOwner && (
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    <span>{user?.holder_name ? `משויך: ${user.holder_name}` : 'ממתין לקליטה'}</span>
-                    {user?.personal_number && (
-                      <span className="text-gray-500 font-mono">({user.personal_number})</span>
-                    )}
-                    <button
-                      onClick={() => setIsEditPNModalOpen(true)}
-                      title="ערוך מספר אישי (מ''א)"
-                      className="p-0.5 text-gray-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
-                    >
-                      <Edit2 className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={logout}
-                title="התנתק"
-                className="p-1 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors mr-1 cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
         </div>
@@ -717,69 +740,57 @@ function AppContent() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <Link
             to="/items"
-            className="bg-gray-900 border border-gray-800 hover:border-blue-500/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-gray-800 hover:border-blue-500/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר לקטלוג הפריטים"
           >
             <div className="flex items-center justify-between text-gray-400 group-hover:text-blue-300 text-[11px] sm:text-xs transition-colors gap-1">
               <span className="truncate">{myInventoryOnly ? 'סך פריטים חתומים שלך' : 'סך פריטים חתומים'}</span>
               <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
             </div>
-            <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-2 tracking-tight leading-tight">
+            <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-1.5 tracking-tight leading-tight">
               {displayAnomalies.stats?.totalExpectedItems ?? 0}
-            </div>
-            <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">
-              {myInventoryOnly ? 'מכסת החתימות שלך ↗' : 'מכסת החתימות (אקסל) ↗'}
             </div>
           </Link>
 
           <Link
             to="/scans"
-            className="bg-gray-900 border border-gray-800 hover:border-emerald-500/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-gray-800 hover:border-emerald-500/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר לניהול ותחקור סריקות"
           >
             <div className="flex items-center justify-between text-gray-400 group-hover:text-emerald-300 text-[11px] sm:text-xs transition-colors gap-1">
               <span className="truncate">{myInventoryOnly ? 'פריטים שנסרקו בחדרייך' : 'פריטים פיזיים שנסרקו'}</span>
               <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
             </div>
-            <div className="text-lg sm:text-2xl font-black text-emerald-400 mt-1 sm:mt-2 tracking-tight leading-tight">
+            <div className="text-lg sm:text-2xl font-black text-emerald-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">
               {displayAnomalies.stats?.totalDiscoveredItems ?? 0}
-            </div>
-            <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">
-              {myInventoryOnly ? 'זוהו בחדרים שבבעלותך ↗' : 'זוהו ואומתו בסריקות ↗'}
             </div>
           </Link>
 
           <Link
             to="/"
-            className="bg-gray-900 border border-rose-900/30 hover:border-rose-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-rose-900/30 hover:border-rose-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר למרכז החריגות במבט על"
           >
             <div className="flex items-center justify-between text-rose-300 group-hover:text-rose-200 text-[11px] sm:text-xs transition-colors gap-1">
               <span className="truncate">{myInventoryOnly ? 'העברות ללא חתימה' : 'העברות ללא חתימה'}</span>
               <AlertOctagon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
             </div>
-            <div className="text-lg sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2 tracking-tight leading-tight">
+            <div className="text-lg sm:text-2xl font-black text-rose-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">
               {displayAnomalies.stats?.unauthorizedCount ?? 0}
-            </div>
-            <div className="text-[10px] sm:text-[11px] text-rose-300/70 mt-0.5 sm:mt-1 truncate">
-              {myInventoryOnly ? 'חריגות בחדריך/ציודך ↗' : 'ציוד ללא חתימה בחדר ↗'}
             </div>
           </Link>
 
           <Link
             to="/items"
-            className="bg-gray-900 border border-amber-900/30 hover:border-amber-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-amber-900/30 hover:border-amber-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר לקטלוג הפריטים"
           >
             <div className="flex items-center justify-between text-amber-300 group-hover:text-amber-200 text-[11px] sm:text-xs transition-colors gap-1">
               <span className="truncate">{myInventoryOnly ? 'פער חסר מחתימותיך' : 'פער חסר מסך החתימות'}</span>
               <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
             </div>
-            <div className="text-lg sm:text-2xl font-black text-amber-400 mt-1 sm:mt-2 tracking-tight leading-tight">
+            <div className="text-lg sm:text-2xl font-black text-amber-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">
               {displayAnomalies.stats?.missingCount ?? 0}
-            </div>
-            <div className="text-[10px] sm:text-[11px] text-amber-300/70 mt-0.5 sm:mt-1 truncate">
-              {myInventoryOnly ? 'טרם זוהו בסריקות ↗' : 'טרם אותרו בסריקה ↗'}
             </div>
           </Link>
         </div>

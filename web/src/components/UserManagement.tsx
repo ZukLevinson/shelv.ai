@@ -195,51 +195,46 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
     <div className="space-y-6">
       {/* Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">סך משתמשים רשומים</span>
             <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-2 tracking-tight leading-tight">{users.length}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מחוברים באמצעות Google</div>
+          <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-1.5 tracking-tight leading-tight">{users.length}</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">הרשאת ניהול (Managers)</span>
             <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-purple-400 mt-1 sm:mt-2 tracking-tight leading-tight">{totalManagers}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">ניהול מערכת, הרשאות</div>
+          <div className="text-lg sm:text-2xl font-black text-purple-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">{totalManagers}</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">בעלי מצאי (Owners)</span>
             <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-blue-400 mt-1 sm:mt-2 tracking-tight leading-tight">{totalOwners}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">אחראים על ציוד וחדרים</div>
+          <div className="text-lg sm:text-2xl font-black text-blue-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">{totalOwners}</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">סורקים (Scanners)</span>
             <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-cyan-400 mt-1 sm:mt-2 tracking-tight leading-tight">{totalScanners}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">סריקות ותחקור בשטח</div>
+          <div className="text-lg sm:text-2xl font-black text-cyan-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">{totalScanners}</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg col-span-2 sm:col-span-1">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 shadow-md sm:shadow-lg col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">משויכים לפרופיל מצאי</span>
             <Link2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 shrink-0" />
           </div>
-          <div className="text-lg sm:text-2xl font-black text-teal-400 mt-1 sm:mt-2 tracking-tight leading-tight">
+          <div className="text-lg sm:text-2xl font-black text-teal-400 mt-1 sm:mt-1.5 tracking-tight leading-tight">
             {coupledUsers} / {totalOwners}
           </div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מקושרים לישות בעל מצאי</div>
         </div>
       </div>
 
