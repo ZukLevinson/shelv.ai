@@ -31,7 +31,8 @@ import {
   UserCheck,
   Filter,
   Info,
-  RotateCcw
+  RotateCcw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
@@ -48,6 +49,7 @@ function AppContent() {
   const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
   const [activeView, setActiveView] = useState<'overview' | 'scans' | 'holders' | 'masha_registry' | 'items' | 'users'>('overview');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [myInventoryOnly, setMyInventoryOnly] = useState(false);
 
   const fetchData = async () => {
@@ -106,6 +108,34 @@ function AppContent() {
 
     return () => ws.close();
   }, [isAuthenticated]);
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/inventory/export-excel`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+      link.setAttribute('download', `shelv_inventory_export_${timestamp}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export Excel file:', err);
+      alert('שגיאה בייצוא קובץ האקסל. אנא נסה שנית.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -264,6 +294,17 @@ function AppContent() {
                 <span>ייבוא אקסל</span>
               </button>
             )}
+
+            {/* Export to Excel (3-sheet full audit export) */}
+            <button
+              onClick={handleExportExcel}
+              disabled={exporting}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              title="ייצוא כלל הנתונים לקובץ אקסל (סריקות, מצאי רשמי מתוקנן ודגלי חריגות)"
+            >
+              <FileSpreadsheet className={'w-3.5 h-3.5 text-emerald-400 ' + (exporting ? 'animate-pulse' : '')} />
+              <span>{exporting ? 'מייצא...' : 'ייצוא לאקסל'}</span>
+            </button>
 
             {/* Public Scanner shortcut */}
             <a

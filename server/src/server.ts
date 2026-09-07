@@ -12,6 +12,7 @@ import { authRouter } from './routes/authRoutes.js';
 import { userRouter } from './routes/userRoutes.js';
 import { authenticateToken, requireRole } from './auth/authMiddleware.js';
 import { importOfficialInventoryFromExcel, generateSampleExcelBuffer } from './services/excelImportService.js';
+import { generateExportWorkbookBuffer } from './services/excelExportService.js';
 import { detectAnomalies } from './services/anomalyService.js';
 
 import { restoreDatabaseFromGCS, initGcsSync, scheduleDebouncedBackup } from './services/gcsStorageService.js';
@@ -78,6 +79,23 @@ app.get('/api/sample-excel', (req, res) => {
     res.send(buffer);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to generate sample template' });
+  }
+});
+
+app.get('/api/export-excel', (req, res) => {
+  try {
+    const buffer = generateExportWorkbookBuffer();
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+    const filename = `shelv_inventory_export_${timestamp}.xlsx`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error: any) {
+    console.error('[Excel API] Error exporting inventory excel:', error);
+    res.status(500).json({ error: error.message || 'Failed to export inventory Excel' });
   }
 });
 

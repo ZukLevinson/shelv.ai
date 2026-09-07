@@ -588,4 +588,24 @@ inventoryRouter.post('/baseline/reset', authenticateToken, requireRole(['manager
     res.status(500).json({ error: err.message || 'Failed to reset official inventory baseline' });
   }
 });
+
+// Export Full Inventory & Scans & Flags to Excel
+inventoryRouter.get('/export-excel', optionalToken, async (req, res) => {
+  try {
+    const { generateExportWorkbookBuffer } = await import('../services/excelExportService.js');
+    const buffer = generateExportWorkbookBuffer();
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+    const filename = `shelv_inventory_export_${timestamp}.xlsx`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (err: any) {
+    console.error('[Inventory API] Error generating excel export:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate Excel export' });
+  }
+});
+
 
