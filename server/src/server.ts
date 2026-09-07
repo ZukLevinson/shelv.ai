@@ -125,13 +125,6 @@ app.get('/api/export-excel', (req, res) => {
   }
 });
 
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
