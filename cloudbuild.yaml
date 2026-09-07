@@ -6,10 +6,14 @@ steps:
       - '-c'
       - |
         docker pull europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest || true
+        COMMIT_VAL="$SHORT_SHA"
+        if [ -z "$$COMMIT_VAL" ] || [ "$$COMMIT_VAL" = "dev" ]; then
+          COMMIT_VAL="${COMMIT_SHA:-production}"
+        fi
         docker build \
           --cache-from europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
-          --build-arg COMMIT_SHA=$SHORT_SHA \
+          --build-arg COMMIT_SHA=$$COMMIT_VAL \
           -t europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA \
           -t europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest \
           .

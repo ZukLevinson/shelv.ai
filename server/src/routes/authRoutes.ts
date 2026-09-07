@@ -133,17 +133,17 @@ authRouter.post('/google', async (req, res) => {
   }
 });
 
-// POST /api/auth/dev-login - Development / testing login when Google Client ID is not configured
-authRouter.post('/dev-login', (req, res) => {
+// POST /api/auth/quick-login (and /dev-login for backwards compatibility)
+authRouter.post(['/quick-login', '/dev-login'], (req, res) => {
   const { role, email, name, holder_id } = req.body;
   const cleanRole = role === 'manager' ? 'manager' : 'inventory_owner';
   const cleanEmail = (email || (cleanRole === 'manager' ? 'admin@shelv.ai' : 'owner@shelv.ai')).toLowerCase().trim();
-  const cleanName = (name || (cleanRole === 'manager' ? 'הרשאת עריכה (Dev)' : 'בעל מצאי (Dev)')).trim();
+  const cleanName = (name || (cleanRole === 'manager' ? 'הרשאת עריכה' : 'בעל מצאי')).trim();
 
   let user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail) as any;
 
   if (!user) {
-    const id = 'dev-user-' + Math.random().toString(36).substring(2, 9);
+    const id = 'user-' + Math.random().toString(36).substring(2, 9);
     db.prepare(`
       INSERT INTO users (id, email, name, role, holder_id)
       VALUES (?, ?, ?, ?, ?)

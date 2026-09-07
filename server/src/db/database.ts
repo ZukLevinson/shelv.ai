@@ -166,6 +166,11 @@ export function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_holder_id ON users(holder_id);
       CREATE INDEX IF NOT EXISTS idx_action_history_performed_at ON action_history(performed_at);
       CREATE INDEX IF NOT EXISTS idx_action_history_entity ON action_history(entity_type, entity_id);
+      CREATE INDEX IF NOT EXISTS idx_sweep_obs_sn_scanned ON sweep_observations(serial_number, scanned_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_sweep_obs_room ON sweep_observations(room_id);
+      CREATE INDEX IF NOT EXISTS idx_sweep_obs_masha ON sweep_observations(masha);
+      CREATE INDEX IF NOT EXISTS idx_official_inv_sn ON official_inventory(serial_number);
+      CREATE INDEX IF NOT EXISTS idx_official_inv_masha ON official_inventory(masha);
     `);
   } catch (err) {
     console.error('[DB] Error creating indexes:', err);
@@ -273,5 +278,15 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[DB] Migration error for synthetic serial numbers:', err);
+  }
+
+  // Remove '(Dev)' from any existing user display names in production databases
+  try {
+    const res = db.prepare("UPDATE users SET name = TRIM(REPLACE(REPLACE(name, '(Dev)', ''), '(dev)', '')) WHERE name LIKE '%(Dev)%' OR name LIKE '%(dev)%'").run();
+    if (res.changes > 0) {
+      console.log(`[DB Migration] Cleaned up ${res.changes} user display names containing '(Dev)'`);
+    }
+  } catch (err) {
+    console.error('[DB] Migration error cleaning up Dev user names:', err);
   }
 }

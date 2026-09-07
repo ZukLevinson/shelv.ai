@@ -1,7 +1,56 @@
 const isBrowser = typeof window !== 'undefined' && Boolean(window.location?.origin);
+const isExpoDevPort = isBrowser && ['8081', '19006', '5173'].includes(window.location.port);
+
 export const SERVER_URL = isBrowser
-  ? window.location.origin
+  ? (isExpoDevPort ? `${window.location.protocol}//${window.location.hostname}:4000` : window.location.origin)
   : 'http://192.168.1.11:4000';
+
+export function getWsUrl(): string {
+  if (isBrowser) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    if (isExpoDevPort) {
+      return `${protocol}//${window.location.hostname}:4000/ws`;
+    }
+    return `${protocol}//${window.location.host}/ws`;
+  }
+  return 'ws://192.168.1.11:4000/ws';
+}
+
+export async function sendScannerHeartbeat(payload: {
+  scannerId: string;
+  scannerName?: string;
+  roomId?: string | null;
+  roomName?: string | null;
+}) {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/sweep/scanners/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function sendScannerDisconnect(scannerId: string) {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify({ scannerId })], { type: 'application/json' });
+      navigator.sendBeacon(`${SERVER_URL}/api/sweep/scanners/disconnect`, blob);
+      return;
+    }
+    await fetch(`${SERVER_URL}/api/sweep/scanners/disconnect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scannerId }),
+      keepalive: true,
+    });
+  } catch (err) {
+    // Ignore error on teardown
+  }
+}
 
 export async function fetchRooms() {
   const res = await fetch(`${SERVER_URL}/api/inventory/rooms`);

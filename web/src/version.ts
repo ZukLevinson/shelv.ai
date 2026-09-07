@@ -8,9 +8,9 @@ export const APP_VERSION: string =
     : import.meta.env.VITE_APP_VERSION || '1.0.0';
 
 export const COMMIT_SHA: string =
-  typeof __COMMIT_SHA__ !== 'undefined'
+  typeof __COMMIT_SHA__ !== 'undefined' && __COMMIT_SHA__ && __COMMIT_SHA__ !== 'dev'
     ? __COMMIT_SHA__
-    : import.meta.env.VITE_COMMIT_SHA || 'dev';
+    : (import.meta.env.VITE_COMMIT_SHA && import.meta.env.VITE_COMMIT_SHA !== 'dev' ? import.meta.env.VITE_COMMIT_SHA : '');
 
 export const BUILD_TIME: string =
   typeof __BUILD_TIME__ !== 'undefined'
@@ -23,7 +23,7 @@ export const GITHUB_COMMIT_URL: string | null =
     : null;
 
 export const getFormattedBuildTime = (): string => {
-  if (!BUILD_TIME) return 'זמן פיתוח';
+  if (!BUILD_TIME) return '';
   try {
     const d = new Date(BUILD_TIME);
     if (isNaN(d.getTime())) return BUILD_TIME;
@@ -42,7 +42,9 @@ export const getFormattedBuildTime = (): string => {
 
 export const getFullVersionSummary = (): string => {
   const time = getFormattedBuildTime();
-  return `shelv.ai v${APP_VERSION} (commit: ${COMMIT_SHA}) | נבנה: ${time}`;
+  const commitPart = COMMIT_SHA ? ` (commit: ${COMMIT_SHA})` : '';
+  const timePart = time ? ` | נבנה: ${time}` : '';
+  return `shelv.ai v${APP_VERSION}${commitPart}${timePart}`;
 };
 
 export const copyVersionToClipboard = async (): Promise<boolean> => {

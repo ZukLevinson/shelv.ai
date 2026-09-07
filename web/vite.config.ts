@@ -14,14 +14,17 @@ try {
   // fallback default
 }
 
-// Determine commit SHA: from env var, or local git rev-parse, or fallback to 'dev'
+// Determine commit SHA: from env var, or local git rev-parse, or fallback to empty string
 let commitSha = process.env.VITE_COMMIT_SHA || process.env.COMMIT_SHA || ''
-if (!commitSha) {
+if (!commitSha || commitSha === 'dev') {
   try {
     commitSha = execSync('git rev-parse --short HEAD').toString().trim()
   } catch {
-    commitSha = 'dev'
+    commitSha = ''
   }
+}
+if (commitSha === 'dev') {
+  commitSha = ''
 } else if (commitSha.length > 7) {
   commitSha = commitSha.slice(0, 7)
 }

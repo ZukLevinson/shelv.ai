@@ -18,7 +18,12 @@ function getGenerativeModel() {
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,
-      },
+        maxOutputTokens: 250,
+        // Disable internal thinking latency on Gemini 2.5 Flash for OCR
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
+      } as any,
     });
   }
   return generativeModel;
@@ -32,14 +37,17 @@ function getFastQualifyModel() {
         location: LOCATION,
       });
     }
-    // gemini-2.5-flash with maxOutputTokens 120 for lightning-fast qualification check
+    // gemini-2.5-flash with maxOutputTokens 100 for lightning-fast qualification check
     fastQualifyModel = vertexAIInstance.getGenerativeModel({
       model: process.env.VERTEX_FAST_MODEL || process.env.VERTEX_MODEL || 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.0,
-        maxOutputTokens: 120,
-      },
+        maxOutputTokens: 100,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
+      } as any,
     });
   }
   return fastQualifyModel;

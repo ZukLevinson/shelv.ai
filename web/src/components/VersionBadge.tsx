@@ -30,7 +30,7 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
   };
 
   const formattedTime = getFormattedBuildTime();
-  const isDev = COMMIT_SHA === 'dev';
+  const hasCommit = Boolean(COMMIT_SHA && COMMIT_SHA !== 'dev');
 
   if (variant === 'minimal') {
     return (
@@ -41,8 +41,12 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
         className={`inline-flex items-center gap-1 text-[10px] font-mono text-gray-500 hover:text-gray-300 transition-colors cursor-pointer select-none ${className}`}
       >
         <span>v{APP_VERSION}</span>
-        <span>•</span>
-        <span className="text-emerald-500/80">{COMMIT_SHA}</span>
+        {hasCommit && (
+          <>
+            <span>•</span>
+            <span className="text-emerald-500/80">{COMMIT_SHA}</span>
+          </>
+        )}
         {copied && <Check className="w-2.5 h-2.5 text-emerald-400" />}
       </button>
     );
@@ -58,13 +62,17 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
           <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-mono text-[10px]">
             v{APP_VERSION}
           </span>
-          <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-400/90 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-            <GitCommit className="w-3 h-3" />
-            <span>{COMMIT_SHA}</span>
-          </div>
-          <span className="text-gray-500 text-[10px]">
-            נבנה: {formattedTime}
-          </span>
+          {hasCommit && (
+            <div className="flex items-center gap-1 font-mono text-[10px] text-emerald-400/90 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+              <GitCommit className="w-3 h-3" />
+              <span>{COMMIT_SHA}</span>
+            </div>
+          )}
+          {formattedTime && (
+            <span className="text-gray-500 text-[10px]">
+              נבנה: {formattedTime}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -104,27 +112,30 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
   }
 
   // Default: compact pill badge for header / login
+  const tooltip = hasCommit
+    ? `גרסה v${APP_VERSION} (Commit: ${COMMIT_SHA})${formattedTime ? ` | נבנה ב: ${formattedTime}` : ''} | לחץ להעתקה`
+    : `גרסה v${APP_VERSION}${formattedTime ? ` | נבנה ב: ${formattedTime}` : ''} | לחץ להעתקה`;
+
   return (
     <button
       onClick={handleCopy}
       type="button"
       className={`group relative inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-mono font-medium bg-gray-900/90 hover:bg-gray-800 text-gray-300 border border-gray-800 hover:border-gray-700 transition-all cursor-pointer shadow-sm select-none ${className}`}
-      title={`גרסה v${APP_VERSION} (Commit: ${COMMIT_SHA}) | נבנה ב: ${formattedTime} | לחץ להעתקה`}
+      title={tooltip}
     >
       <div className="flex items-center gap-1 text-gray-400 group-hover:text-gray-200">
         <GitCommit className="w-3 h-3 text-emerald-400 shrink-0" />
         <span>v{APP_VERSION}</span>
       </div>
 
-      <span className="text-gray-600">|</span>
-
-      <span
-        className={`font-mono text-[9px] sm:text-[10px] ${
-          isDev ? 'text-amber-400/90' : 'text-emerald-400'
-        }`}
-      >
-        {COMMIT_SHA}
-      </span>
+      {hasCommit && (
+        <>
+          <span className="text-gray-600">|</span>
+          <span className="font-mono text-[9px] sm:text-[10px] text-emerald-400">
+            {COMMIT_SHA}
+          </span>
+        </>
+      )}
 
       {copied ? (
         <span className="flex items-center gap-0.5 text-emerald-400 font-sans font-semibold text-[9px] bg-emerald-500/20 px-1 rounded">

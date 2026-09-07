@@ -157,8 +157,15 @@ export function recordObservation(input: RecordScanInput) {
     timestamp: new Date().toISOString(),
   });
 
-  const anomalies = detectAnomalies();
-  broadcast('ANOMALIES_UPDATED', anomalies);
+  // Recalculate and broadcast anomalies asynchronously so the mobile app gets an instant response (<10ms)
+  setImmediate(() => {
+    try {
+      const anomalies = detectAnomalies();
+      broadcast('ANOMALIES_UPDATED', anomalies);
+    } catch (err) {
+      console.error('[Sweep] Error recalculating anomalies asynchronously:', err);
+    }
+  });
 
   const actionId = logAction({
     actionType: 'scan_created',

@@ -1,6 +1,7 @@
 {
   "name": "shelv-ai-mobile",
   "version": "1.0.0",
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

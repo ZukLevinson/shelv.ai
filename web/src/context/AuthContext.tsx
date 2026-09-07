@@ -13,6 +13,7 @@ interface AuthContextType {
   isInventoryOwner: boolean;
   isAuthenticated: boolean;
   loginWithGoogle: (credential: string) => Promise<void>;
+  quickLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
   devLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
   updateGoogleClientId: (id: string) => Promise<void>;
   logout: () => void;
@@ -115,7 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const devLogin = async (
+  const quickLogin = async (
     role: 'manager' | 'inventory_owner',
     email?: string,
     name?: string,
@@ -123,7 +124,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ) => {
     setIsLoading(true);
     try {
-      const res = await axios.post<AuthResponse>(`${API_BASE_URL}/api/auth/dev-login`, {
+      const res = await axios.post<AuthResponse>(`${API_BASE_URL}/api/auth/quick-login`, {
         role,
         email,
         name,
@@ -134,6 +135,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(false);
     }
   };
+
+  const devLogin = quickLogin;
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
@@ -157,6 +160,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isInventoryOwner,
         isAuthenticated,
         loginWithGoogle,
+        quickLogin,
         devLogin,
         updateGoogleClientId,
         logout,

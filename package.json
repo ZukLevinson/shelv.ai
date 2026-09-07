@@ -1,0 +1,16 @@
+{
+  "name": "shelv-ai",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "install:all": "pnpm --dir server install && pnpm --dir web install && pnpm --dir mobile install",
+    "build:all": "pnpm --dir web build && pnpm --dir mobile build:web && pnpm --dir server build",
+    "build:web": "pnpm --dir web build",
+    "build:mobile": "pnpm --dir mobile build:web",
+    "build:server": "pnpm --dir server build",
+    "dev:web": "pnpm --dir web dev",
+    "dev:mobile": "pnpm --dir mobile web",
+    "dev:server": "pnpm --dir server dev"
+  }
+}

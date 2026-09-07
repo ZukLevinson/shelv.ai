@@ -129,7 +129,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     version: '1.0.0',
-    commit: process.env.COMMIT_SHA || 'dev',
+    commit: process.env.COMMIT_SHA && process.env.COMMIT_SHA !== 'dev' ? process.env.COMMIT_SHA : 'production',
     timestamp: new Date().toISOString(),
   });
 });
@@ -137,7 +137,7 @@ app.get('/health', (req, res) => {
 app.get('/api/version', (req, res) => {
   res.json({
     version: '1.0.0',
-    commit: process.env.COMMIT_SHA || 'dev',
+    commit: process.env.COMMIT_SHA && process.env.COMMIT_SHA !== 'dev' ? process.env.COMMIT_SHA : 'production',
     timestamp: new Date().toISOString(),
   });
 });

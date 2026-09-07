@@ -10,7 +10,8 @@ declare global {
 }
 
 export const LoginScreen: React.FC = () => {
-  const { googleClientId, loginWithGoogle, devLogin, updateGoogleClientId, isLoading } = useAuth();
+  const { googleClientId, loginWithGoogle, quickLogin, devLogin, updateGoogleClientId, isLoading } = useAuth();
+  const loginAction = quickLogin || devLogin;
   const googleBtnRef = useRef<HTMLDivElement>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [customEmail, setCustomEmail] = useState('');
@@ -51,10 +52,10 @@ export const LoginScreen: React.FC = () => {
     }
   }, [googleClientId, loginWithGoogle]);
 
-  const handleDevLogin = async (role: 'manager' | 'inventory_owner') => {
+  const handleQuickLogin = async (role: 'manager' | 'inventory_owner') => {
     try {
       setAuthError(null);
-      await devLogin(
+      await loginAction(
         role,
         customEmail.trim() || undefined,
         customName.trim() || undefined
@@ -190,18 +191,18 @@ export const LoginScreen: React.FC = () => {
           )}
         </div>
 
-        {/* Quick development / demo sign-in */}
+        {/* Quick sign-in */}
         <div className="border-t border-gray-800/80 pt-4 space-y-3">
           <div className="flex items-center justify-between text-[11px] text-gray-400">
             <span className="flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>התחברות מהירה (לפיתוח ובדיקות):</span>
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>התחברות מהירה:</span>
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => handleDevLogin('manager')}
+              onClick={() => handleQuickLogin('manager')}
               disabled={isLoading}
               className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-xl shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50"
             >
@@ -210,7 +211,7 @@ export const LoginScreen: React.FC = () => {
             </button>
 
             <button
-              onClick={() => handleDevLogin('inventory_owner')}
+              onClick={() => handleQuickLogin('inventory_owner')}
               disabled={isLoading}
               className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-blue-200 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 active:scale-[0.98] rounded-xl transition-all disabled:opacity-50"
             >

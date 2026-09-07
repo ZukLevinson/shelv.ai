@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { recordObservation, startSweepSession, completeSweepSession } from '../services/sweepService.js';
 import { analyzeFrameWithGemini, qualifyFrameWithGemini } from '../services/geminiVisionService.js';
 import { db } from '../db/database.js';
+import { getOnlineScanners, getOnlineScannersCount, registerOrTouchScanner, disconnectScanner } from '../sockets/socketServer.js';
 
 export const sweepRouter = Router();
 
@@ -168,6 +169,55 @@ sweepRouter.get('/scanners', (req, res) => {
     res.json(scanners.map((s) => s.scanned_by));
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch scanners' });
+  }
+});
+
+// GET /api/sweep/scanners/online - List currently online scanners and their count
+sweepRouter.get('/scanners/online', (req, res) => {
+  try {
+    const scanners = getOnlineScanners();
+    res.json({
+      count: scanners.length,
+      scanners,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch online scanners' });
+  }
+});
+
+// POST /api/sweep/scanners/heartbeat - HTTP heartbeat / presence registration for scanners
+sweepRouter.post('/scanners/heartbeat', (req, res) => {
+  try {
+    const { scannerId, scannerName, roomId, roomName } = req.body || {};
+    if (!scannerId) {
+      return res.status(400).json({ error: 'scannerId is required' });
+    }
+    const session = registerOrTouchScanner({
+      scannerId,
+      scannerName,
+      roomId,
+      roomName,
+    });
+    res.json({
+      success: true,
+      count: getOnlineScannersCount(),
+      session,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to record scanner heartbeat' });
+  }
+});
+
+// POST /api/sweep/scanners/disconnect - Gracefully disconnect a scanner
+sweepRouter.post('/scanners/disconnect', (req, res) => {
+  try {
+    const { scannerId } = req.body || {};
+    if (scannerId) {
+      disconnectScanner(scannerId);
+    }
+    res.json({ success: true, count: getOnlineScannersCount() });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to disconnect scanner' });
   }
 });
 
