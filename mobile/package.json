@@ -8,7 +8,7 @@
     "android": "pnpm run prebuild && expo start --android",
     "ios": "pnpm run prebuild && expo start --ios",
     "web": "pnpm run prebuild && expo start --web",
-    "build:web": "pnpm run prebuild && expo export --platform web && node -e \"require('fs').cpSync('public/manifest.json', 'dist/manifest.json'); require('fs').cpSync('public/favicon.svg', 'dist/favicon.svg');\""
+    "build:web": "pnpm run prebuild && expo export --platform web && node -e \"require('fs').cpSync('public/manifest.json', 'dist/manifest.json'); require('fs').cpSync('public/favicon.svg', 'dist/favicon.svg'); const idx='dist/index.html'; let c=require('fs').readFileSync(idx,'utf8'); c=c.replace('<title>shelv.ai Scanner</title>', '<title>סורק נייד | shelv.ai Scanner</title>'); require('fs').writeFileSync(idx,c);\""
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

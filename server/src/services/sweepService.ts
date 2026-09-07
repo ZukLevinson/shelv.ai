@@ -2,7 +2,7 @@ import { db } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { detectAnomalies } from './anomalyService.js';
 import { logAction } from './actionService.js';
-import { alertOnUnauthorizedScan, alertOnSweepCompleted } from './emailAlertService.js';
+import { alertOnMisplacedItemScan } from './emailAlertService.js';
 
 export interface RecordScanInput {
   sweepId?: string;
@@ -164,20 +164,25 @@ export function recordObservation(input: RecordScanInput) {
       const anomalies = detectAnomalies();
       broadcast('ANOMALIES_UPDATED', anomalies);
 
-      // Check if this scan represents an unauthorized transfer exception and alert relevant holders if logged in
-      const isMismatch = (officialItem && officialItem.holder_id !== scannedRoom?.holder_id) ||
-        (!officialItem && !(db.prepare('SELECT 1 FROM official_inventory WHERE holder_id = ? AND masha = ? LIMIT 1').get(scannedRoom?.holder_id, cleanMasha)));
+      // Check if this scan represents a misplaced item (scanned in a room where it shouldn't be)
+      const isWrongRoom = Boolean(officialItem?.official_room_id && officialItem.official_room_id !== input.roomId);
+      const isWrongHolder = Boolean(officialItem?.official_holder_id && scannedRoom?.holder_id && officialItem.official_holder_id !== scannedRoom.holder_id);
+      const isUnsignedMasha = !officialItem && !(db.prepare('SELECT 1 FROM official_inventory WHERE holder_id = ? AND masha = ? LIMIT 1').get(scannedRoom?.holder_id, cleanMasha));
 
-      if (isMismatch) {
-        await alertOnUnauthorizedScan({
+      const isMisplaced = isWrongRoom || isWrongHolder || isUnsignedMasha;
+
+      if (isMisplaced) {
+        await alertOnMisplacedItemScan({
           serialNumber: cleanSN,
           masha: cleanMasha,
-          description: officialItem?.description || input.productNameDetected,
+          description: officialItem?.resolved_description || officialItem?.description || input.productNameDetected,
           scannedRoomId: input.roomId,
           scannedRoomName: scannedRoom?.name || 'חדר',
           scannedHolderId: scannedRoom?.holder_id,
           scannedHolderName: scannedRoom?.holder_name,
-          officialHolderId: officialItem?.holder_id || null,
+          officialRoomId: officialItem?.official_room_id || officialItem?.room_id || null,
+          officialRoomName: officialItem?.official_room_name || null,
+          officialHolderId: officialItem?.official_holder_id || officialItem?.holder_id || null,
           officialHolderName: officialItem?.official_holder_name || null,
           scannedBy: input.scannedBy,
           scannedAt: new Date().toISOString(),
@@ -241,15 +246,6 @@ export function completeSweepSession(sessionId: string) {
   broadcast('SWEEP_COMPLETED', { sessionId });
   const anomalies = detectAnomalies();
   broadcast('ANOMALIES_UPDATED', anomalies);
-
-  // Alert relevant inventory holders for room sweep discrepancies if logged in
-  setImmediate(async () => {
-    try {
-      await alertOnSweepCompleted(sessionId);
-    } catch (err) {
-      console.error('[Sweep] Error alerting sweep completed discrepancies:', err);
-    }
-  });
 
   return { success: true };
 }

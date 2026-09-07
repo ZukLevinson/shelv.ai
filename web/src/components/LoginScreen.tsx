@@ -16,6 +16,10 @@ export const LoginScreen: React.FC = () => {
   const [scannerLoading, setScannerLoading] = useState(false);
 
   useEffect(() => {
+    document.title = 'התחברות למערכת | shelv.ai';
+  }, []);
+
+  useEffect(() => {
     if (!googleClientId || !window.google?.accounts?.id || !googleBtnRef.current) {
       return;
     }
@@ -73,9 +77,12 @@ export const LoginScreen: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center justify-center gap-2">
-              <h1 className="text-2xl font-black tracking-tight text-white">shelv.ai</h1>
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-white">shelv.ai</span>
               <VersionBadge variant="compact" />
             </div>
+            <h1 className="text-base sm:text-lg font-bold text-emerald-400 mt-1">
+              התחברות למערכת
+            </h1>
             <p className="text-xs text-gray-400 mt-1">
               מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון
             </p>

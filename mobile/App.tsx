@@ -44,8 +44,25 @@ export interface ScannedRecord {
 type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'edit_form' | 'manual_entry' | 'summary';
 export type ScanPipelineStage = 'idle' | 'searching' | 'qualified' | 'deciphering' | 'success';
 
+const STEP_TITLES: Record<Step, string> = {
+  select_room: 'בחירת חדר',
+  scan_masha: 'סריקת מסח"א',
+  scan_sn: 'סריקת מ"ס',
+  edit_form: 'עריכת פריט',
+  manual_entry: 'הזנה ידנית',
+  summary: 'סיכום סריקה',
+};
+
 export default function App() {
   const [currentStep, setCurrentStep] = useState<Step>('select_room');
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const stepTitle = STEP_TITLES[currentStep] || 'סורק מצאי';
+      document.title = `${stepTitle} | shelv.ai Scanner`;
+    }
+  }, [currentStep]);
+
   const [rooms, setRooms] = useState<any[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
   const [sweeperName, setSweeperName] = useState('סורק');
@@ -1228,8 +1245,10 @@ export default function App() {
       <View style={styles.header}>
         <View style={styles.headerFlexRow}>
           <View style={{ flex: 1, minWidth: 130 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={styles.headerBrand}>shelv.ai</Text>
+              <Text style={styles.headerSeparator}>/</Text>
+              <Text style={styles.headerPageTitle}>{STEP_TITLES[currentStep] || 'סורק מצאי'}</Text>
               <MobileVersionBadge variant="compact" />
               <View style={[styles.onlineStatusPill, isServerConnected ? styles.onlinePillActive : styles.onlinePillInactive]}>
                 <View style={[styles.onlineStatusDot, isServerConnected ? styles.onlineDotActive : styles.onlineDotInactive]} />
@@ -2227,6 +2246,23 @@ const styles: any = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1f2937',
     alignItems: 'center',
+  },
+  headerBrand: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -0.5,
+  },
+  headerSeparator: {
+    fontSize: 16,
+    color: '#4b5563',
+    fontWeight: '300',
+  },
+  headerPageTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#34d399',
+    writingDirection: 'rtl',
   },
   headerTitle: {
     fontSize: 18,

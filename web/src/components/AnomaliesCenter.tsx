@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { AnomalyReport } from '../types';
-import { AlertTriangle, HelpCircle, Check, MapPin, UserCheck, ShieldAlert, BarChart3, Mail, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, HelpCircle, Check, MapPin, UserCheck, ShieldAlert, BarChart3 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 
@@ -12,34 +12,11 @@ interface Props {
 export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
   const [activeTab, setActiveTab] = useState<'unauthorized' | 'discrepancies' | 'distribution'>('unauthorized');
   const [resolvingSn, setResolvingSn] = useState<string | null>(null);
-  const [isSendingAlerts, setIsSendingAlerts] = useState(false);
-  const [alertFeedback, setAlertFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
   if (!anomalies) return null;
 
   const unauthorizedTransfers = anomalies.unauthorizedTransfers || [];
   const quotaDiscrepancies = anomalies.quotaDiscrepancies || [];
   const discoveredDistribution = anomalies.discoveredDistribution || [];
-
-  const handleSendAlerts = async () => {
-    setIsSendingAlerts(true);
-    setAlertFeedback(null);
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/anomalies/send-alerts`);
-      setAlertFeedback({
-        message: res.data.message || 'התראות נשלחו בהצלחה לבעלי המצאי המחוברים',
-        type: 'success',
-      });
-      setTimeout(() => setAlertFeedback(null), 8000);
-    } catch (err: any) {
-      setAlertFeedback({
-        message: err.response?.data?.error || 'שגיאה בשליחת התראות במייל',
-        type: 'error',
-      });
-    } finally {
-      setIsSendingAlerts(false);
-    }
-  };
 
   const handleApproveTransfer = async (serialNumber: string, targetHolderId: string) => {
     setResolvingSn(serialNumber);
@@ -59,42 +36,10 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-6 shadow-lg sm:shadow-xl max-w-full overflow-hidden">
-      {alertFeedback && (
-        <div className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
-          alertFeedback.type === 'success' 
-            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200' 
-            : 'bg-rose-500/15 border-rose-500/30 text-rose-200'
-        }`}>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-            <span>{alertFeedback.message}</span>
-          </div>
-          <button 
-            onClick={() => setAlertFeedback(null)} 
-            className="text-gray-400 hover:text-white px-2 py-0.5 rounded text-xs"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 border-b border-gray-800 pb-3 sm:pb-4">
-        <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <ShieldAlert className="w-4 h-4 sm:w-6 sm:h-6 text-rose-400 shrink-0" />
-            <h2 className="text-base sm:text-xl font-bold text-white">מרכז חריגות וחלוקת מצאי</h2>
-          </div>
-
-          <button
-            onClick={handleSendAlerts}
-            disabled={isSendingAlerts || (unauthorizedTransfers.length === 0 && quotaDiscrepancies.length === 0)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-medium text-emerald-200 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-lg shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
-            title="שליחת התראות במייל לכל בעלי המצאי הרלוונטיים שהתחברו למערכת"
-          >
-            <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden xs:inline">{isSendingAlerts ? 'שולח...' : 'שליחת התראות במייל'}</span>
-            <span className="xs:hidden">{isSendingAlerts ? 'שולח...' : 'התראות'}</span>
-          </button>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <ShieldAlert className="w-4 h-4 sm:w-6 sm:h-6 text-rose-400 shrink-0" />
+          <h2 className="text-base sm:text-xl font-bold text-white">מרכז חריגות וחלוקת מצאי</h2>
         </div>
 
         <div className="flex gap-1 p-0.5 sm:p-1 bg-gray-950 rounded-lg sm:rounded-xl border border-gray-800 overflow-x-auto scrollbar-thin max-w-full">

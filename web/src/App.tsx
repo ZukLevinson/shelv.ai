@@ -51,11 +51,60 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
+interface PageMeta {
+  title: string;
+  description: string;
+}
+
+const PAGE_METADATA: Record<string, PageMeta> = {
+  '/': {
+    title: 'מבט על וחריגות',
+    description: 'מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון',
+  },
+  '/scans': {
+    title: 'ניהול ותחקור סריקות',
+    description: 'כלי תחקור וניהול סריקות מלאי בשטח (מי סרק, מה, איפה ומתי)',
+  },
+  '/holders': {
+    title: 'בעלי מצאי',
+    description: 'ניהול בעלי מצאי, הקצאת חדרים ומעקב אחר פריטים חתומים בארגון',
+  },
+  '/masha-registry': {
+    title: 'הגדרת מסחאות',
+    description: 'הגדרת סוגי ומפרטי מסח"א, קטגוריות ותיאורי ציוד רשמיים',
+  },
+  '/items': {
+    title: 'קטלוג פריטים',
+    description: 'מאגר פריטים פיזיים שנסרקו, מספרים סידוריים ופרטי מצאי',
+  },
+  '/users': {
+    title: 'ניהול משתמשים',
+    description: 'ניהול משתמשי המערכת, הרשאות ניהול ושיוך בעלי מצאי',
+  },
+};
+
+const getPageMeta = (pathname: string): PageMeta => {
+  if (PAGE_METADATA[pathname]) return PAGE_METADATA[pathname];
+  if (pathname === '/overview') return PAGE_METADATA['/'];
+  if (pathname === '/masha') return PAGE_METADATA['/masha-registry'];
+  if (pathname === '/catalog') return PAGE_METADATA['/items'];
+  return {
+    title: 'מבט על וחריגות',
+    description: 'מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון',
+  };
+};
+
 function AppContent() {
   const { user, logout, isManager, isInventoryOwner, isScanner, needsOnboarding, isLoading, isAuthenticated } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const navType = useNavigationType();
+
+  const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
+
+  useEffect(() => {
+    document.title = `${pageMeta.title} | shelv.ai`;
+  }, [pageMeta.title]);
 
   const [isEditPNModalOpen, setIsEditPNModalOpen] = useState(false);
 
@@ -305,16 +354,26 @@ function AppContent() {
             </Link>
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <Link to="/" className="text-lg sm:text-2xl font-black tracking-tight text-white hover:text-emerald-300 transition-colors">
+                <Link
+                  to="/"
+                  className="text-lg sm:text-2xl font-black tracking-tight text-white hover:text-emerald-300 transition-colors shrink-0"
+                  title="חזור למבט על"
+                >
                   shelv.ai
                 </Link>
+                <span className="text-gray-600 font-light text-base sm:text-xl select-none" aria-hidden="true">
+                  /
+                </span>
+                <h1 className="text-base sm:text-xl font-bold text-emerald-400 tracking-tight whitespace-nowrap">
+                  {pageMeta.title}
+                </h1>
                 <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   Live Anomaly Engine
                 </span>
                 <VersionBadge variant="compact" />
               </div>
               <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 line-clamp-1">
-                מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון
+                {pageMeta.description}
               </p>
             </div>
           </div>
