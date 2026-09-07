@@ -2104,6 +2104,44 @@ const styles: any = StyleSheet.create({
     color: '#fff',
     writingDirection: 'rtl',
   },
+  onlineStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  onlinePillActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  onlinePillInactive: {
+    backgroundColor: 'rgba(107, 114, 128, 0.15)',
+    borderColor: 'rgba(107, 114, 128, 0.3)',
+  },
+  onlineStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  onlineDotActive: {
+    backgroundColor: '#10b981',
+  },
+  onlineDotInactive: {
+    backgroundColor: '#9ca3af',
+  },
+  onlineStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  onlineTextActive: {
+    color: '#34d399',
+  },
+  onlineTextInactive: {
+    color: '#9ca3af',
+  },
   headerSubtitle: {
     fontSize: 11,
     color: '#10b981',
