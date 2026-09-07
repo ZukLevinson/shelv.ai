@@ -1319,46 +1319,6 @@ export default function App() {
       {/* Screen 1: Room Selection */}
       {currentStep === 'select_room' && (
         <ScrollView style={styles.content}>
-          {/* User Auth & Return to Dashboard Banner */}
-          <View style={styles.dashboardNavCard}>
-            <View style={styles.dashboardNavInfo}>
-              <View style={styles.dashboardNavUserRow}>
-                <Text style={styles.dashboardNavUserTitle}>
-                  {currentUser ? currentUser.name : 'סורק במצב אורח'}
-                </Text>
-                <View style={[
-                  styles.headerRoleBadge,
-                  !currentUser ? styles.headerRoleBadgeGuest : isManager ? styles.headerRoleBadgeManager : isInventoryOwner ? styles.headerRoleBadgeOwner : styles.headerRoleBadgeScanner
-                ]}>
-                  <Text style={styles.headerRoleBadgeText}>
-                    {!currentUser ? 'אורח (ללא התחברות)' : isManager ? 'הרשאת ניהול 👑' : isInventoryOwner ? 'בעל מצאי 👤' : 'סורק 📱'}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.dashboardNavUserSubtitle}>
-                {currentUser
-                  ? isManager
-                    ? 'יש לך הרשאת ניהול מלאה (משתמשים, חריגות וייבוא) בלוח הבקרה'
-                    : isInventoryOwner
-                    ? `משויך לציוד וחדרים במערכת (${currentUser.holder_name || 'בעל מצאי'})`
-                    : 'מחובר כסורק מצאי מאומת במערכת'
-                  : 'הגישה ללוח הבקרה והדוחות מוגבלת למשתמשים מורשים'}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.dashboardNavButton,
-                !currentUser && styles.dashboardNavButtonLocked,
-              ]}
-              onPress={handleGoToDashboard}
-            >
-              <Text style={styles.dashboardNavButtonText}>
-                {currentUser ? 'חזרה ללוח הבקרה ↗' : 'התחברות ללוח הבקרה 🔒'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.card}>
             <Text style={styles.label}>שם הסורק:</Text>
             <TextInput
@@ -3670,68 +3630,10 @@ const styles: any = StyleSheet.create({
     backgroundColor: 'rgba(6, 182, 212, 0.2)',
     borderColor: 'rgba(6, 182, 212, 0.5)',
   },
-  headerRoleBadgeGuest: {
-    backgroundColor: 'rgba(107, 114, 128, 0.2)',
-    borderColor: 'rgba(107, 114, 128, 0.4)',
-  },
   headerRoleBadgeText: {
     color: '#e5e7eb',
     fontSize: 9,
     fontWeight: 'bold',
-  },
-  dashboardNavCard: {
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    padding: 12,
-    marginBottom: 10,
-    flexDirection: 'column',
-    gap: 10,
-  },
-  dashboardNavInfo: {
-    flexDirection: 'column',
-    gap: 4,
-  },
-  dashboardNavUserRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  dashboardNavUserTitle: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: 'bold',
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-  dashboardNavUserSubtitle: {
-    color: '#9ca3af',
-    fontSize: 11,
-    textAlign: 'right',
-    writingDirection: 'rtl',
-    lineHeight: 16,
-  },
-  dashboardNavButton: {
-    backgroundColor: '#059669',
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#10b981',
-  },
-  dashboardNavButtonLocked: {
-    backgroundColor: '#1e293b',
-    borderColor: '#475569',
-  },
-  dashboardNavButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    writingDirection: 'rtl',
   },
   headerHistoryBtn: {
     backgroundColor: '#1e3a8a',
