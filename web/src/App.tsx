@@ -12,6 +12,8 @@ import { HoldersManagement } from './components/HoldersManagement';
 import { ScanManagement } from './components/ScanManagement';
 import { UserManagement } from './components/UserManagement';
 import { LoginScreen } from './components/LoginScreen';
+import { UndoToast, type UndoToastData } from './components/UndoToast';
+import { ActionHistoryModal } from './components/ActionHistoryModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { 
   ShieldCheck, 
@@ -28,7 +30,8 @@ import {
   LogOut,
   UserCheck,
   Filter,
-  Info
+  Info,
+  RotateCcw
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
@@ -41,6 +44,8 @@ function AppContent() {
   const [holders, setHolders] = useState<InventoryHolder[]>([]);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isRoomModalOpen, setRoomModalOpen] = useState(false);
+  const [isActionHistoryOpen, setActionHistoryOpen] = useState(false);
+  const [undoToast, setUndoToast] = useState<UndoToastData | null>(null);
   const [activeView, setActiveView] = useState<'overview' | 'scans' | 'holders' | 'masha_registry' | 'items' | 'users'>('overview');
   const [loading, setLoading] = useState(false);
   const [myInventoryOnly, setMyInventoryOnly] = useState(false);
@@ -78,6 +83,12 @@ function AppContent() {
         const data = JSON.parse(message.data);
         if (data.type === 'ANOMALIES_UPDATED') {
           setAnomalies(data.payload);
+        } else if (data.type === 'ACTION_LOGGED') {
+          setUndoToast({
+            actionId: data.payload.id,
+            description: data.payload.description,
+            durationMs: 12000,
+          });
         } else if (
           data.type === 'ITEM_SCANNED' ||
           data.type === 'TRANSFER_APPROVED' ||
@@ -85,7 +96,8 @@ function AppContent() {
           data.type === 'MASHA_UPDATED' ||
           data.type === 'ROOMS_UPDATED' ||
           data.type === 'HOLDERS_UPDATED' ||
-          data.type === 'SCANS_UPDATED'
+          data.type === 'SCANS_UPDATED' ||
+          data.type === 'ACTION_REVERTED'
         ) {
           fetchData();
         }
@@ -223,6 +235,15 @@ function AppContent() {
             >
               <RefreshCw className={'w-3.5 h-3.5 ' + (loading ? 'animate-spin' : '')} />
               <span>רענן</span>
+            </button>
+
+            <button
+              onClick={() => setActionHistoryOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all cursor-pointer shadow-sm"
+              title="צפה בהיסטוריית כל הפעולות ובטל פעולות קודמות"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>היסטוריית ביטולים ↩️</span>
             </button>
 
             <button
@@ -447,6 +468,20 @@ function AppContent() {
           fetchData();
         }}
         rooms={rooms}
+      />
+
+      {/* Instant Undo Toast Notification */}
+      <UndoToast
+        toast={undoToast}
+        onClose={() => setUndoToast(null)}
+        onReverted={() => fetchData()}
+      />
+
+      {/* Universal Action History & Undo Modal */}
+      <ActionHistoryModal
+        isOpen={isActionHistoryOpen}
+        onClose={() => setActionHistoryOpen(false)}
+        onActionReverted={() => fetchData()}
       />
     </div>
   );

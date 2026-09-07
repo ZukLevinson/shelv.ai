@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RotateCcw, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { RotateCcw, X, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 

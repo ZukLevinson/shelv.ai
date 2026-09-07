@@ -4,8 +4,6 @@ import {
   RotateCcw,
   X,
   Search,
-  CheckCircle2,
-  AlertTriangle,
   Building2,
   Users,
   Tag,
