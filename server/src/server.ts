@@ -107,7 +107,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'healthy',
+    version: '1.0.0',
+    commit: process.env.COMMIT_SHA || 'dev',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/version', (req, res) => {
+  res.json({
+    version: '1.0.0',
+    commit: process.env.COMMIT_SHA || 'dev',
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Serve mobile PWA files if mobile build exists

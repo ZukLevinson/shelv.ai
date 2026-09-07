@@ -1,5 +1,9 @@
+ARG COMMIT_SHA=dev
+
 # Build stage 1: Build React Frontend
 FROM node:20-alpine AS web-builder
+ARG COMMIT_SHA
+ENV VITE_COMMIT_SHA=$COMMIT_SHA
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
@@ -22,10 +26,12 @@ RUN apk add --no-cache python3 make g++
 COPY server/package*.json ./
 RUN npm ci
 COPY server/ ./
-RUN npm run build
+RUN npm run build && \
+    npm prune --omit=dev
 
 # Production runner stage (minimal size, lowest memory footprint)
 FROM node:20-alpine AS runner
+ARG COMMIT_SHA
 WORKDIR /app
 
 # better-sqlite3 needs runtime dependencies
@@ -36,15 +42,12 @@ ENV PORT=8080
 ENV DB_PATH=/data/shelv.db
 ENV CLIENT_BUILD_PATH=/app/web/dist
 ENV MOBILE_BUILD_PATH=/app/mobile/dist
+ENV COMMIT_SHA=$COMMIT_SHA
 
-# Install production dependencies only
+# Copy server production dependencies (already compiled with better-sqlite3 native bindings)
 WORKDIR /app/server
-COPY server/package*.json ./
-RUN apk add --no-cache python3 make g++ && \
-    npm ci --only=production && \
-    apk del python3 make g++
-
-# Copy built server assets
+COPY --from=server-builder /app/server/package*.json ./
+COPY --from=server-builder /app/server/node_modules ./node_modules
 COPY --from=server-builder /app/server/dist ./dist
 
 # Copy built web assets

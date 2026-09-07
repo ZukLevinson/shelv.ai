@@ -1,13 +1,20 @@
 steps:
-  # 1. Build and cache Docker image
+  # 1. Build Docker image with BuildKit and remote layer cache
   - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA'
-      - '-t'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest'
-      - '.'
+      - '-c'
+      - |
+        docker pull europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest || true
+        docker build \
+          --cache-from europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          --build-arg COMMIT_SHA=$SHORT_SHA \
+          -t europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA \
+          -t europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:latest \
+          .
+    env:
+      - 'DOCKER_BUILDKIT=1'
 
   # 2. Push image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -62,7 +69,7 @@ steps:
       - '--concurrency'
       - '80'
       - '--set-env-vars'
-      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID'
+      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA'
 
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA'

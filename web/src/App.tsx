@@ -14,6 +14,7 @@ import { UserManagement } from './components/UserManagement';
 import { LoginScreen } from './components/LoginScreen';
 import { UndoToast, type UndoToastData } from './components/UndoToast';
 import { ActionHistoryModal } from './components/ActionHistoryModal';
+import { VersionBadge } from './components/VersionBadge';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { 
   ShieldCheck, 
@@ -176,6 +177,7 @@ function AppContent() {
                 <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   Live Anomaly Engine
                 </span>
+                <VersionBadge variant="compact" />
               </div>
               <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 line-clamp-1">
                 מערכת ניהול, סריקת מלאי וזיהוי חריגות בעלי מצאי בארגון
@@ -524,6 +526,16 @@ function AppContent() {
         onClose={() => setActionHistoryOpen(false)}
         onActionReverted={() => fetchData()}
       />
+
+      {/* Footer with version indication and details */}
+      <footer className="pt-6 pb-2 border-t border-gray-900/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-gray-400">shelv.ai</span>
+          <span>•</span>
+          <span>מערכת ניהול, סריקת מלאי וזיהוי חריגות</span>
+        </div>
+        <VersionBadge variant="detailed" />
+      </footer>
     </div>
   );
 }
