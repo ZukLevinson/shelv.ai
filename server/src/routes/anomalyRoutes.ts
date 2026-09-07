@@ -111,3 +111,34 @@ anomalyRouter.post('/revert-resolution', optionalToken, (req: AuthenticatedReque
     res.status(500).json({ error: error.message || 'Failed to revert resolution' });
   }
 });
+
+// GET /api/anomalies/alerts - Retrieve audit history of sent email alerts
+anomalyRouter.get('/alerts', (req, res) => {
+  try {
+    const { limit = '50', offset = '0' } = req.query;
+    import('../services/emailAlertService.js').then(({ getEmailAlertHistory }) => {
+      const history = getEmailAlertHistory(Number(limit), Number(offset));
+      res.json(history);
+    }).catch(err => {
+      res.status(500).json({ error: err.message || 'Failed to fetch email alert history' });
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch email alerts' });
+  }
+});
+
+// POST /api/anomalies/send-alerts - On-demand trigger to alert relevant logged-in holders for all current exceptions
+anomalyRouter.post('/send-alerts', optionalToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { alertAllPendingAnomalies } = await import('../services/emailAlertService.js');
+    const summary = await alertAllPendingAnomalies();
+    res.json({
+      success: true,
+      message: `סריקת התראות הושלמה: ${summary.sentCount + summary.simulatedCount} נשלחו, ${summary.skippedNotLoggedInCount} דולגו (טרם התחברו), ${summary.throttledCount} נמנעו מכפילות`,
+      summary,
+    });
+  } catch (error: any) {
+    console.error('[Anomaly API] Error dispatching alerts:', error);
+    res.status(500).json({ error: error.message || 'Failed to dispatch email alerts' });
+  }
+});

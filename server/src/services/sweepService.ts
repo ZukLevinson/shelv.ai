@@ -2,6 +2,7 @@ import { db } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { detectAnomalies } from './anomalyService.js';
 import { logAction } from './actionService.js';
+import { alertOnUnauthorizedScan, alertOnSweepCompleted } from './emailAlertService.js';
 
 export interface RecordScanInput {
   sweepId?: string;
@@ -158,12 +159,32 @@ export function recordObservation(input: RecordScanInput) {
   });
 
   // Recalculate and broadcast anomalies asynchronously so the mobile app gets an instant response (<10ms)
-  setImmediate(() => {
+  setImmediate(async () => {
     try {
       const anomalies = detectAnomalies();
       broadcast('ANOMALIES_UPDATED', anomalies);
+
+      // Check if this scan represents an unauthorized transfer exception and alert relevant holders if logged in
+      const isMismatch = (officialItem && officialItem.holder_id !== scannedRoom?.holder_id) ||
+        (!officialItem && !(db.prepare('SELECT 1 FROM official_inventory WHERE holder_id = ? AND masha = ? LIMIT 1').get(scannedRoom?.holder_id, cleanMasha)));
+
+      if (isMismatch) {
+        await alertOnUnauthorizedScan({
+          serialNumber: cleanSN,
+          masha: cleanMasha,
+          description: officialItem?.description || input.productNameDetected,
+          scannedRoomId: input.roomId,
+          scannedRoomName: scannedRoom?.name || 'חדר',
+          scannedHolderId: scannedRoom?.holder_id,
+          scannedHolderName: scannedRoom?.holder_name,
+          officialHolderId: officialItem?.holder_id || null,
+          officialHolderName: officialItem?.official_holder_name || null,
+          scannedBy: input.scannedBy,
+          scannedAt: new Date().toISOString(),
+        });
+      }
     } catch (err) {
-      console.error('[Sweep] Error recalculating anomalies asynchronously:', err);
+      console.error('[Sweep] Error processing anomalies or alerts asynchronously:', err);
     }
   });
 
@@ -220,6 +241,15 @@ export function completeSweepSession(sessionId: string) {
   broadcast('SWEEP_COMPLETED', { sessionId });
   const anomalies = detectAnomalies();
   broadcast('ANOMALIES_UPDATED', anomalies);
+
+  // Alert relevant inventory holders for room sweep discrepancies if logged in
+  setImmediate(async () => {
+    try {
+      await alertOnSweepCompleted(sessionId);
+    } catch (err) {
+      console.error('[Sweep] Error alerting sweep completed discrepancies:', err);
+    }
+  });
 
   return { success: true };
 }

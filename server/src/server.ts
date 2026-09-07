@@ -42,6 +42,7 @@ import { generateExportWorkbookBuffer } from './services/excelExportService.js';
 import { detectAnomalies } from './services/anomalyService.js';
 
 import { restoreDatabaseFromGCS, initGcsSync, scheduleDebouncedBackup } from './services/gcsStorageService.js';
+import { SERVER_VERSION, BRANCH_NAME, COMMIT_SHA, getVersionPayload } from './version.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -128,18 +129,12 @@ app.get('/api/export-excel', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
-    version: '1.0.0',
-    commit: process.env.COMMIT_SHA && process.env.COMMIT_SHA !== 'dev' ? process.env.COMMIT_SHA : 'production',
-    timestamp: new Date().toISOString(),
+    ...getVersionPayload(),
   });
 });
 
 app.get('/api/version', (req, res) => {
-  res.json({
-    version: '1.0.0',
-    commit: process.env.COMMIT_SHA && process.env.COMMIT_SHA !== 'dev' ? process.env.COMMIT_SHA : 'production',
-    timestamp: new Date().toISOString(),
-  });
+  res.json(getVersionPayload());
 });
 
 // Serve mobile PWA files if mobile build exists
@@ -170,6 +165,6 @@ if (fs.existsSync(clientBuildPath)) {
 }
 
 server.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`shelv.ai server running on port ${PORT}`);
+  console.log(`shelv.ai server v${SERVER_VERSION} (${BRANCH_NAME}@${COMMIT_SHA}) running on port ${PORT}`);
   console.log(`WebSocket stream available on /ws`);
 });
