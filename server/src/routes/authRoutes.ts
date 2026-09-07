@@ -5,51 +5,19 @@ import { authenticateToken, AuthenticatedRequest } from '../auth/authMiddleware.
 
 export const authRouter = Router();
 
-// Helper to get Google Client ID from process.env or system_settings
+// Helper to get Google Client ID strictly from environment variables
 export function getStoredGoogleClientId(): string {
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID.trim()) {
     return process.env.GOOGLE_CLIENT_ID.trim();
   }
-  try {
-    const row = db.prepare("SELECT value FROM system_settings WHERE key = 'google_client_id'").get() as any;
-    if (row && row.value) {
-      process.env.GOOGLE_CLIENT_ID = row.value.trim();
-      return row.value.trim();
-    }
-  } catch (err) {}
   return '';
 }
 
-// GET /api/auth/config - Provide public Google Client ID for GIS button
+// GET /api/auth/config - Provide Google Client ID from server environment variable to client
 authRouter.get('/config', (_req, res) => {
   res.json({
     googleClientId: getStoredGoogleClientId(),
   });
-});
-
-// POST /api/auth/config - Save or update Google Client ID directly from app
-authRouter.post('/config', (req, res) => {
-  const { googleClientId } = req.body;
-  const cleanId = (googleClientId || '').trim();
-
-  if (!cleanId) {
-    return res.status(400).json({ error: 'Google Client ID is required' });
-  }
-
-  try {
-    db.prepare(`
-      INSERT INTO system_settings (key, value, updated_at)
-      VALUES ('google_client_id', ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-    `).run(cleanId);
-
-    process.env.GOOGLE_CLIENT_ID = cleanId;
-
-    res.json({ success: true, googleClientId: cleanId });
-  } catch (err: any) {
-    console.error('[Auth API] Error saving google client id:', err);
-    res.status(500).json({ error: err.message || 'Failed to save Google Client ID' });
-  }
 });
 
 // POST /api/auth/google - Sign in / Register with Google ID token

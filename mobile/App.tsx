@@ -27,6 +27,7 @@ import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
 import { fetchRooms, submitScan, revertScan, revertAction, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo } from './src/services/api';
+import { ScannerPresenceManager } from './src/services/scannerPresence';
 
 export interface ScannedRecord {
   id: string;

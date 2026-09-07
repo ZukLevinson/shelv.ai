@@ -15,7 +15,6 @@ interface AuthContextType {
   loginWithGoogle: (credential: string) => Promise<void>;
   quickLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
   devLogin: (role: 'manager' | 'inventory_owner', email?: string, name?: string, holder_id?: string) => Promise<void>;
-  updateGoogleClientId: (id: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -23,12 +22,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const TOKEN_KEY = 'shelv_token';
-const CLIENT_ID_KEY = 'shelv_google_client_id';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [googleClientId, setGoogleClientId] = useState<string>(() => localStorage.getItem(CLIENT_ID_KEY) || '');
+  const [googleClientId, setGoogleClientId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Set default axios Authorization header
@@ -43,17 +41,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(data.token);
     localStorage.setItem(TOKEN_KEY, data.token);
     axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-  };
-
-  const updateGoogleClientId = async (newId: string) => {
-    const clean = newId.trim();
-    setGoogleClientId(clean);
-    localStorage.setItem(CLIENT_ID_KEY, clean);
-    try {
-      await axios.post(`${API_BASE_URL}/api/auth/config`, { googleClientId: clean });
-    } catch (err) {
-      console.warn('[Auth] Failed to persist client id to server:', err);
-    }
   };
 
   const refreshUser = async () => {
