@@ -98,7 +98,7 @@ authRouter.post('/dev-login', (req, res) => {
   const { role, email, name, holder_id } = req.body;
   const cleanRole = role === 'manager' ? 'manager' : 'inventory_owner';
   const cleanEmail = (email || (cleanRole === 'manager' ? 'admin@shelv.ai' : 'owner@shelv.ai')).toLowerCase().trim();
-  const cleanName = (name || (cleanRole === 'manager' ? 'מנהל ראשי (Dev)' : 'בעל מצאי (Dev)')).trim();
+  const cleanName = (name || (cleanRole === 'manager' ? 'הרשאת עריכה (Dev)' : 'בעל מצאי (Dev)')).trim();
 
   let user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail) as any;
 

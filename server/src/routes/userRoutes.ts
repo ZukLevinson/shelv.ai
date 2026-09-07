@@ -28,7 +28,7 @@ userRouter.put('/:id/role', authenticateToken, requireRole(['manager']), (req: A
   const { role } = req.body;
 
   if (!['manager', 'inventory_owner'].includes(role)) {
-    return res.status(400).json({ error: 'תפקיד לא חוקי. מותר רק manager או inventory_owner' });
+    return res.status(400).json({ error: 'הרשאה לא חוקית. מותר רק manager או inventory_owner' });
   }
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
@@ -40,7 +40,7 @@ userRouter.put('/:id/role', authenticateToken, requireRole(['manager']), (req: A
   if (user.role === 'manager' && role !== 'manager') {
     const managerCount = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'manager'").get() as any).count;
     if (managerCount <= 1) {
-      return res.status(400).json({ error: 'לא ניתן לשנות את תפקיד המנהל האחרון במערכת' });
+      return res.status(400).json({ error: 'לא ניתן להסיר הרשאת עריכה מהמשתמש האחרון במערכת' });
     }
   }
 

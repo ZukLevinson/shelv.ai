@@ -19,7 +19,7 @@ anomalyRouter.get('/', (req, res) => {
 
 anomalyRouter.post('/approve-transfer', optionalToken, (req: AuthenticatedRequest, res) => {
   const { serialNumber, targetRoomId, targetHolderId, resolvedBy } = req.body;
-  const user = resolvedBy || req.user?.name || 'מנהל מערכת';
+  const user = resolvedBy || req.user?.name || 'משתמש מערכת';
 
   if (!serialNumber || (!targetRoomId && !targetHolderId)) {
     return res.status(400).json({ error: 'serialNumber and targetRoomId (or targetHolderId) are required' });
@@ -66,7 +66,7 @@ anomalyRouter.post('/approve-transfer', optionalToken, (req: AuthenticatedReques
 
 anomalyRouter.post('/confirm-move', optionalToken, async (req: AuthenticatedRequest, res) => {
   const { serialNumber, targetRoomId, resolvedBy } = req.body;
-  const user = resolvedBy || req.user?.name || 'מנהל מערכת';
+  const user = resolvedBy || req.user?.name || 'משתמש מערכת';
   if (!serialNumber || !targetRoomId) {
     return res.status(400).json({ error: 'serialNumber and targetRoomId are required' });
   }
@@ -100,7 +100,7 @@ anomalyRouter.post('/revert-resolution', optionalToken, (req: AuthenticatedReque
   }
 
   try {
-    const user = revertedBy || req.user?.name || 'מנהל מערכת';
+    const user = revertedBy || req.user?.name || 'משתמש מערכת';
     const result = revertResolution(resolutionId, user);
     const updatedReport = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', updatedReport);

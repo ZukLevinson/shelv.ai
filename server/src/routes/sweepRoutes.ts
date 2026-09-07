@@ -353,7 +353,7 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
 // DELETE /api/sweep/scans/:id - Delete or revert scan observation
 sweepRouter.delete('/scans/:id', async (req, res) => {
   const { id } = req.params;
-  const user = req.body?.revertedBy || 'סורק / מנהל';
+  const user = req.body?.revertedBy || 'משתמש מערכת';
   try {
     const existing = db.prepare('SELECT * FROM sweep_observations WHERE id = ?').get(id) as any;
     if (!existing) {
