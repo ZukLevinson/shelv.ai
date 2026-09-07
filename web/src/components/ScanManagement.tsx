@@ -247,31 +247,31 @@ export const ScanManagement: React.FC<Props> = ({
     <div className="space-y-4 sm:space-y-6">
       {/* Top Header & Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
-          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">סך סריקות</span>
             <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-white mt-1 sm:mt-2">{total}</div>
+          <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-2 tracking-tight leading-tight">{total}</div>
           <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">לפי הסינון הנוכחי</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
-          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">פריטים שנסרקו</span>
             <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-blue-400 mt-1 sm:mt-2">{metrics.uniqueItems}</div>
+          <div className="text-lg sm:text-2xl font-black text-blue-400 mt-1 sm:mt-2 tracking-tight leading-tight">{metrics.uniqueItems}</div>
           <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מספרים שונים שזוהו</div>
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
-          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-gray-400 text-[11px] sm:text-xs gap-1">
             <span className="truncate">סורקים (Who)</span>
             <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
           </div>
           <div className="flex items-baseline gap-2 mt-1 sm:mt-2">
-            <div className="text-xl sm:text-2xl font-black text-purple-400">{metrics.uniqueScanners}</div>
+            <div className="text-lg sm:text-2xl font-black text-purple-400 tracking-tight leading-tight">{metrics.uniqueScanners}</div>
             {onlineScannersCount > 0 && (
               <span className="text-[10px] sm:text-[11px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -284,12 +284,12 @@ export const ScanManagement: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
-          <div className="flex items-center justify-between text-rose-300 text-[11px] sm:text-xs">
+        <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg">
+          <div className="flex items-center justify-between text-rose-300 text-[11px] sm:text-xs gap-1">
             <span className="truncate">חריגות מיקום</span>
             <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2">{metrics.mismatches}</div>
+          <div className="text-lg sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2 tracking-tight leading-tight">{metrics.mismatches}</div>
           <div className="text-[10px] sm:text-[11px] text-rose-300/70 mt-0.5 sm:mt-1 truncate">נמצאו בחדר לא מתאים</div>
         </div>
       </div>

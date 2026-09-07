@@ -787,72 +787,72 @@ function AppContent() {
 
       {/* Metric Quick Cards (Clickable navigation links) */}
       {displayAnomalies && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <Link
             to="/items"
-            className="bg-gray-900 border border-gray-800 hover:border-blue-500/40 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-gray-800 hover:border-blue-500/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר לקטלוג הפריטים"
           >
-            <div className="flex items-center justify-between text-gray-400 group-hover:text-blue-300 text-xs transition-colors">
-              <span>{myInventoryOnly ? 'סך פריטים חתומים שלך (באקסל)' : 'סך פריטים חתומים (באקסל)'}</span>
-              <BarChart3 className="w-4 h-4 text-blue-400" />
+            <div className="flex items-center justify-between text-gray-400 group-hover:text-blue-300 text-[11px] sm:text-xs transition-colors gap-1">
+              <span className="truncate">{myInventoryOnly ? 'סך פריטים חתומים שלך' : 'סך פריטים חתומים'}</span>
+              <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-white mt-2">
+            <div className="text-lg sm:text-2xl font-black text-white mt-1 sm:mt-2 tracking-tight leading-tight">
               {displayAnomalies.stats?.totalExpectedItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">
-              {myInventoryOnly ? 'מכסת החתימות שלך ↗' : 'מכסת החתימות של בעלי המצאי ↗'}
+            <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">
+              {myInventoryOnly ? 'מכסת החתימות שלך ↗' : 'מכסת החתימות (אקסל) ↗'}
             </div>
           </Link>
 
           <Link
             to="/scans"
-            className="bg-gray-900 border border-gray-800 hover:border-emerald-500/40 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-gray-800 hover:border-emerald-500/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר לניהול ותחקור סריקות"
           >
-            <div className="flex items-center justify-between text-gray-400 group-hover:text-emerald-300 text-xs transition-colors">
-              <span>{myInventoryOnly ? 'פריטים שנסרקו בחדרייך' : 'פריטים פיזיים שנסרקו'}</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <div className="flex items-center justify-between text-gray-400 group-hover:text-emerald-300 text-[11px] sm:text-xs transition-colors gap-1">
+              <span className="truncate">{myInventoryOnly ? 'פריטים שנסרקו בחדרייך' : 'פריטים פיזיים שנסרקו'}</span>
+              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-emerald-400 mt-2">
+            <div className="text-lg sm:text-2xl font-black text-emerald-400 mt-1 sm:mt-2 tracking-tight leading-tight">
               {displayAnomalies.stats?.totalDiscoveredItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">
-              {myInventoryOnly ? 'זוהו בחדרים שבבעלותך ↗' : 'זוהו ואומתו בסריקות המצאי ↗'}
+            <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">
+              {myInventoryOnly ? 'זוהו בחדרים שבבעלותך ↗' : 'זוהו ואומתו בסריקות ↗'}
             </div>
           </Link>
 
           <Link
             to="/"
-            className="bg-gray-900 border border-rose-900/30 hover:border-rose-500/50 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-rose-900/30 hover:border-rose-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר למרכז החריגות במבט על"
           >
-            <div className="flex items-center justify-between text-rose-300 group-hover:text-rose-200 text-xs transition-colors">
-              <span>{myInventoryOnly ? 'העברות ללא חתימה (חריגות שלך)' : 'העברות ללא חתימה (חריגות)'}</span>
-              <AlertOctagon className="w-4 h-4 text-rose-400" />
+            <div className="flex items-center justify-between text-rose-300 group-hover:text-rose-200 text-[11px] sm:text-xs transition-colors gap-1">
+              <span className="truncate">{myInventoryOnly ? 'העברות ללא חתימה' : 'העברות ללא חתימה'}</span>
+              <AlertOctagon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-rose-400 mt-2">
+            <div className="text-lg sm:text-2xl font-black text-rose-400 mt-1 sm:mt-2 tracking-tight leading-tight">
               {displayAnomalies.stats?.unauthorizedCount ?? 0}
             </div>
-            <div className="text-[11px] text-rose-300/70 mt-1">
-              {myInventoryOnly ? 'חריגות בחדריך או בציוד החתום על שמך ↗' : 'פריטים בחדר של בעל מצאי שאין לו חתימה ↗'}
+            <div className="text-[10px] sm:text-[11px] text-rose-300/70 mt-0.5 sm:mt-1 truncate">
+              {myInventoryOnly ? 'חריגות בחדריך/ציודך ↗' : 'ציוד ללא חתימה בחדר ↗'}
             </div>
           </Link>
 
           <Link
             to="/items"
-            className="bg-gray-900 border border-amber-900/30 hover:border-amber-500/50 rounded-2xl p-5 shadow-lg transition-all block group cursor-pointer"
+            className="bg-gray-900 border border-amber-900/30 hover:border-amber-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-5 shadow-md sm:shadow-lg transition-all block group cursor-pointer"
             title="מעבר לקטלוג הפריטים"
           >
-            <div className="flex items-center justify-between text-amber-300 group-hover:text-amber-200 text-xs transition-colors">
-              <span>{myInventoryOnly ? 'פער חסר מחתימותיך' : 'פער חסר מסך החתימות'}</span>
-              <ShieldCheck className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center justify-between text-amber-300 group-hover:text-amber-200 text-[11px] sm:text-xs transition-colors gap-1">
+              <span className="truncate">{myInventoryOnly ? 'פער חסר מחתימותיך' : 'פער חסר מסך החתימות'}</span>
+              <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
             </div>
-            <div className="text-2xl font-black text-amber-400 mt-2">
+            <div className="text-lg sm:text-2xl font-black text-amber-400 mt-1 sm:mt-2 tracking-tight leading-tight">
               {displayAnomalies.stats?.missingCount ?? 0}
             </div>
-            <div className="text-[11px] text-amber-300/70 mt-1">
-              {myInventoryOnly ? 'פריטים מחתימתך שטרם זוהו בסריקות ↗' : 'פריטים שעדיין לא נמצאו בשום סריקה ↗'}
+            <div className="text-[10px] sm:text-[11px] text-amber-300/70 mt-0.5 sm:mt-1 truncate">
+              {myInventoryOnly ? 'טרם זוהו בסריקות ↗' : 'טרם אותרו בסריקה ↗'}
             </div>
           </Link>
         </div>
