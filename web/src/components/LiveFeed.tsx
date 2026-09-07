@@ -94,12 +94,25 @@ const normalizeEvent = (ev: any): ScanEvent => {
   };
 };
 
-export const LiveFeed: React.FC = () => {
+export interface LiveFeedProps {
+  onlineScannersCount?: number;
+  onlineScanners?: Array<{ id: string; name: string; roomName?: string | null }>;
+}
+
+export const LiveFeed: React.FC<LiveFeedProps> = ({
+  onlineScannersCount: propOnlineCount,
+  onlineScanners: propOnlineScanners,
+}) => {
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit] = useState<number>(50);
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [internalOnlineCount, setInternalOnlineCount] = useState<number>(0);
+  const [internalOnlineScanners, setInternalOnlineScanners] = useState<any[]>([]);
+
+  const currentOnlineCount = propOnlineCount !== undefined ? propOnlineCount : internalOnlineCount;
+  const currentOnlineScanners = propOnlineScanners !== undefined ? propOnlineScanners : internalOnlineScanners;
 
   // Fetch past scans chronologically from server
   const fetchScans = useCallback(async (currentLimit: number) => {
@@ -148,6 +161,12 @@ export const LiveFeed: React.FC = () => {
           } else {
             fetchScans(limit);
           }
+        } else if (data.type === 'SCANNERS_ONLINE_CHANGED') {
+          setInternalOnlineCount(data.payload?.count || 0);
+          setInternalOnlineScanners(data.payload?.scanners || []);
+        } else if (data.type === 'CONNECTED' && data.payload?.onlineScannersCount !== undefined) {
+          setInternalOnlineCount(data.payload.onlineScannersCount);
+          setInternalOnlineScanners(data.payload.scanners || []);
         }
       } catch (err) {
         console.error('[LiveFeed] WS parse error:', err);
@@ -183,6 +202,31 @@ export const LiveFeed: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
+          {/* Online Scanners Indicator */}
+          <div 
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] sm:text-[11px] font-medium transition-all ${
+              currentOnlineCount > 0 
+                ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300' 
+                : 'bg-gray-800/60 border-gray-700/50 text-gray-400'
+            }`}
+            title={
+              currentOnlineScanners.length > 0 
+                ? `סורקים מחוברים כעת (${currentOnlineCount}):\n` +
+                  currentOnlineScanners.map(s => `• ${s.name || 'סורק'}${s.roomName ? ` (חדר: ${s.roomName})` : ''}`).join('\n')
+                : 'אין סורקים מחוברים כעת'
+            }
+          >
+            <span className="relative flex h-2 w-2">
+              {currentOnlineCount > 0 && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${currentOnlineCount > 0 ? 'bg-emerald-400' : 'bg-gray-500'}`}></span>
+            </span>
+            <span>
+              {currentOnlineCount} {currentOnlineCount === 1 ? 'סורק פעיל' : 'סורקים פעילים'}
+            </span>
+          </div>
+
           {/* Connection status */}
           <div 
             className="flex items-center gap-1 text-gray-400 bg-gray-800/60 px-2 py-0.5 rounded-full border border-gray-700/50"

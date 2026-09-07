@@ -26,13 +26,19 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
-import type { ScanObservation, ScanInvestigationData, Room } from '../types';
+import type { ScanObservation, ScanInvestigationData, Room, OnlineScannerInfo } from '../types';
 
 interface Props {
   rooms: Room[];
+  onlineScannersCount?: number;
+  onlineScanners?: OnlineScannerInfo[];
 }
 
-export const ScanManagement: React.FC<Props> = ({ rooms }) => {
+export const ScanManagement: React.FC<Props> = ({
+  rooms,
+  onlineScannersCount = 0,
+  onlineScanners = [],
+}) => {
   const [scans, setScans] = useState<ScanObservation[]>([]);
   const [scanners, setScanners] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -264,8 +270,18 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
             <span className="truncate">סורקים (Who)</span>
             <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-purple-400 mt-1 sm:mt-2">{metrics.uniqueScanners}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מבצעי סריקה</div>
+          <div className="flex items-baseline gap-2 mt-1 sm:mt-2">
+            <div className="text-xl sm:text-2xl font-black text-purple-400">{metrics.uniqueScanners}</div>
+            {onlineScannersCount > 0 && (
+              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {onlineScannersCount} אונליין
+              </span>
+            )}
+          </div>
+          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">
+            {onlineScannersCount > 0 ? `${onlineScannersCount} סורקים מחוברים כעת` : 'מבצעי סריקה'}
+          </div>
         </div>
 
         <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
@@ -339,11 +355,14 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
                 className="w-full bg-gray-950 border border-gray-800 rounded-xl pr-9 pl-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-emerald-500 appearance-none"
               >
                 <option value="all">כל הסורקים ({scanners.length})</option>
-                {scanners.map((scanner) => (
-                  <option key={scanner} value={scanner}>
-                    {scanner}
-                  </option>
-                ))}
+                {scanners.map((scanner) => {
+                  const isOnline = onlineScanners.some((s) => s.name === scanner);
+                  return (
+                    <option key={scanner} value={scanner}>
+                      {scanner} {isOnline ? '🟢 (אונליין כעת)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>

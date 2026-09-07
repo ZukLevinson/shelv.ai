@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import type { Room, OfficialItem, AnomalyReport, InventoryHolder } from './types';
+import type { Room, OfficialItem, AnomalyReport, InventoryHolder, OnlineScannerInfo } from './types';
 import { RoomGrid } from './components/RoomGrid';
 import { AnomaliesCenter } from './components/AnomaliesCenter';
 import { LiveFeed } from './components/LiveFeed';
@@ -44,6 +44,8 @@ function AppContent() {
   const [anomalies, setAnomalies] = useState<AnomalyReport | null>(null);
   const [mashaList, setMashaList] = useState<any[]>([]);
   const [holders, setHolders] = useState<InventoryHolder[]>([]);
+  const [onlineScannersCount, setOnlineScannersCount] = useState<number>(0);
+  const [onlineScanners, setOnlineScanners] = useState<OnlineScannerInfo[]>([]);
   const [isUploadModalOpen, setUploadModalOpen] = useState(false);
   const [isRoomModalOpen, setRoomModalOpen] = useState(false);
   const [isActionHistoryOpen, setActionHistoryOpen] = useState(false);
@@ -56,18 +58,23 @@ function AppContent() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [roomsRes, itemsRes, anomaliesRes, mashaRes, holdersRes] = await Promise.all([
+      const [roomsRes, itemsRes, anomaliesRes, mashaRes, holdersRes, onlineRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/inventory/rooms`),
         axios.get(`${API_BASE_URL}/api/inventory/items`),
         axios.get(`${API_BASE_URL}/api/anomalies`),
         axios.get(`${API_BASE_URL}/api/inventory/masha-registry`),
         axios.get(`${API_BASE_URL}/api/inventory/holders`),
+        axios.get(`${API_BASE_URL}/api/sweep/scanners/online`).catch(() => ({ data: { count: 0, scanners: [] } })),
       ]);
       setRooms(roomsRes.data);
       setItems(itemsRes.data);
       setAnomalies(anomaliesRes.data);
       setMashaList(mashaRes.data);
       setHolders(holdersRes.data);
+      if (onlineRes?.data) {
+        setOnlineScannersCount(onlineRes.data.count || 0);
+        setOnlineScanners(onlineRes.data.scanners || []);
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -86,6 +93,12 @@ function AppContent() {
         const data = JSON.parse(message.data);
         if (data.type === 'ANOMALIES_UPDATED') {
           setAnomalies(data.payload);
+        } else if (data.type === 'SCANNERS_ONLINE_CHANGED') {
+          setOnlineScannersCount(data.payload?.count || 0);
+          setOnlineScanners(data.payload?.scanners || []);
+        } else if (data.type === 'CONNECTED' && data.payload?.onlineScannersCount !== undefined) {
+          setOnlineScannersCount(data.payload.onlineScannersCount);
+          setOnlineScanners(data.payload.scanners || []);
         } else if (data.type === 'ACTION_LOGGED') {
           setUndoToast({
             actionId: data.payload.id,
@@ -308,17 +321,63 @@ function AppContent() {
               <span>{exporting ? 'מייצא...' : 'ייצוא לאקסל'}</span>
             </button>
 
-            {/* Public Scanner shortcut */}
-            <a
-              href="/scanner/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all"
-              title="פתח סורק נייד בסמארטפון או בדפדפן"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-              <span>סורק נייד</span>
-            </a>
+            {/* Public Scanner shortcut with live online scanners indication */}
+            <div className="relative group">
+              <a
+                href="/scanner/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all shadow-sm"
+                title="פתח סורק נייד בסמארטפון או בדפדפן"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                <span>סורק נייד</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all ${
+                    onlineScannersCount > 0
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                      : 'bg-gray-800/80 text-gray-400 border-gray-700'
+                  }`}
+                >
+                  <span className="relative flex h-2 w-2">
+                    {onlineScannersCount > 0 && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    )}
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                        onlineScannersCount > 0 ? 'bg-emerald-400' : 'bg-gray-500'
+                      }`}
+                    ></span>
+                  </span>
+                  <span>
+                    {onlineScannersCount} {onlineScannersCount === 1 ? 'מחובר' : 'מחוברים'}
+                  </span>
+                </span>
+              </a>
+
+              {/* Tooltip dropdown on hover if scanners are online */}
+              {onlineScanners.length > 0 && (
+                <div className="absolute left-0 top-full mt-1.5 hidden group-hover:block z-50 min-w-[210px] p-2.5 bg-gray-900/95 border border-gray-700/80 rounded-xl shadow-2xl text-xs backdrop-blur-md">
+                  <div className="font-semibold text-gray-200 mb-1.5 pb-1 border-b border-gray-800 flex items-center justify-between">
+                    <span>סורקים מחוברים כעת ({onlineScanners.length})</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {onlineScanners.map((s) => (
+                      <div key={s.id} className="flex flex-col text-[11px] bg-gray-950/70 p-1.5 rounded-lg border border-gray-800/80">
+                        <div className="flex items-center justify-between text-white font-medium">
+                          <span>{s.name || 'סורק'}</span>
+                          <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/30">אונליין</span>
+                        </div>
+                        {s.roomName && (
+                          <span className="text-gray-400 text-[10px] mt-0.5">חדר: {s.roomName}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User Profile Badge & Logout (Desktop) */}
             <div className="hidden xl:flex items-center gap-2 bg-gray-900 border border-gray-800 py-1 px-2.5 rounded-xl text-xs">
@@ -453,7 +512,7 @@ function AppContent() {
               <RoomGrid rooms={displayRooms} onManageRooms={() => setRoomModalOpen(true)} />
             </div>
             <div>
-              <LiveFeed />
+              <LiveFeed onlineScannersCount={onlineScannersCount} onlineScanners={onlineScanners} />
             </div>
           </div>
 
@@ -463,7 +522,7 @@ function AppContent() {
 
       {/* Tab: Scan Management & Investigation */}
       {activeView === 'scans' && (
-        <ScanManagement rooms={rooms} />
+        <ScanManagement rooms={rooms} onlineScannersCount={onlineScannersCount} onlineScanners={onlineScanners} />
       )}
 
       {/* Tab: Holders Management */}
