@@ -72,15 +72,12 @@ export const LoginScreen: React.FC = () => {
       <div className="w-full max-w-md bg-gray-900/90 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-2xl shadow-xl shadow-emerald-500/20 text-white font-black text-3xl">
-            S
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-xl sm:text-2xl font-black tracking-tight text-white">shelv.ai</span>
+            <VersionBadge variant="compact" />
           </div>
           <div>
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-white">shelv.ai</span>
-              <VersionBadge variant="compact" />
-            </div>
-            <h1 className="text-base sm:text-lg font-bold text-emerald-400 mt-1">
+            <h1 className="text-base sm:text-lg font-bold text-emerald-400">
               התחברות למערכת
             </h1>
             <p className="text-xs text-gray-400 mt-1">

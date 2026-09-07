@@ -310,13 +310,7 @@ function AppContent() {
         {/* Tier 1: Brand, Context & User Profile */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <Link
-              to="/"
-              className="p-2 sm:p-2.5 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 text-white font-black text-lg sm:text-xl shrink-0 hover:opacity-90 transition-opacity"
-              title="חזור למבט על"
-            >
-              S
-            </Link>
+
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <Link
@@ -395,14 +389,15 @@ function AppContent() {
         </div>
 
         {/* Tier 2: Page Navigation and Action Buttons Toolbar */}
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2.5 pt-1 border-t border-gray-800/50">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-2.5 pt-1.5 border-t border-gray-800/50">
           {/* Navigation View Switcher (Page buttons) */}
-          <div className="flex items-center gap-1 bg-gray-900/90 border border-gray-800/80 p-1 rounded-xl overflow-x-auto scrollbar-none max-w-full shrink-0">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 bg-gray-900/90 border border-gray-800/80 p-1 rounded-xl w-full xl:w-auto shrink-0">
             <NavLink
               to="/"
               end
+              title="מבט על וחריגות"
               className={({ isActive }) =>
-                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                `h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-medium rounded-lg border transition-all select-none text-center ${
                   isActive
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
@@ -410,13 +405,14 @@ function AppContent() {
               }
             >
               <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
-              <span>מבט על וחריגות</span>
+              <span className="truncate">מבט על</span>
             </NavLink>
 
             <NavLink
               to="/scans"
+              title="ניהול ותחקור סריקות"
               className={({ isActive }) =>
-                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                `h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-medium rounded-lg border transition-all select-none text-center ${
                   isActive
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
@@ -424,13 +420,14 @@ function AppContent() {
               }
             >
               <ClipboardList className="w-3.5 h-3.5 shrink-0" />
-              <span>ניהול ותחקור סריקות</span>
+              <span className="truncate">סריקות</span>
             </NavLink>
 
             <NavLink
               to="/holders"
+              title="בעלי מצאי"
               className={({ isActive }) =>
-                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                `h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-medium rounded-lg border transition-all select-none text-center ${
                   isActive
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
@@ -438,16 +435,17 @@ function AppContent() {
               }
             >
               <Users className="w-3.5 h-3.5 shrink-0" />
-              <span>בעלי מצאי</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50">
+              <span className="truncate">בעלי מצאי</span>
+              <span className="px-1 py-0.2 rounded text-[9px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50 shrink-0">
                 {holders.length}
               </span>
             </NavLink>
 
             <NavLink
               to="/masha-registry"
+              title="הגדרת מסחאות"
               className={({ isActive }) =>
-                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                `h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-medium rounded-lg border transition-all select-none text-center ${
                   isActive
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
@@ -455,16 +453,17 @@ function AppContent() {
               }
             >
               <Tag className="w-3.5 h-3.5 shrink-0" />
-              <span>הגדרת מסחאות</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50">
+              <span className="truncate">מסחאות</span>
+              <span className="px-1 py-0.2 rounded text-[9px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50 shrink-0">
                 {mashaList.length}
               </span>
             </NavLink>
 
             <NavLink
               to="/items"
+              title="קטלוג פריטים"
               className={({ isActive }) =>
-                `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                `h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-medium rounded-lg border transition-all select-none text-center ${
                   isActive
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-sm shadow-emerald-950/40 font-semibold'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 border-transparent hover:border-gray-800'
@@ -472,8 +471,8 @@ function AppContent() {
               }
             >
               <Package className="w-3.5 h-3.5 shrink-0" />
-              <span>קטלוג פריטים</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50">
+              <span className="truncate">קטלוג</span>
+              <span className="px-1 py-0.2 rounded text-[9px] font-mono leading-none bg-black/40 text-gray-300 border border-gray-700/50 shrink-0">
                 {displayItems.length}
               </span>
             </NavLink>
@@ -482,8 +481,9 @@ function AppContent() {
             {isManager && (
               <NavLink
                 to="/users"
+                title="ניהול משתמשים"
                 className={({ isActive }) =>
-                  `h-9 shrink-0 flex items-center gap-2 px-3 text-xs font-medium rounded-lg border transition-all select-none ${
+                  `h-8 flex items-center justify-center gap-1.5 px-2 text-xs font-medium rounded-lg border transition-all select-none text-center ${
                     isActive
                       ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm shadow-purple-950/40 font-semibold'
                       : 'text-purple-400/80 hover:text-purple-300 hover:bg-purple-950/30 border-transparent hover:border-purple-800/40'
@@ -491,23 +491,23 @@ function AppContent() {
                 }
               >
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                <span>ניהול משתמשים</span>
+                <span className="truncate">משתמשים</span>
               </NavLink>
             )}
           </div>
 
           {/* Action Toolbar (Export and so on action buttons) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none py-0.5 max-w-full">
+          <div className="flex items-center gap-1 sm:gap-1.5 py-0.5 overflow-x-auto sm:overflow-visible scrollbar-none max-w-full">
             {/* Export to Excel */}
             <button
               type="button"
               onClick={handleExportExcel}
               disabled={exporting}
-              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              className="h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 rounded-lg transition-all shadow-sm cursor-pointer disabled:opacity-50"
               title="ייצוא כלל הנתונים לקובץ אקסל (סריקות, מצאי רשמי מתוקנן ודגלי חריגות)"
             >
               <FileSpreadsheet className={'w-3.5 h-3.5 text-emerald-400 shrink-0 ' + (exporting ? 'animate-pulse' : '')} />
-              <span>{exporting ? 'מייצא...' : 'ייצוא לאקסל'}</span>
+              <span>{exporting ? 'מייצא...' : 'ייצוא'}</span>
             </button>
 
             {/* Excel Upload - Manager only */}
@@ -515,11 +515,11 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setUploadModalOpen(true)}
-                className="h-9 shrink-0 flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-emerald-100 bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-600 border border-emerald-500 rounded-xl shadow-sm shadow-emerald-950/40 transition-all cursor-pointer"
+                className="h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-semibold text-emerald-100 bg-emerald-600/90 hover:bg-emerald-500 active:bg-emerald-600 border border-emerald-500 rounded-lg shadow-sm shadow-emerald-950/40 transition-all cursor-pointer"
                 title="ייבוא קובץ אקסל חתימות מצאי"
               >
                 <Upload className="w-3.5 h-3.5 shrink-0" />
-                <span>ייבוא אקסל</span>
+                <span>ייבוא</span>
               </button>
             )}
 
@@ -537,7 +537,7 @@ function AppContent() {
                   ? (myInventoryOnly ? 'הצג את כלל ציוד הארגון (בטל סינון)' : 'סנן לציוד שלי בלבד')
                   : 'סינון מושבת: המשתמש אינו משויך לבעל מצאי'
               }
-              className={`h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium rounded-xl border transition-all ${
+              className={`h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-medium rounded-lg border transition-all ${
                 !hasCorrespondentOwner
                   ? 'bg-gray-900/40 text-gray-600 border-gray-800/60 cursor-not-allowed opacity-50'
                   : myInventoryOnly
@@ -546,7 +546,7 @@ function AppContent() {
               }`}
             >
               <Filter className={`w-3.5 h-3.5 shrink-0 ${myInventoryOnly ? 'text-teal-400' : hasCorrespondentOwner ? 'text-gray-400' : 'text-gray-600'}`} />
-              <span>{myInventoryOnly ? 'מציג ציוד שלי' : 'ציוד שלי בלבד'}</span>
+              <span>{myInventoryOnly ? 'מציג שלי' : 'ציוד שלי'}</span>
               {hasCorrespondentOwner && myInventoryOnly && (
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
               )}
@@ -556,22 +556,22 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setRoomModalOpen(true)}
-              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/25 border border-indigo-500/30 rounded-xl transition-all cursor-pointer shadow-sm"
+              className="h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-medium text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 active:bg-indigo-500/25 border border-indigo-500/30 rounded-lg transition-all cursor-pointer shadow-sm"
               title="ניהול חדרים, שיוך בעלי מצאי והגדרות"
             >
               <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-              <span>ניהול חדרים</span>
+              <span>חדרים</span>
             </button>
 
             {/* Action History / Undo */}
             <button
               type="button"
               onClick={() => setActionHistoryOpen(true)}
-              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 active:bg-amber-500/25 border border-amber-500/30 rounded-xl transition-all cursor-pointer shadow-sm"
+              className="h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 active:bg-amber-500/25 border border-amber-500/30 rounded-lg transition-all cursor-pointer shadow-sm"
               title="צפה בהיסטוריית כל הפעולות ובטל פעולות קודמות"
             >
               <RotateCcw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>היסטוריית ביטולים</span>
+              <span>ביטולים</span>
             </button>
 
             {/* Refresh Data */}
@@ -579,7 +579,7 @@ function AppContent() {
               type="button"
               onClick={fetchData}
               disabled={loading}
-              className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-xl transition-all cursor-pointer"
+              className="h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-lg transition-all cursor-pointer"
               title="רענן נתוני מערכת"
             >
               <RefreshCw className={'w-3.5 h-3.5 text-gray-400 shrink-0 ' + (loading ? 'animate-spin' : '')} />
@@ -592,11 +592,11 @@ function AppContent() {
                 href="/scanner/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="h-9 shrink-0 flex items-center justify-center gap-2 px-3 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all shadow-sm"
+                className="h-8 shrink-0 flex items-center justify-center gap-1.5 px-2.5 text-xs font-medium text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg transition-all shadow-sm"
                 title="פתח סורק נייד בסמארטפון או בדפדפן"
               >
                 <Smartphone className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span>סורק נייד</span>
+                <span>סורק</span>
                 <span
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border leading-none transition-all ${
                     onlineScannersCount > 0
@@ -662,14 +662,6 @@ function AppContent() {
 
           <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
             <button
-              disabled
-              title="סינון לציוד שלי מושבת: טרם שויך בעל מצאי לחשבון זה"
-              className="px-2.5 py-1.5 bg-gray-900/60 text-gray-500 border border-gray-800/80 rounded-xl font-medium cursor-not-allowed opacity-60 text-[11px] flex items-center gap-1.5"
-            >
-              <Filter className="w-3 h-3 text-gray-600" />
-              <span>סנן לציוד שלי (מושבת)</span>
-            </button>
-            <button
               onClick={() => setIsEditPNModalOpen(true)}
               className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer text-xs"
             >
@@ -697,19 +689,6 @@ function AppContent() {
               <Edit2 className="w-3 h-3" />
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setMyInventoryOnly(!myInventoryOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-              myInventoryOnly
-                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10'
-                : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'
-            }`}
-          >
-            <Filter className="w-3.5 h-3.5" />
-            <span>{myInventoryOnly ? 'מציג: הציוד והחדרים שלי' : 'סנן לציוד שלי בלבד'}</span>
-          </button>
         </div>
       )}
 
