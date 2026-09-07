@@ -1,0 +1,50 @@
+{
+  "version": 3,
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "eb6a23305aea6e340d14b9de3766e721f9f4861b",
+      "installedAt": "2026-06-27T11:24:42.578Z",
+      "updatedAt": "2026-06-27T11:24:42.578Z"
+    },
+    "react-refactor": {
+      "source": "pproenca/dot-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/pproenca/dot-skills.git",
+      "skillPath": "skills/.experimental/react-refactor/SKILL.md",
+      "skillFolderHash": "0c199e9daf9c69f88cda49b11abec82106f59829",
+      "installedAt": "2026-09-07T13:22:44.259Z",
+      "updatedAt": "2026-09-07T13:22:44.259Z"
+    },
+    "senior-frontend": {
+      "source": "alirezarezvani/claude-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/alirezarezvani/claude-skills.git",
+      "skillPath": "engineering-team/skills/senior-frontend/SKILL.md",
+      "skillFolderHash": "f5a2f2aa55e1c16776b2290f511cc493e9b8a20c",
+      "installedAt": "2026-09-07T13:22:55.248Z",
+      "updatedAt": "2026-09-07T13:22:55.248Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "antigravity",
+    "antigravity-cli",
+    "cline",
+    "codex",
+    "cursor",
+    "deepagents",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-code-cli",
+    "opencode",
+    "warp",
+    "zed"
+  ]
+}
