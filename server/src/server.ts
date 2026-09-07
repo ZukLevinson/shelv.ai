@@ -1,3 +1,29 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Automatically load .env if present in current working directory, server root, or repo root
+const envCandidatePaths = [
+  path.join(process.cwd(), '.env'),
+  path.join(__dirname, '../.env'),
+  path.join(__dirname, '../../.env'),
+];
+for (const envPath of envCandidatePaths) {
+  if (fs.existsSync(envPath)) {
+    try {
+      if (typeof process.loadEnvFile === 'function') {
+        process.loadEnvFile(envPath);
+        console.log(`[Env] Loaded environment from ${envPath}`);
+      }
+    } catch (e) {
+      console.warn(`[Env] Note: Could not load ${envPath}:`, e);
+    }
+  }
+}
+
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
