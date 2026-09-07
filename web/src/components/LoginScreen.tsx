@@ -89,17 +89,17 @@ export const LoginScreen: React.FC = () => {
         <div className="bg-gray-950/60 border border-gray-800/80 rounded-2xl p-3.5 space-y-2 text-xs">
           <div className="font-semibold text-gray-300 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>הרשאות ותפקידים במערכת:</span>
+            <span>הרשאות במערכת:</span>
           </div>
           <ul className="space-y-1.5 text-[11px] text-gray-400 pr-4 list-disc">
             <li>
-              <strong className="text-emerald-300 font-medium">מנהל מערכת (Manager):</strong> ביצוע פעולות על פריטים, אישור העברות, הוספה ומחיקה בלעדית של בעלי מצאי.
+              <strong className="text-emerald-300 font-medium">הרשאת עריכה מלאה (Full Access):</strong> ביצוע פעולות על פריטים, אישור העברות, הוספה ועריכה של בעלי מצאי.
             </li>
             <li>
               <strong className="text-blue-300 font-medium">בעל מצאי (Inventory Owner):</strong> שיוך לפרופיל בעל מצאי קיים, צפייה בציוד ובחדרים המשויכים.
             </li>
             <li>
-              <strong className="text-cyan-300 font-medium">סורק (Scanner):</strong> גישה ציבורית חופשית ישירה ללא התחברות.
+              <strong className="text-cyan-300 font-medium">סריקה (Scanner):</strong> גישה ציבורית ישירה ללא התחברות.
             </li>
           </ul>
         </div>
@@ -149,7 +149,7 @@ export const LoginScreen: React.FC = () => {
               className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-xl shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>כניסה כמנהל</span>
+              <span>כניסה בהרשאת עריכה</span>
             </button>
 
             <button

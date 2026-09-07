@@ -197,7 +197,7 @@ export const HoldersManagement: React.FC<Props> = ({
                 </button>
               ) : (
                 <span className="text-[11px] text-gray-500 bg-gray-950 px-2.5 py-1.5 rounded-xl border border-gray-800">
-                  הוספת בעלי מצאי מורשית למנהל בלבד
+                  הוספת בעלי מצאי מורשית בהרשאת עריכה בלבד
                 </span>
               )}
             </div>

@@ -54,15 +54,16 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
     setActionMessage(null);
     try {
       await axios.put(`${API_BASE_URL}/api/users/${userId}/role`, { role: newRole });
-      setActionMessage({ type: 'success', text: 'תפקיד המשתמש עודכן בהצלחה' });
+      setActionMessage({ type: 'success', text: 'הרשאת המשתמש עודכנה בהצלחה' });
       await fetchUsers();
       if (userId === currentUser?.id) {
         await refreshUser();
       }
     } catch (err: any) {
+      console.error('[UserManagement] Error changing role:', err);
       setActionMessage({
         type: 'error',
-        text: err.response?.data?.error || 'שגיאה בעדכון תפקיד המשתמש',
+        text: err.response?.data?.error || 'שגיאה בעדכון הרשאת המשתמש',
       });
     } finally {
       setUpdatingUserId(null);

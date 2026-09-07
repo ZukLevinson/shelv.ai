@@ -288,7 +288,7 @@ function AppContent() {
                   <span className="font-semibold text-white max-w-[120px] truncate">{user?.name}</span>
                   {isManager ? (
                     <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 text-[9px] font-bold rounded border border-purple-500/40">
-                      מנהל
+                      הרשאת עריכה
                     </span>
                   ) : (
                     <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 text-[9px] font-bold rounded border border-blue-500/40">
@@ -324,7 +324,7 @@ function AppContent() {
             <div>
               <strong className="font-semibold text-amber-100">חשבונך מוגדר כבעל מצאי אך טרם שויך לפרופיל בעל מצאי במערכת.</strong>
               <p className="text-amber-300/80 text-[11px] mt-0.5">
-                פנה למנהל המערכת על מנת לקשר את חשבון ה-Google שלך לפרופיל בעל המצאי שלך, או לבצע שיוך דרך טבלת המשתמשים.
+                ניתן לפנות לבעלי הרשאת עריכה על מנת לקשר את חשבון ה-Google לפרופיל בעל המצאי, או לבצע שיוך דרך טבלת המשתמשים.
               </p>
             </div>
           </div>
@@ -375,7 +375,7 @@ function AppContent() {
             <div className="text-2xl font-black text-emerald-400 mt-2">
               {anomalies.stats?.totalDiscoveredItems ?? (anomalies.stats as any)?.totalSweptItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות העובדים</div>
+            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות המצאי</div>
           </div>
 
           <div className="bg-gray-900 border border-rose-900/30 rounded-2xl p-5 shadow-lg">
