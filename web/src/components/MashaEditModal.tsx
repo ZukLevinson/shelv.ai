@@ -11,13 +11,20 @@ interface Props {
 }
 
 export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, onSaved }) => {
-  if (!isOpen || !mashaItem) return null;
-
   const [category, setCategory] = useState(
-    mashaItem.category === 'PC' ? 'Regular Workstation' : (mashaItem.category || 'Regular Workstation')
+    mashaItem?.category === 'PC' ? 'Regular Workstation' : (mashaItem?.category || 'Regular Workstation')
   );
-  const [description, setDescription] = useState(mashaItem.description || '');
+  const [description, setDescription] = useState(mashaItem?.description || '');
   const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (mashaItem) {
+      setCategory(mashaItem.category === 'PC' ? 'Regular Workstation' : (mashaItem.category || 'Regular Workstation'));
+      setDescription(mashaItem.description || '');
+    }
+  }, [mashaItem]);
+
+  if (!isOpen || !mashaItem) return null;
 
   const handleSave = async () => {
     setSaving(true);

@@ -11,6 +11,8 @@ interface OverviewPageProps {
   onlineScanners: OnlineScannerInfo[];
   onManageRooms: () => void;
   onRefresh: () => void;
+  filterHolderId?: string;
+  filterHolderName?: string;
 }
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({
@@ -20,6 +22,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   onlineScanners,
   onManageRooms,
   onRefresh,
+  filterHolderId,
+  filterHolderName,
 }) => {
   return (
     <div className="space-y-6">
@@ -28,7 +32,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
           <RoomGrid rooms={rooms} onManageRooms={onManageRooms} />
         </div>
         <div>
-          <LiveFeed onlineScannersCount={onlineScannersCount} onlineScanners={onlineScanners} />
+          <LiveFeed
+            onlineScannersCount={onlineScannersCount}
+            onlineScanners={onlineScanners}
+            filterHolderId={filterHolderId}
+            filterHolderName={filterHolderName}
+          />
         </div>
       </div>
 

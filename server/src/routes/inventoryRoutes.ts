@@ -364,6 +364,7 @@ inventoryRouter.get('/items', (req, res) => {
       r.id as room_id,
       r.name as room_name,
       r.code as room_code,
+      h.id as holder_id,
       h.name as holder_name,
       COALESCE(o.scanned_at, i.created_at) as last_seen_at,
       COALESCE(o.scanned_by, 'מערכת') as last_scanned_by,
@@ -417,7 +418,8 @@ inventoryRouter.get('/items', (req, res) => {
       SELECT i.serial_number, i.masha, 
              COALESCE(m.description, i.description) as description,
              COALESCE(m.category, i.category, 'Regular Workstation') as category,
-             r.id as room_id, r.name as room_name, r.code as room_code, h.name as holder_name,
+             r.id as room_id, r.name as room_name, r.code as room_code, 
+             h.id as holder_id, h.name as holder_name,
              i.created_at as last_seen_at, 'בסיס נתונים' as last_scanned_by, NULL as sticker_owner_text,
              i.import_id, e.filename as import_filename
       FROM official_inventory i

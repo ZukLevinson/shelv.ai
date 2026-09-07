@@ -62,6 +62,7 @@ export interface OfficialItem {
   current_room_id: string;
   room_name: string;
   room_code: string;
+  holder_id?: string | null;
   holder_name: string;
   last_seen_at: string;
   last_scanned_by: string;

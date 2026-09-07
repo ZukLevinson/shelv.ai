@@ -77,7 +77,7 @@ export interface AnomalyReport {
   };
 }
 
-export function detectAnomalies(): AnomalyReport {
+export function detectAnomalies(targetHolderId?: string): AnomalyReport {
   const latestScansQuery = `
     SELECT o.*, 
            r.name as scanned_room_name, 
@@ -382,22 +382,55 @@ export function detectAnomalies(): AnomalyReport {
 
   quotaDiscrepancies.sort((a, b) => a.holderName.localeCompare(b.holderName, 'he'));
 
-  const totalMissingQuotas = quotaDiscrepancies.reduce((sum, q) => sum + Math.abs(q.difference), 0);
+  let finalUnauthorized = unauthorizedTransfers;
+  let finalQuotaDiscrepancies = quotaDiscrepancies;
+  let finalDiscoveredDistribution = discoveredDistribution;
+  let finalInternalMoves = internalMoves;
+  let finalMissingItems = missingItems;
+
+  let totalExpected = officialItems.length;
+  let totalDiscovered = latestScans.length;
+
+  if (targetHolderId) {
+    finalUnauthorized = unauthorizedTransfers.filter(
+      (item) => item.scannedHolderId === targetHolderId ||
+                item.supposedHolderId === targetHolderId ||
+                item.officialHolderId === targetHolderId ||
+                item.scannedRoomHolderId === targetHolderId
+    );
+    finalQuotaDiscrepancies = quotaDiscrepancies.filter(
+      (d) => d.holderId === targetHolderId
+    );
+    finalDiscoveredDistribution = discoveredDistribution.filter(
+      (dist) => dist.holderId === targetHolderId
+    );
+    finalInternalMoves = internalMoves.filter(
+      (m) => m.holderId === targetHolderId
+    );
+    finalMissingItems = missingItems.filter(
+      (m) => m.officialHolderId === targetHolderId
+    );
+
+    totalExpected = officialItems.filter((i) => i.official_holder_id === targetHolderId).length;
+    totalDiscovered = latestScans.filter((s) => s.scanned_room_holder_id === targetHolderId).length;
+  }
+
+  const totalMissingQuotas = finalQuotaDiscrepancies.reduce((sum, q) => sum + Math.abs(q.difference), 0);
 
   return {
-    unauthorizedTransfers,
-    quotaDiscrepancies,
-    discoveredDistribution,
-    internalMoves,
-    missingItems,
+    unauthorizedTransfers: finalUnauthorized,
+    quotaDiscrepancies: finalQuotaDiscrepancies,
+    discoveredDistribution: finalDiscoveredDistribution,
+    internalMoves: finalInternalMoves,
+    missingItems: finalMissingItems,
     stats: {
-      totalExpectedItems: officialItems.length,
-      totalDiscoveredItems: latestScans.length,
-      unauthorizedCount: unauthorizedTransfers.length,
-      missingCount: Math.max(totalMissingQuotas, missingItems.length),
-      totalOfficialItems: officialItems.length,
-      totalSweptItems: latestScans.length,
-      internalMovesCount: internalMoves.length,
+      totalExpectedItems: totalExpected,
+      totalDiscoveredItems: totalDiscovered,
+      unauthorizedCount: finalUnauthorized.length,
+      missingCount: Math.max(totalMissingQuotas, finalMissingItems.length),
+      totalOfficialItems: totalExpected,
+      totalSweptItems: totalDiscovered,
+      internalMovesCount: finalInternalMoves.length,
     },
   };
 }

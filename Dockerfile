@@ -34,6 +34,8 @@ ENV APP_VERSION=$APP_VERSION
 WORKDIR /app/mobile
 COPY mobile/package.json mobile/pnpm-lock.yaml mobile/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
+COPY scripts/ /app/scripts/
+COPY package.json /app/package.json
 COPY mobile/ ./
 RUN pnpm run build:web
 

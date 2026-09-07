@@ -166,6 +166,7 @@ export const getFullVersionSummary = (): string => {
 export default VERSION_INFO;
 `;
   fs.writeFileSync(targetPath, content, 'utf8');
+  console.log('✓ Generated mobile/src/version.ts');
 }
 
 if (require.main === module) {
@@ -173,7 +174,6 @@ if (require.main === module) {
   const arg = process.argv[2];
   if (arg === '--write-mobile') {
     writeMobileVersionFile();
-    console.log('✓ Generated mobile/src/version.ts');
   } else if (arg && info[arg] !== undefined) {
     process.stdout.write(info[arg]);
   } else {

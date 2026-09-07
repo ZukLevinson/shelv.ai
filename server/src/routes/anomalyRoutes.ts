@@ -9,7 +9,8 @@ export const anomalyRouter = Router();
 
 anomalyRouter.get('/', (req, res) => {
   try {
-    const report = detectAnomalies();
+    const holderId = req.query.holderId ? String(req.query.holderId).trim() : undefined;
+    const report = detectAnomalies(holderId);
     res.json(report);
   } catch (error: any) {
     console.error('[Anomaly API] Error generating report:', error);

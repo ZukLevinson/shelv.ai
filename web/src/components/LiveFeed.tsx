@@ -97,11 +97,15 @@ const normalizeEvent = (ev: any): ScanEvent => {
 export interface LiveFeedProps {
   onlineScannersCount?: number;
   onlineScanners?: Array<{ id: string; name: string; roomName?: string | null }>;
+  filterHolderId?: string;
+  filterHolderName?: string;
 }
 
 export const LiveFeed: React.FC<LiveFeedProps> = ({
   onlineScannersCount: propOnlineCount,
   onlineScanners: propOnlineScanners,
+  filterHolderId,
+  filterHolderName,
 }) => {
   const [events, setEvents] = useState<ScanEvent[]>([]);
   const [connected, setConnected] = useState(false);
@@ -185,9 +189,22 @@ export const LiveFeed: React.FC<LiveFeedProps> = ({
     });
   }, [events, sortOrder]);
 
+  const displayEvents = useMemo(() => {
+    if (!filterHolderId && !filterHolderName) return sortedEvents;
+    return sortedEvents.filter((ev) => {
+      const roomHolderMatch = (filterHolderId && ev.scannedRoom?.holder_id === filterHolderId) ||
+        (filterHolderName && ev.scannedRoom?.holder_name === filterHolderName);
+      const itemHolderMatch = (filterHolderId && ev.officialItem?.official_holder_id === filterHolderId) ||
+        (filterHolderName && ev.officialItem?.official_holder_name === filterHolderName);
+      return Boolean(roomHolderMatch || itemHolderMatch);
+    });
+  }, [sortedEvents, filterHolderId, filterHolderName]);
+
   const toggleSortOrder = () => {
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
+
+  const isFiltered = Boolean(filterHolderId || filterHolderName);
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-lg sm:shadow-xl">
@@ -195,10 +212,17 @@ export const LiveFeed: React.FC<LiveFeedProps> = ({
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 sm:gap-2">
           <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
-          <h3 className="font-bold text-white text-xs sm:text-base">זרם סריקות חי (Live Feed)</h3>
+          <h3 className="font-bold text-white text-xs sm:text-base">
+            זרם סריקות חי (Live Feed)
+          </h3>
           <span className="text-[10px] sm:text-xs text-gray-400 font-normal">
-            ({sortedEvents.length})
+            ({displayEvents.length})
           </span>
+          {isFiltered && (
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
+              חדריך בלבד
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
@@ -285,12 +309,14 @@ export const LiveFeed: React.FC<LiveFeedProps> = ({
             <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
             <span>טוען סריקות אחרונות...</span>
           </div>
-        ) : sortedEvents.length === 0 ? (
+        ) : displayEvents.length === 0 ? (
           <div className="text-[11px] sm:text-xs text-gray-500 py-6 text-center">
-            אין סריקות להצגה. ממתין לסריקות ראשונות מהאפליקציה...
+            {isFiltered
+              ? 'אין סריקות להצגה עבור החדרים או הציוד המשויכים אליך.'
+              : 'אין סריקות להצגה. ממתין לסריקות ראשונות מהאפליקציה...'}
           </div>
         ) : (
-          sortedEvents.map((ev) => {
+          displayEvents.map((ev) => {
             const isMismatch = ev.scanStatus === 'mismatch' || (
               Boolean(ev.officialItem?.official_holder_id) &&
               Boolean(ev.scannedRoom?.holder_id) &&

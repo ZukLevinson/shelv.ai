@@ -26,7 +26,7 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
-import { fetchRooms, submitScan, revertScan, revertAction, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo } from './src/services/api';
+import { fetchRooms, submitScan, revertScan, revertAction, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo, UserProfile, fetchCurrentAuthUser, getDashboardUrl } from './src/services/api';
 import { ScannerPresenceManager } from './src/services/scannerPresence';
 import { MobileVersionBadge } from './src/components/MobileVersionBadge';
 
@@ -51,6 +51,10 @@ export default function App() {
   const [sweeperName, setSweeperName] = useState('סורק');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Authentication & Permission state
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Presence & Online status
   const [isServerConnected, setIsServerConnected] = useState(false);
@@ -143,6 +147,7 @@ export default function App() {
 
   useEffect(() => {
     loadRooms();
+    loadAuthUser();
 
     const manager = new ScannerPresenceManager({
       getScannerName: () => sweeperNameRef.current,
@@ -180,6 +185,102 @@ export default function App() {
       stopLiveCamera();
     };
   }, [currentStep, cameraActive, facingMode]);
+
+  const loadAuthUser = async () => {
+    try {
+      setAuthLoading(true);
+      const user = await fetchCurrentAuthUser();
+      setCurrentUser(user);
+      if (user?.name && sweeperNameRef.current === 'סורק') {
+        setSweeperName(user.name);
+      }
+    } catch (e) {
+      console.warn('Error loading auth user:', e);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const isManager = Boolean(currentUser?.is_manager);
+  const isInventoryOwner = currentUser?.role === 'inventory_owner';
+  const isScanner = currentUser?.role === 'scanner';
+  const hasDashboardPermission = Boolean(currentUser);
+
+  const handleGoToDashboard = () => {
+    const proceedNavigation = () => {
+      stopLiveCamera();
+      const dashboardUrl = getDashboardUrl();
+      if (typeof window !== 'undefined') {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.focus();
+            try {
+              window.opener.location.href = dashboardUrl;
+            } catch (e) {}
+            window.close();
+            return;
+          }
+        } catch (e) {}
+        window.location.href = dashboardUrl;
+      }
+    };
+
+    const isInActiveScan = currentStep === 'scan_sn' || currentStep === 'scan_masha' || currentStep === 'edit_form';
+    const hasUnsavedData = Boolean(scannedSn || scannedMasha || editMasha);
+
+    const checkAndNavigate = () => {
+      if (!currentUser) {
+        // Unauthenticated guest scanner
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const proceed = window.confirm(
+            'הגישה ללוח הבקרה מוגבלת למשתמשים מורשים (בעלי מצאי ומנהלים).\n\nהאם ברצונך לעבור למסך ההתחברות?'
+          );
+          if (proceed) {
+            proceedNavigation();
+          }
+        } else {
+          Alert.alert(
+            'נדרשת הרשאת גישה 🔒',
+            'הגישה ללוח הבקרה מוגבלת למשתמשים מורשים בלבד (בעלי מצאי ומנהלים). עליך להתחבר למערכת.',
+            [
+              { text: 'ביטול', style: 'cancel' },
+              { text: 'מעבר להתחברות', onPress: proceedNavigation },
+            ]
+          );
+        }
+        return;
+      }
+
+      // Authenticated user with permission
+      proceedNavigation();
+    };
+
+    if (isInActiveScan && hasUnsavedData) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const leave = window.confirm('קיימים נתוני סריקה שטרם נשמרו. האם לסיים את הסריקה ולחזור ללוח הבקרה?');
+        if (leave) {
+          checkAndNavigate();
+        }
+      } else {
+        Alert.alert(
+          'סריקה פעילה',
+          'קיימים נתוני סריקה שטרם נשמרו. האם לסיים את הסריקה ולחזור ללוח הבקרה?',
+          [
+            { text: 'המשך בסריקה', style: 'cancel' },
+            {
+              text: 'חזור ללוח הבקרה',
+              style: 'destructive',
+              onPress: () => {
+                checkAndNavigate();
+              },
+            },
+          ]
+        );
+      }
+    } else {
+      checkAndNavigate();
+    }
+  };
 
   const loadRooms = async () => {
     try {
@@ -1126,7 +1227,7 @@ export default function App() {
       {/* App Header */}
       <View style={styles.header}>
         <View style={styles.headerFlexRow}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 130 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
               <MobileVersionBadge variant="compact" />
@@ -1141,14 +1242,40 @@ export default function App() {
               {selectedRoom ? `סורק ב: ${selectedRoom.name}` : 'בחר חדר לביצוע סריקה'}
             </Text>
           </View>
-          {sessionScans.length > 0 && (
+
+          <View style={styles.headerActionsRow}>
+            {sessionScans.length > 0 && (
+              <TouchableOpacity
+                style={styles.headerHistoryBtn}
+                onPress={() => setShowHistoryModal(true)}
+              >
+                <Text style={styles.headerHistoryBtnText}>📋 סריקות ({sessionScans.length})</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={styles.headerHistoryBtn}
-              onPress={() => setShowHistoryModal(true)}
+              style={[
+                styles.headerDashboardBtn,
+                !currentUser && styles.headerDashboardBtnLocked,
+              ]}
+              onPress={handleGoToDashboard}
+              accessibilityLabel={currentUser ? 'חזור ללוח הבקרה (Dashboard)' : 'נדרשת הרשאת כניסה ללוח הבקרה'}
             >
-              <Text style={styles.headerHistoryBtnText}>📋 סריקות ({sessionScans.length})</Text>
+              <Text style={styles.headerDashboardBtnText}>
+                {currentUser ? '📊 דשבורד' : '🔒 דשבורד'}
+              </Text>
+              {currentUser && (
+                <View style={[
+                  styles.headerRoleBadge,
+                  isManager ? styles.headerRoleBadgeManager : isInventoryOwner ? styles.headerRoleBadgeOwner : styles.headerRoleBadgeScanner
+                ]}>
+                  <Text style={styles.headerRoleBadgeText}>
+                    {isManager ? 'מנהל' : isInventoryOwner ? 'בעל מצאי' : 'סורק'}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
-          )}
+          </View>
         </View>
       </View>
 
@@ -1192,6 +1319,46 @@ export default function App() {
       {/* Screen 1: Room Selection */}
       {currentStep === 'select_room' && (
         <ScrollView style={styles.content}>
+          {/* User Auth & Return to Dashboard Banner */}
+          <View style={styles.dashboardNavCard}>
+            <View style={styles.dashboardNavInfo}>
+              <View style={styles.dashboardNavUserRow}>
+                <Text style={styles.dashboardNavUserTitle}>
+                  {currentUser ? currentUser.name : 'סורק במצב אורח'}
+                </Text>
+                <View style={[
+                  styles.headerRoleBadge,
+                  !currentUser ? styles.headerRoleBadgeGuest : isManager ? styles.headerRoleBadgeManager : isInventoryOwner ? styles.headerRoleBadgeOwner : styles.headerRoleBadgeScanner
+                ]}>
+                  <Text style={styles.headerRoleBadgeText}>
+                    {!currentUser ? 'אורח (ללא התחברות)' : isManager ? 'הרשאת ניהול 👑' : isInventoryOwner ? 'בעל מצאי 👤' : 'סורק 📱'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.dashboardNavUserSubtitle}>
+                {currentUser
+                  ? isManager
+                    ? 'יש לך הרשאת ניהול מלאה (משתמשים, חריגות וייבוא) בלוח הבקרה'
+                    : isInventoryOwner
+                    ? `משויך לציוד וחדרים במערכת (${currentUser.holder_name || 'בעל מצאי'})`
+                    : 'מחובר כסורק מצאי מאומת במערכת'
+                  : 'הגישה ללוח הבקרה והדוחות מוגבלת למשתמשים מורשים'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.dashboardNavButton,
+                !currentUser && styles.dashboardNavButtonLocked,
+              ]}
+              onPress={handleGoToDashboard}
+            >
+              <Text style={styles.dashboardNavButtonText}>
+                {currentUser ? 'חזרה ללוח הבקרה ↗' : 'התחברות ללוח הבקרה 🔒'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.card}>
             <Text style={styles.label}>שם הסורק:</Text>
             <TextInput
@@ -3459,6 +3626,112 @@ const styles: any = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
+  },
+  headerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerDashboardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#064e3b',
+    paddingHorizontal: 10,
+    paddingVertical: 5.5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#059669',
+    gap: 5,
+  },
+  headerDashboardBtnLocked: {
+    backgroundColor: '#1f2937',
+    borderColor: '#374151',
+  },
+  headerDashboardBtnText: {
+    color: '#34d399',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  headerRoleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    borderWidth: 0.5,
+  },
+  headerRoleBadgeManager: {
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    borderColor: 'rgba(168, 85, 247, 0.5)',
+  },
+  headerRoleBadgeOwner: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: 'rgba(59, 130, 246, 0.5)',
+  },
+  headerRoleBadgeScanner: {
+    backgroundColor: 'rgba(6, 182, 212, 0.2)',
+    borderColor: 'rgba(6, 182, 212, 0.5)',
+  },
+  headerRoleBadgeGuest: {
+    backgroundColor: 'rgba(107, 114, 128, 0.2)',
+    borderColor: 'rgba(107, 114, 128, 0.4)',
+  },
+  headerRoleBadgeText: {
+    color: '#e5e7eb',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  dashboardNavCard: {
+    backgroundColor: '#111827',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: 'column',
+    gap: 10,
+  },
+  dashboardNavInfo: {
+    flexDirection: 'column',
+    gap: 4,
+  },
+  dashboardNavUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  dashboardNavUserTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  },
+  dashboardNavUserSubtitle: {
+    color: '#9ca3af',
+    fontSize: 11,
+    textAlign: 'right',
+    writingDirection: 'rtl',
+    lineHeight: 16,
+  },
+  dashboardNavButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  dashboardNavButtonLocked: {
+    backgroundColor: '#1e293b',
+    borderColor: '#475569',
+  },
+  dashboardNavButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    writingDirection: 'rtl',
   },
   headerHistoryBtn: {
     backgroundColor: '#1e3a8a',

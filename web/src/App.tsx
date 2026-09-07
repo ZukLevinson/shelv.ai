@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import {
   BrowserRouter,
@@ -73,6 +73,16 @@ function AppContent() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [myInventoryOnly, setMyInventoryOnly] = useState(false);
+
+  // Filter for "my equipment only" is only enabled if the user has a correspondent inventory owner
+  const hasCorrespondentOwner = Boolean(user?.holder_id);
+
+  // Automatically reset the filter if the user does not have a correspondent inventory owner
+  useEffect(() => {
+    if (!hasCorrespondentOwner && myInventoryOnly) {
+      setMyInventoryOnly(false);
+    }
+  }, [hasCorrespondentOwner, myInventoryOnly]);
 
   // Track session history position for back/forward capability
   const currentIdx = (typeof window !== 'undefined' && window.history.state && typeof window.history.state.idx === 'number')
@@ -202,6 +212,69 @@ function AppContent() {
     }
   };
 
+  // Filtered lists for Inventory Owner when "My Inventory Only" is toggled
+  const displayRooms = myInventoryOnly && user?.holder_id
+    ? rooms.filter((r) => r.holder_id === user.holder_id || (user.holder_name && r.holder_name === user.holder_name))
+    : rooms;
+
+  const displayItems = myInventoryOnly && (user?.holder_id || user?.holder_name)
+    ? items.filter((i) => (i.holder_id && i.holder_id === user.holder_id) || (user.holder_name && i.holder_name === user.holder_name))
+    : items;
+
+  // Filtered anomalies report: when "My Equipment Only" is toggled, compute exact amounts relevant to the signed user
+  const displayAnomalies: AnomalyReport | null = useMemo(() => {
+    if (!anomalies) return null;
+    if (!myInventoryOnly || !user?.holder_id) return anomalies;
+
+    const holderId = user.holder_id;
+    const holderName = user.holder_name;
+
+    // Unauthorized transfers relevant to the user:
+    // (a) Foreign items scanned in user's rooms (unauthorized presence)
+    // (b) User's signed items scanned in foreign rooms
+    const filteredUnauthorized = (anomalies.unauthorizedTransfers || []).filter((item) => {
+      const isScannedInMyRoom = item.scannedHolderId === holderId ||
+        (item as any).scannedRoomHolderId === holderId ||
+        (holderName && item.scannedHolderName === holderName);
+      const isSupposedlyMine = item.supposedHolderId === holderId ||
+        (item as any).officialHolderId === holderId ||
+        (holderName && (item.supposedHolderName === holderName || (item as any).officialHolderName === holderName || item.supposedHolderName?.includes(holderName)));
+      return isScannedInMyRoom || isSupposedlyMine;
+    });
+
+    // Quota discrepancies for the user's signed quota vs discovered
+    const filteredQuotas = (anomalies.quotaDiscrepancies || []).filter(
+      (d) => d.holderId === holderId || (holderName && d.holderName === holderName)
+    );
+
+    // Physical placements discovered in the user's rooms
+    const filteredDistribution = (anomalies.discoveredDistribution || []).filter(
+      (dist) => dist.holderId === holderId || (holderName && dist.holderName === holderName)
+    );
+
+    const totalExpected = displayItems.length;
+    const totalDiscovered = displayRooms.reduce((sum, r) => sum + (r.swept_items || 0), 0);
+    const totalMissing = filteredQuotas.reduce((sum, d) => sum + Math.abs(d.difference), 0);
+
+    return {
+      ...anomalies,
+      unauthorizedTransfers: filteredUnauthorized,
+      quotaDiscrepancies: filteredQuotas,
+      discoveredDistribution: filteredDistribution,
+      stats: {
+        totalExpectedItems: totalExpected,
+        totalDiscoveredItems: totalDiscovered,
+        unauthorizedCount: filteredUnauthorized.length,
+        missingCount: totalMissing,
+        totalOfficialItems: totalExpected,
+        totalSweptItems: totalDiscovered,
+        internalMovesCount: (anomalies as any).internalMoves
+          ? (anomalies as any).internalMoves.filter((m: any) => m.holderId === holderId).length
+          : 0,
+      },
+    };
+  }, [anomalies, myInventoryOnly, user, displayItems, displayRooms]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
@@ -216,15 +289,6 @@ function AppContent() {
   if (!isAuthenticated) {
     return <LoginScreen />;
   }
-
-  // Filtered lists for Inventory Owner when "My Inventory Only" is toggled
-  const displayRooms = myInventoryOnly && user?.holder_id
-    ? rooms.filter((r) => r.holder_id === user.holder_id)
-    : rooms;
-
-  const displayItems = myInventoryOnly && user?.holder_name
-    ? items.filter((i) => i.holder_name === user.holder_name)
-    : items;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-2.5 sm:p-6 md:p-8 space-y-3.5 sm:space-y-8 max-w-full overflow-x-hidden">
@@ -361,7 +425,7 @@ function AppContent() {
                     : 'text-gray-400 hover:text-white border border-transparent')
                 }
               >
-                קטלוג פריטים ({items.length})
+                קטלוג פריטים ({displayItems.length})
               </NavLink>
 
               {/* Manager-only User Management Tab */}
@@ -384,6 +448,35 @@ function AppContent() {
 
           {/* Action Buttons & Profile */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Filter Toggle: "ציוד שלי בלבד" - Enabled only if user has correspondent inventory owner */}
+            <button
+              type="button"
+              onClick={() => {
+                if (hasCorrespondentOwner) {
+                  setMyInventoryOnly(!myInventoryOnly);
+                }
+              }}
+              disabled={!hasCorrespondentOwner}
+              title={
+                hasCorrespondentOwner
+                  ? (myInventoryOnly ? 'הצג את כלל ציוד הארגון (בטל סינון)' : 'סנן לציוד שלי בלבד')
+                  : 'סינון מושבת: המשתמש אינו משויך לבעל מצאי'
+              }
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
+                !hasCorrespondentOwner
+                  ? 'bg-gray-900/40 text-gray-600 border-gray-800/60 cursor-not-allowed opacity-50'
+                  : myInventoryOnly
+                  ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/20 cursor-pointer'
+                  : 'bg-gray-900 text-gray-300 hover:text-white border-gray-800 hover:border-gray-700 cursor-pointer'
+              }`}
+            >
+              <Filter className={`w-3.5 h-3.5 ${myInventoryOnly ? 'text-teal-400' : hasCorrespondentOwner ? 'text-gray-400' : 'text-gray-600'}`} />
+              <span>{myInventoryOnly ? 'מציג ציוד שלי' : 'ציוד שלי בלבד'}</span>
+              {hasCorrespondentOwner && myInventoryOnly && (
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse mr-0.5" />
+              )}
+            </button>
+
             <button
               onClick={fetchData}
               disabled={loading}
@@ -544,7 +637,7 @@ function AppContent() {
       </header>
 
       {/* Inventory Owner Banner if uncoupled */}
-      {isInventoryOwner && !user?.holder_id && (
+      {isInventoryOwner && !hasCorrespondentOwner && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-200">
           <div className="flex items-start gap-2.5">
             <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
@@ -558,24 +651,34 @@ function AppContent() {
             </div>
           </div>
 
-          <button
-            onClick={() => setIsEditPNModalOpen(true)}
-            className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer text-xs self-end sm:self-auto"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-            <span>ערוך מ"א</span>
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
+            <button
+              disabled
+              title="סינון לציוד שלי מושבת: טרם שויך בעל מצאי לחשבון זה"
+              className="px-2.5 py-1.5 bg-gray-900/60 text-gray-500 border border-gray-800/80 rounded-xl font-medium cursor-not-allowed opacity-60 text-[11px] flex items-center gap-1.5"
+            >
+              <Filter className="w-3 h-3 text-gray-600" />
+              <span>סנן לציוד שלי (מושבת)</span>
+            </button>
+            <button
+              onClick={() => setIsEditPNModalOpen(true)}
+              className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer text-xs"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>ערוך מ"א</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Scoped view toggle for Inventory Owners */}
-      {isInventoryOwner && user?.holder_id && (
-        <div className="flex items-center justify-between bg-gray-900/80 border border-gray-800 px-4 py-2.5 rounded-2xl text-xs">
-          <div className="flex items-center gap-2 text-gray-300">
-            <UserCheck className="w-4 h-4 text-teal-400" />
+      {/* Scoped view toggle for users with a correspondent inventory owner */}
+      {hasCorrespondentOwner && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 bg-gray-900/80 border border-gray-800 px-4 py-2.5 rounded-2xl text-xs">
+          <div className="flex items-center gap-2 text-gray-300 flex-wrap">
+            <UserCheck className="w-4 h-4 text-teal-400 shrink-0" />
             <span>
-              אתה מחובר כבעל המצאי: <strong className="text-teal-300">{user.holder_name}</strong>
-              {user.personal_number && <span className="text-gray-400 font-mono text-[11px] mr-1">(מ"א: {user.personal_number})</span>}
+              אתה מחובר כבעל המצאי: <strong className="text-teal-300">{user?.holder_name}</strong>
+              {user?.personal_number && <span className="text-gray-400 font-mono text-[11px] mr-1">(מ"א: {user.personal_number})</span>}
             </span>
             <button
               onClick={() => setIsEditPNModalOpen(true)}
@@ -587,10 +690,11 @@ function AppContent() {
           </div>
 
           <button
+            type="button"
             onClick={() => setMyInventoryOnly(!myInventoryOnly)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
               myInventoryOnly
-                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10'
                 : 'bg-gray-950 text-gray-400 border-gray-800 hover:text-white'
             }`}
           >
@@ -623,7 +727,7 @@ function AppContent() {
       )}
 
       {/* Metric Quick Cards (Clickable navigation links) */}
-      {anomalies && (
+      {displayAnomalies && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Link
             to="/items"
@@ -631,13 +735,15 @@ function AppContent() {
             title="מעבר לקטלוג הפריטים"
           >
             <div className="flex items-center justify-between text-gray-400 group-hover:text-blue-300 text-xs transition-colors">
-              <span>סך פריטים חתומים (באקסל)</span>
+              <span>{myInventoryOnly ? 'סך פריטים חתומים שלך (באקסל)' : 'סך פריטים חתומים (באקסל)'}</span>
               <BarChart3 className="w-4 h-4 text-blue-400" />
             </div>
             <div className="text-2xl font-black text-white mt-2">
-              {anomalies.stats?.totalExpectedItems ?? (anomalies.stats as any)?.totalOfficialItems ?? 0}
+              {displayAnomalies.stats?.totalExpectedItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">מכסת החתימות של בעלי המצאי ↗</div>
+            <div className="text-[11px] text-gray-500 mt-1">
+              {myInventoryOnly ? 'מכסת החתימות שלך ↗' : 'מכסת החתימות של בעלי המצאי ↗'}
+            </div>
           </Link>
 
           <Link
@@ -646,13 +752,15 @@ function AppContent() {
             title="מעבר לניהול ותחקור סריקות"
           >
             <div className="flex items-center justify-between text-gray-400 group-hover:text-emerald-300 text-xs transition-colors">
-              <span>פריטים פיזיים שנסרקו</span>
+              <span>{myInventoryOnly ? 'פריטים שנסרקו בחדרייך' : 'פריטים פיזיים שנסרקו'}</span>
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="text-2xl font-black text-emerald-400 mt-2">
-              {anomalies.stats?.totalDiscoveredItems ?? (anomalies.stats as any)?.totalSweptItems ?? 0}
+              {displayAnomalies.stats?.totalDiscoveredItems ?? 0}
             </div>
-            <div className="text-[11px] text-gray-500 mt-1">זוהו ואומתו בסריקות המצאי ↗</div>
+            <div className="text-[11px] text-gray-500 mt-1">
+              {myInventoryOnly ? 'זוהו בחדרים שבבעלותך ↗' : 'זוהו ואומתו בסריקות המצאי ↗'}
+            </div>
           </Link>
 
           <Link
@@ -661,13 +769,15 @@ function AppContent() {
             title="מעבר למרכז החריגות במבט על"
           >
             <div className="flex items-center justify-between text-rose-300 group-hover:text-rose-200 text-xs transition-colors">
-              <span>העברות ללא חתימה (חריגות)</span>
+              <span>{myInventoryOnly ? 'העברות ללא חתימה (חריגות שלך)' : 'העברות ללא חתימה (חריגות)'}</span>
               <AlertOctagon className="w-4 h-4 text-rose-400" />
             </div>
             <div className="text-2xl font-black text-rose-400 mt-2">
-              {anomalies.stats?.unauthorizedCount ?? 0}
+              {displayAnomalies.stats?.unauthorizedCount ?? 0}
             </div>
-            <div className="text-[11px] text-rose-300/70 mt-1">פריטים בחדר של בעל מצאי שאין לו חתימה ↗</div>
+            <div className="text-[11px] text-rose-300/70 mt-1">
+              {myInventoryOnly ? 'חריגות בחדריך או בציוד החתום על שמך ↗' : 'פריטים בחדר של בעל מצאי שאין לו חתימה ↗'}
+            </div>
           </Link>
 
           <Link
@@ -676,13 +786,15 @@ function AppContent() {
             title="מעבר לקטלוג הפריטים"
           >
             <div className="flex items-center justify-between text-amber-300 group-hover:text-amber-200 text-xs transition-colors">
-              <span>פער חסר מסך החתימות</span>
+              <span>{myInventoryOnly ? 'פער חסר מחתימותיך' : 'פער חסר מסך החתימות'}</span>
               <ShieldCheck className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-2xl font-black text-amber-400 mt-2">
-              {anomalies.stats?.missingCount ?? 0}
+              {displayAnomalies.stats?.missingCount ?? 0}
             </div>
-            <div className="text-[11px] text-amber-300/70 mt-1">פריטים שעדיין לא נמצאו בשום סריקה ↗</div>
+            <div className="text-[11px] text-amber-300/70 mt-1">
+              {myInventoryOnly ? 'פריטים מחתימתך שטרם זוהו בסריקות ↗' : 'פריטים שעדיין לא נמצאו בשום סריקה ↗'}
+            </div>
           </Link>
         </div>
       )}
@@ -695,11 +807,13 @@ function AppContent() {
             element={
               <OverviewPage
                 rooms={displayRooms}
-                anomalies={anomalies}
+                anomalies={displayAnomalies}
                 onlineScannersCount={onlineScannersCount}
                 onlineScanners={onlineScanners}
                 onManageRooms={() => setRoomModalOpen(true)}
                 onRefresh={fetchData}
+                filterHolderId={myInventoryOnly && user?.holder_id ? user.holder_id : undefined}
+                filterHolderName={myInventoryOnly && user?.holder_name ? user.holder_name : undefined}
               />
             }
           />
@@ -708,7 +822,7 @@ function AppContent() {
             path="/scans"
             element={
               <ScansPage
-                rooms={rooms}
+                rooms={displayRooms}
                 onlineScannersCount={onlineScannersCount}
                 onlineScanners={onlineScanners}
               />
@@ -718,8 +832,8 @@ function AppContent() {
             path="/holders"
             element={
               <HoldersPage
-                holders={holders}
-                rooms={rooms}
+                holders={myInventoryOnly && user?.holder_id ? holders.filter(h => h.id === user.holder_id) : holders}
+                rooms={displayRooms}
                 onRefresh={fetchData}
                 onOpenRoomModal={() => setRoomModalOpen(true)}
               />
