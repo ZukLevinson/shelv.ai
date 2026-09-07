@@ -134,18 +134,8 @@ export const LoginScreen: React.FC = () => {
           <span className="bg-gray-900 px-3 text-[11px] text-gray-500 font-medium absolute">או</span>
         </div>
 
-        {/* Option 2: Scanner Login (Without Google) */}
-        <div className="p-4 bg-gray-950/70 border border-cyan-500/20 rounded-2xl space-y-3">
-          <div className="text-center space-y-1">
-            <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-cyan-300">
-              <Scan className="w-4 h-4 text-cyan-400" />
-              <span>כניסה כסורק (ללא צורך ב-Google)</span>
-            </div>
-            <p className="text-[11px] text-gray-400">
-              לביצוע סריקות שטח, תחקור סריקות וצפייה בקטלוג
-            </p>
-          </div>
-
+        {/* Option 2: Scanner Login (Button only) */}
+        <div className="space-y-2">
           <button
             type="button"
             onClick={handleScannerLogin}
@@ -158,7 +148,7 @@ export const LoginScreen: React.FC = () => {
           </button>
 
           {/* Direct Camera Scanner Shortcut */}
-          <div className="text-center pt-1 border-t border-gray-800/60 mt-2">
+          <div className="text-center pt-1">
             <a
               href="/scanner/"
               className="inline-flex items-center gap-1.5 text-[11px] text-cyan-400/90 hover:text-cyan-300 transition-colors"
