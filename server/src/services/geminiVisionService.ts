@@ -161,7 +161,7 @@ Look specifically for:
 3. "productDescription":
    - Hardware model / description visible on the label (e.g., "HP Elite Mini 800 G9", "Lenovo ThinkPad", "Dell OptiPlex", "מסך 24 אינץ'").
 4. "stickerOwner" (בעל מצאי / אחראי):
-   - Name of the employee / inventory holder if printed or handwritten on the sticker (in Hebrew or English).
+   - Name of the inventory holder if printed or handwritten on the sticker (in Hebrew or English).
 
 Return JSON only in this exact format:
 {

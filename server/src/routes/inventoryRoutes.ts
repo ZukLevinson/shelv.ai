@@ -68,7 +68,7 @@ inventoryRouter.post('/rooms', async (req, res) => {
     description: `יצירת חדר חדש "${cleanName}" (${cleanCode})`,
     entityType: 'room',
     entityId: roomId,
-    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    performedBy: (req as any).user?.name || 'משתמש מערכת',
     stateAfter: { id: roomId, name: cleanName, code: cleanCode, holder_id: resolvedHolderId }
   });
 
@@ -136,7 +136,7 @@ inventoryRouter.put('/rooms/:id', authenticateToken, requireRole(['manager']), a
     description: `עדכון פרטי חדר "${cleanName}" (${cleanCode})`,
     entityType: 'room',
     entityId: id,
-    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    performedBy: (req as any).user?.name || 'משתמש מערכת',
     stateBefore: existingRoom,
     stateAfter: { id, name: cleanName, code: cleanCode, holder_id: resolvedHolderId }
   });
@@ -169,7 +169,7 @@ inventoryRouter.delete('/rooms/:id', authenticateToken, requireRole(['manager'])
     description: `מחיקת חדר "${existingRoom.name}" (${existingRoom.code})`,
     entityType: 'room',
     entityId: id,
-    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    performedBy: (req as any).user?.name || 'משתמש מערכת',
     stateBefore: existingRoom
   });
 
@@ -229,7 +229,7 @@ inventoryRouter.post('/holders', authenticateToken, requireRole(['manager']), as
     description: `הוספת בעל מצאי חדש "${cleanName}"`,
     entityType: 'holder',
     entityId: id,
-    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    performedBy: (req as any).user?.name || 'משתמש מערכת',
     stateAfter: { id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone }
   });
 
@@ -272,7 +272,7 @@ inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']),
     description: `עדכון פרטי בעל מצאי "${cleanName}"`,
     entityType: 'holder',
     entityId: id,
-    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    performedBy: (req as any).user?.name || 'משתמש מערכת',
     stateBefore: existing,
     stateAfter: { id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone }
   });
@@ -327,7 +327,7 @@ inventoryRouter.delete('/holders/:id', authenticateToken, requireRole(['manager'
     description: `מחיקת בעל מצאי "${existing.name}"`,
     entityType: 'holder',
     entityId: id,
-    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    performedBy: (req as any).user?.name || 'משתמש מערכת',
     stateBefore: existing
   });
 
@@ -525,7 +525,7 @@ inventoryRouter.post('/masha-registry/update', async (req, res) => {
       description: `עדכון הגדרות מסח"א ${cleanMasha}`,
       entityType: 'masha',
       entityId: cleanMasha,
-      performedBy: (req as any).user?.name || 'מנהל מערכת',
+      performedBy: (req as any).user?.name || 'משתמש מערכת',
       stateBefore: existingMasha || { masha: cleanMasha, category: 'Regular Workstation', description: '' },
       stateAfter: { masha: cleanMasha, category: cleanCategory, description: cleanDesc }
     });
