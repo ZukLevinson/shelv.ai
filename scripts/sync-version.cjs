@@ -69,6 +69,13 @@ function writeVersion(targetVersion) {
     fs.writeFileSync(m.path, JSON.stringify(content, null, 2) + '\n', 'utf8');
     console.log(`✓ Updated ${m.name} -> v${targetVersion}`);
   }
+  try {
+    const { writeMobileVersionFile } = require('./git-info.cjs');
+    writeMobileVersionFile(repoRoot);
+    console.log(`✓ Updated Mobile version.ts -> v${targetVersion}`);
+  } catch (err) {
+    // optional
+  }
 }
 
 function main() {

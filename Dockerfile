@@ -25,6 +25,12 @@ RUN pnpm run build
 
 # Build stage 2: Build Mobile PWA Frontend (Expo)
 FROM base AS mobile-builder
+ARG COMMIT_SHA=""
+ARG BRANCH_NAME=""
+ARG APP_VERSION=""
+ENV COMMIT_SHA=$COMMIT_SHA
+ENV BRANCH_NAME=$BRANCH_NAME
+ENV APP_VERSION=$APP_VERSION
 WORKDIR /app/mobile
 COPY mobile/package.json mobile/pnpm-lock.yaml mobile/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile

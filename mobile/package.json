@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "build:web": "expo export --platform web && node -e \"require('fs').cpSync('public/manifest.json', 'dist/manifest.json'); require('fs').cpSync('public/favicon.svg', 'dist/favicon.svg');\""
+    "prebuild": "node ../scripts/git-info.cjs --write-mobile",
+    "start": "pnpm run prebuild && expo start",
+    "android": "pnpm run prebuild && expo start --android",
+    "ios": "pnpm run prebuild && expo start --ios",
+    "web": "pnpm run prebuild && expo start --web",
+    "build:web": "pnpm run prebuild && expo export --platform web && node -e \"require('fs').cpSync('public/manifest.json', 'dist/manifest.json'); require('fs').cpSync('public/favicon.svg', 'dist/favicon.svg');\""
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

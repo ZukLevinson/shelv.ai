@@ -213,3 +213,51 @@ export async function scanWithGemini(base64Image: string, targetMode?: 'masha' |
   }
   return res.json();
 }
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: 'inventory_owner' | 'scanner';
+  is_manager: boolean;
+  personal_number?: string | null;
+  holder_id?: string | null;
+  holder_name?: string | null;
+  onboarding_completed?: boolean;
+}
+
+export async function fetchCurrentAuthUser(): Promise<UserProfile | null> {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null;
+  }
+  try {
+    const token = window.localStorage.getItem('shelv_token');
+    if (!token) {
+      return null;
+    }
+    const res = await fetch(`${SERVER_URL}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+      },
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        window.localStorage.removeItem('shelv_token');
+      }
+      return null;
+    }
+    const data = await res.json();
+    return data.user || null;
+  } catch (err) {
+    console.warn('Failed to fetch auth user in scanner:', err);
+    return null;
+  }
+}
+
+export function getDashboardUrl(): string {
+  if (typeof window === 'undefined') return '/';
+  if (window.location.port === '8081') {
+    return `${window.location.protocol}//${window.location.hostname}:5173/`;
+  }
+  return '/';
+}

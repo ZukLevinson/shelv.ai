@@ -28,6 +28,7 @@ import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
 import { fetchRooms, submitScan, revertScan, revertAction, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo } from './src/services/api';
 import { ScannerPresenceManager } from './src/services/scannerPresence';
+import { MobileVersionBadge } from './src/components/MobileVersionBadge';
 
 export interface ScannedRecord {
   id: string;
@@ -1126,8 +1127,9 @@ export default function App() {
       <View style={styles.header}>
         <View style={styles.headerFlexRow}>
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
+              <MobileVersionBadge variant="compact" />
               <View style={[styles.onlineStatusPill, isServerConnected ? styles.onlinePillActive : styles.onlinePillInactive]}>
                 <View style={[styles.onlineStatusDot, isServerConnected ? styles.onlineDotActive : styles.onlineDotInactive]} />
                 <Text style={[styles.onlineStatusText, isServerConnected ? styles.onlineTextActive : styles.onlineTextInactive]}>
@@ -1233,6 +1235,7 @@ export default function App() {
               </TouchableOpacity>
             ))
           )}
+          <MobileVersionBadge variant="detailed" />
         </ScrollView>
       )}
 
