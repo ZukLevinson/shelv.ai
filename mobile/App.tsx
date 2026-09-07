@@ -2016,7 +2016,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles: any = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
