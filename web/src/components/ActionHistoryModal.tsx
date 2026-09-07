@@ -77,7 +77,7 @@ export const ActionHistoryModal: React.FC<Props> = ({
     setRevertingId(actionId);
     try {
       await axios.post(`${API_BASE_URL}/api/actions/${actionId}/revert`, {
-        revertedBy: 'מנהל מערכת',
+        revertedBy: 'משתמש מערכת',
       });
       await fetchActions();
       onActionReverted();

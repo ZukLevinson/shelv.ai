@@ -25,7 +25,7 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
       await axios.post(`${API_BASE_URL}/api/anomalies/approve-transfer`, {
         serialNumber,
         targetHolderId,
-        resolvedBy: 'מנהל מערכת',
+        resolvedBy: 'משתמש מערכת',
       });
       onRefresh();
     } catch (err) {

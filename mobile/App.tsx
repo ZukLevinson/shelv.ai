@@ -46,7 +46,7 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState<Step>('select_room');
   const [rooms, setRooms] = useState<any[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
-  const [sweeperName, setSweeperName] = useState('עובד סריקה');
+  const [sweeperName, setSweeperName] = useState('סורק');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -587,7 +587,7 @@ export default function App() {
         // Already scanned!
         const existing = checkRes.existingScan;
         const roomName = existing.roomName || 'חדר במערכת';
-        const whoStr = existing.scannedBy || 'עובד סריקה';
+        const whoStr = existing.scannedBy || 'סורק';
         const dateStr = existing.scannedAt
           ? new Date(existing.scannedAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
           : '';
@@ -1124,12 +1124,12 @@ export default function App() {
       {currentStep === 'select_room' && (
         <ScrollView style={styles.content}>
           <View style={styles.card}>
-            <Text style={styles.label}>שם העובד הסורק:</Text>
+            <Text style={styles.label}>שם הסורק:</Text>
             <TextInput
               style={styles.input}
               value={sweeperName}
               onChangeText={setSweeperName}
-              placeholder="הזן שם עובד..."
+              placeholder="הזן שם סורק..."
               placeholderTextColor="#666"
             />
           </View>
@@ -1919,7 +1919,7 @@ export default function App() {
 
               <View style={styles.alreadyScannedRow}>
                 <Text style={styles.alreadyScannedLabel}>נסרק ע"י:</Text>
-                <Text style={styles.alreadyScannedValue}>{alreadyScannedModalData?.existingScan?.scannedBy || 'עובד סריקה'}</Text>
+                <Text style={styles.alreadyScannedValue}>{alreadyScannedModalData?.existingScan?.scannedBy || 'סורק'}</Text>
               </View>
 
               {alreadyScannedModalData?.existingScan?.scannedAt ? (

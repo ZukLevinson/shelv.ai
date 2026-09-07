@@ -35,7 +35,7 @@ export const UndoToast: React.FC<Props> = ({ toast, onClose, onReverted }) => {
     setReverting(true);
     try {
       await axios.post(`${API_BASE_URL}/api/actions/${toast.actionId}/revert`, {
-        revertedBy: 'מנהל מערכת',
+        revertedBy: 'משתמש מערכת',
       });
       setStatusMsg('הפעולה בוטלה בהצלחה ↩️');
       onReverted();

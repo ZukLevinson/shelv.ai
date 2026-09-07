@@ -143,7 +143,7 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
     try {
       await axios.post(`${API_BASE_URL}/api/anomalies/revert-resolution`, {
         resolutionId,
-        revertedBy: 'מנהל מערכת'
+        revertedBy: 'משתמש מערכת'
       });
       if (investigatingSN) {
         await openInvestigation(investigatingSN);
@@ -265,7 +265,7 @@ export const ScanManagement: React.FC<Props> = ({ rooms }) => {
             <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 shrink-0" />
           </div>
           <div className="text-xl sm:text-2xl font-black text-purple-400 mt-1 sm:mt-2">{metrics.uniqueScanners}</div>
-          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">אנשי צוות סורקים</div>
+          <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 truncate">מבצעי סריקה</div>
         </div>
 
         <div className="bg-gray-900 border border-rose-900/30 rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-md sm:shadow-lg">
