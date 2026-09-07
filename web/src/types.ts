@@ -145,7 +145,7 @@ export interface ScanInvestigationData {
   officialItem: {
     id: string;
     masha: string;
-    serial_number: string;
+    serial_number?: string | null;
     description: string;
     category: string;
     room_id: string;
@@ -161,7 +161,7 @@ export interface ScanInvestigationData {
     id: string;
     sweep_id?: string | null;
     room_id: string;
-    serial_number: string;
+    serial_number?: string | null;
     masha?: string;
     scanned_by: string;
     sticker_owner_text?: string | null;
@@ -173,7 +173,7 @@ export interface ScanInvestigationData {
   }>;
   resolutions: Array<{
     id: string;
-    serial_number: string;
+    serial_number?: string | null;
     type: string;
     from_room_id?: string;
     to_room_id?: string;

@@ -481,7 +481,7 @@ export async function alertOnMisplacedItemScan(
         <div class="card">
           <div class="item-prop"><span class="prop-label">תיאור פריט:</span><span class="prop-val">${itemDesc}</span></div>
           <div class="item-prop"><span class="prop-label">מסח"א:</span><span class="prop-val" style="font-family: monospace;">${params.masha}</span></div>
-          ${params.serialNumber ? `<div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="font-family: monospace;">${params.serialNumber.trim().toUpperCase()}</span></div>` : ''}
+          <div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="${params.serialNumber ? 'font-family: monospace;' : 'color: #9ca3af; font-style: italic;'}">${params.serialNumber ? params.serialNumber.trim().toUpperCase() : 'ללא S/N'}</span></div>
           <div class="item-prop"><span class="prop-label">חדר רשמי במערכת:</span><span class="prop-val-amber">${params.officialRoomName || 'חדר אחר שבבעלותך'}</span></div>
           <div class="item-prop"><span class="prop-label">נסרק בפועל בחדר:</span><span class="prop-val-highlight">${params.scannedRoomName}</span></div>
           <div class="item-prop"><span class="prop-label">נסרק ע"י:</span><span class="prop-val">${params.scannedBy}</span></div>
@@ -544,7 +544,7 @@ export async function alertOnMisplacedItemScan(
           <div class="card">
             <div class="item-prop"><span class="prop-label">תיאור פריט:</span><span class="prop-val">${itemDesc}</span></div>
             <div class="item-prop"><span class="prop-label">מסח"א:</span><span class="prop-val" style="font-family: monospace;">${params.masha}</span></div>
-            ${params.serialNumber ? `<div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="font-family: monospace;">${params.serialNumber.trim().toUpperCase()}</span></div>` : ''}
+            <div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="${params.serialNumber ? 'font-family: monospace;' : 'color: #9ca3af; font-style: italic;'}">${params.serialNumber ? params.serialNumber.trim().toUpperCase() : 'ללא S/N'}</span></div>
             <div class="item-prop"><span class="prop-label">חדר בו נסרק:</span><span class="prop-val-highlight">${params.scannedRoomName}</span></div>
             <div class="item-prop"><span class="prop-label">שיוך רשמי במקור:</span><span class="prop-val-highlight">${supposedName}${params.officialRoomName ? ` (${params.officialRoomName})` : ''}</span></div>
             <div class="item-prop"><span class="prop-label">נסרק ע"י:</span><span class="prop-val">${params.scannedBy}</span></div>
@@ -603,7 +603,7 @@ export async function alertOnMisplacedItemScan(
         <div class="card">
           <div class="item-prop"><span class="prop-label">תיאור פריט:</span><span class="prop-val">${itemDesc}</span></div>
           <div class="item-prop"><span class="prop-label">מסח"א:</span><span class="prop-val" style="font-family: monospace;">${params.masha}</span></div>
-          ${params.serialNumber ? `<div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="font-family: monospace;">${params.serialNumber.trim().toUpperCase()}</span></div>` : ''}
+          <div class="item-prop"><span class="prop-label">מספר סידורי (S/N):</span><span class="prop-val" style="${params.serialNumber ? 'font-family: monospace;' : 'color: #9ca3af; font-style: italic;'}">${params.serialNumber ? params.serialNumber.trim().toUpperCase() : 'ללא S/N'}</span></div>
           ${params.officialRoomName ? `<div class="item-prop"><span class="prop-label">חדר מקורי:</span><span class="prop-val">${params.officialRoomName}</span></div>` : ''}
           <div class="item-prop"><span class="prop-label">נמצא בפועל בחדר:</span><span class="prop-val-highlight">${params.scannedRoomName}</span></div>
           <div class="item-prop"><span class="prop-label">בעל החדר בו נמצא:</span><span class="prop-val-highlight">${scannedOwnerName}</span></div>
@@ -724,7 +724,7 @@ export async function alertOnSweepCompleted(sessionId: string): Promise<SendAler
     roomUnauthorized.forEach(u => {
       content += `
         <div class="item-prop">
-          <span class="prop-label">${u.description} (S/N: ${u.serialNumber || 'ללא'}):</span>
+          <span class="prop-label">${u.description} (${u.serialNumber ? 'S/N: ' + u.serialNumber : 'ללא S/N'}):</span>
           <span class="prop-val">${u.supposedHolderName}</span>
         </div>
       `;

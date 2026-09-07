@@ -54,6 +54,7 @@ export const ScanManagement: React.FC<Props> = ({
 
   // Investigation modal state
   const [investigatingSN, setInvestigatingSN] = useState<string | null>(null);
+  const [investigatingIsMasha, setInvestigatingIsMasha] = useState(false);
   const [investigationData, setInvestigationData] = useState<ScanInvestigationData | null>(null);
   const [investigationLoading, setInvestigationLoading] = useState(false);
 
@@ -105,8 +106,9 @@ export const ScanManagement: React.FC<Props> = ({
     return () => clearTimeout(timeout);
   }, [search, selectedScanner, selectedRoom, startDate, endDate, mismatchOnly]);
 
-  const openInvestigation = async (sn: string) => {
+  const openInvestigation = async (sn: string, isMasha = false) => {
     setInvestigatingSN(sn);
+    setInvestigatingIsMasha(isMasha);
     setInvestigationLoading(true);
     try {
       const res = await axios.get(`${API_BASE_URL}/api/sweep/scans/investigate/${encodeURIComponent(sn)}`);
@@ -120,11 +122,12 @@ export const ScanManagement: React.FC<Props> = ({
 
   const closeInvestigation = () => {
     setInvestigatingSN(null);
+    setInvestigatingIsMasha(false);
     setInvestigationData(null);
   };
 
-  const handleDeleteScan = async (id: string, sn: string) => {
-    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את רשומת הסריקה של S/N ${sn}? החריגות יחושבו מחדש מיד.`)) {
+  const handleDeleteScan = async (id: string, identifier: string) => {
+    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את רשומת הסריקה של ${identifier}? החריגות יחושבו מחדש מיד.`)) {
       return;
     }
     setDeletingId(id);
@@ -537,7 +540,7 @@ export const ScanManagement: React.FC<Props> = ({
                             <div className="flex items-center gap-2 mt-0.5 font-mono text-[11px]">
                               {scan.serial_number ? (
                                 <button
-                                  onClick={() => openInvestigation(scan.serial_number!)}
+                                  onClick={() => openInvestigation(scan.serial_number!, false)}
                                   className="text-emerald-400 hover:underline hover:text-emerald-300 font-bold"
                                   title="לחץ לתחקור מלא של המספר הסידורי"
                                 >
@@ -545,7 +548,7 @@ export const ScanManagement: React.FC<Props> = ({
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => openInvestigation(scan.masha)}
+                                  onClick={() => openInvestigation(scan.masha, true)}
                                   className="text-gray-400 hover:underline hover:text-gray-300 font-medium"
                                   title="פריט ללא מספר סידורי - לחץ לתחקור לפי מסח&quot;א"
                                 >
@@ -623,14 +626,14 @@ export const ScanManagement: React.FC<Props> = ({
                       <td className="py-3.5 px-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
-                            onClick={() => openInvestigation(scan.serial_number || scan.masha)}
+                            onClick={() => openInvestigation(scan.serial_number || scan.masha, !scan.serial_number)}
                             className="p-1.5 rounded-lg bg-gray-800 hover:bg-emerald-500/20 text-gray-300 hover:text-emerald-300 transition-colors"
                             title="תחקור היסטוריית פריט"
                           >
                             <History className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteScan(scan.id, scan.serial_number || scan.masha)}
+                            onClick={() => handleDeleteScan(scan.id, scan.serial_number ? `S/N ${scan.serial_number}` : `מסח"א ${scan.masha}`)}
                             disabled={deletingId === scan.id}
                             className="p-1.5 rounded-lg bg-gray-800 hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 transition-colors disabled:opacity-50"
                             title="מחק רשומת סריקה זו"
@@ -661,7 +664,23 @@ export const ScanManagement: React.FC<Props> = ({
                 <div>
                   <h3 className="font-bold text-base sm:text-lg text-white">תחקור פריט מלאי</h3>
                   <div className="text-xs text-gray-400">
-                    מספר סידורי: <span className="font-mono text-emerald-400 font-bold">{investigatingSN}</span>
+                    {investigationData?.officialItem?.serial_number ? (
+                      <>
+                        מספר סידורי: <span className="font-mono text-emerald-400 font-bold">S/N {investigationData.officialItem.serial_number}</span>
+                        {investigationData.officialItem.masha && (
+                          <span className="mr-2 text-gray-400">| מסח"א: <span className="font-mono text-gray-300">{investigationData.officialItem.masha}</span></span>
+                        )}
+                      </>
+                    ) : investigatingIsMasha || (investigationData && !investigationData.officialItem?.serial_number) ? (
+                      <>
+                        <span className="text-gray-400 italic">ללא S/N</span>
+                        <span className="mr-2 text-gray-400">| מסח"א: <span className="font-mono text-emerald-400 font-bold">{investigationData?.officialItem?.masha || investigatingSN}</span></span>
+                      </>
+                    ) : (
+                      <>
+                        מספר סידורי: <span className="font-mono text-emerald-400 font-bold">S/N {investigatingSN}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -355,7 +355,9 @@ export const LiveFeed: React.FC<LiveFeedProps> = ({
                         <span>
                           S/N: <span className="font-mono text-gray-200">{ev.serialNumber}</span>
                         </span>
-                      ) : null}
+                      ) : (
+                        <span className="text-gray-500 italic">ללא S/N</span>
+                      )}
 
                       {ev.masha && (!ev.serialNumber || ev.serialNumber !== ev.masha) ? (
                         <span>

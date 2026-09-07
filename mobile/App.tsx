@@ -1189,7 +1189,7 @@ export default function App() {
       });
 
       if (res.status === 'duplicate') {
-        Alert.alert('שימו לב ⚠️', `הפריט (${sn || masha}) כבר נסרק בסריקה זו!`);
+        Alert.alert('שימו לב ⚠️', `הפריט (${sn ? 'S/N ' + sn : 'מסח"א ' + masha}) כבר נסרק בסריקה זו!`);
       } else {
         setScannedItemsCount(prev => prev + 1);
         setLastScannedItem(res.item);
@@ -1229,7 +1229,7 @@ export default function App() {
       }
       setUndoSuccessMsg(`סריקה ${record.serialNumber ? 'S/N ' + record.serialNumber : 'מסח"א ' + record.masha}`);
       setTimeout(() => setUndoSuccessMsg(null), 4000);
-      Alert.alert('הסריקה בוטלה ↩️', `הסריקה של פריט ${record.serialNumber || record.masha} בוטלה והוסרה מהמערכת בהצלחה.`);
+      Alert.alert('הסריקה בוטלה ↩️', `הסריקה של פריט ${record.serialNumber ? 'S/N ' + record.serialNumber : 'מסח"א ' + record.masha} בוטלה והוסרה מהמערכת בהצלחה.`);
     } catch (err: any) {
       console.error('Error reverting scan:', err);
       Alert.alert('שגיאה', 'לא ניתן היה לבטל את הסריקה');
@@ -1626,7 +1626,7 @@ export default function App() {
 
             <View style={styles.recognizedMiniRow}>
               <Text style={styles.recognizedTitleCompact} numberOfLines={1}>
-                {scannedSn ? `מספר סידורי: ${scannedSn}` : 'ללא מספר סידורי (דולג)'}
+                {scannedSn ? `S/N: ${scannedSn}` : 'ללא S/N (דולג)'}
               </Text>
               <Text style={[styles.recognizedTagCompact, !scannedSn && { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }]}>
                 {scannedSn ? '✅ S/N נקלט' : '⏩ S/N דולג'}
@@ -2197,7 +2197,7 @@ export default function App() {
                   <View key={scan.id} style={styles.historyScanCard}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.historyScanSn}>
-                        {scan.serialNumber ? `S/N: ${scan.serialNumber}` : 'ללא מספר סידורי'}
+                        {scan.serialNumber ? `S/N: ${scan.serialNumber}` : 'ללא S/N'}
                       </Text>
                       <Text style={styles.historyScanMasha}>מסח"א: {scan.masha}</Text>
                       <Text style={styles.historyScanDesc} numberOfLines={1}>{scan.description}</Text>
