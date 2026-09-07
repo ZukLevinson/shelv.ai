@@ -195,3 +195,5 @@ export interface OnlineScannerInfo {
   roomName?: string | null;
   connectedAt: string;
 }
+
+export type { PageMeta } from './types/navigation';
