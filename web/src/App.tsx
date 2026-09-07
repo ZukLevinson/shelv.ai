@@ -8,8 +8,6 @@ import {
   Link,
   Navigate,
   useLocation,
-  useNavigate,
-  useNavigationType,
 } from 'react-router-dom';
 import type { Room, OfficialItem, AnomalyReport, InventoryHolder, OnlineScannerInfo } from './types';
 import { ExcelUploadModal } from './components/ExcelUploadModal';
@@ -38,16 +36,14 @@ import {
   Building2, 
   Users, 
   ClipboardList, 
-  Smartphone,
-  LogOut,
-  UserCheck,
-  Filter,
-  Info,
-  RotateCcw,
-  FileSpreadsheet,
-  ArrowRight,
-  ArrowLeft,
-  Edit2
+  Smartphone, 
+  LogOut, 
+  UserCheck, 
+  Filter, 
+  Info, 
+  RotateCcw, 
+  FileSpreadsheet, 
+  Edit2 
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from './config';
 
@@ -97,8 +93,6 @@ const getPageMeta = (pathname: string): PageMeta => {
 function AppContent() {
   const { user, logout, isManager, isInventoryOwner, isScanner, needsOnboarding, isLoading, isAuthenticated } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
-  const navType = useNavigationType();
 
   const pageMeta = useMemo(() => getPageMeta(location.pathname), [location.pathname]);
 
@@ -132,38 +126,6 @@ function AppContent() {
       setMyInventoryOnly(false);
     }
   }, [hasCorrespondentOwner, myInventoryOnly]);
-
-  // Track session history position for back/forward capability
-  const currentIdx = (typeof window !== 'undefined' && window.history.state && typeof window.history.state.idx === 'number')
-    ? window.history.state.idx
-    : 0;
-
-  const [maxIdx, setMaxIdx] = useState<number>(currentIdx);
-
-  useEffect(() => {
-    if (navType === 'PUSH') {
-      setMaxIdx(currentIdx);
-    } else {
-      setMaxIdx((prev) => Math.max(prev, currentIdx));
-    }
-  }, [currentIdx, navType]);
-
-  const canGoBack = currentIdx > 0;
-  const canGoForward = currentIdx < maxIdx;
-
-  const goBack = () => {
-    if (canGoBack) {
-      navigate(-1);
-    } else if (location.pathname !== '/') {
-      navigate('/');
-    }
-  };
-
-  const goForward = () => {
-    if (canGoForward) {
-      navigate(1);
-    }
-  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -391,118 +353,83 @@ function AppContent() {
         </div>
 
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 sm:gap-3 w-full xl:w-auto">
-          {/* Back & Forth Navigation Controls + Navigation View Switcher */}
-          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
-            {/* History Back-Forth Buttons */}
-            <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl shrink-0">
-              <button
-                type="button"
-                onClick={goBack}
-                disabled={!canGoBack && location.pathname === '/'}
-                title={canGoBack ? 'חזור לעמוד הקודם (Back)' : (location.pathname !== '/' ? 'חזור למבט על' : 'אין עמודים קודמים בהיסטוריה')}
-                aria-label="חזור אחורה"
-                className={`p-1.5 rounded-lg text-xs transition-all flex items-center justify-center ${
-                  canGoBack || location.pathname !== '/'
-                    ? 'text-gray-300 hover:text-white hover:bg-gray-800 cursor-pointer active:scale-95 shadow-sm'
-                    : 'text-gray-600 cursor-not-allowed opacity-30'
-                }`}
-              >
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={goForward}
-                disabled={!canGoForward}
-                title={canGoForward ? 'קדימה לעמוד הבא (Forward)' : 'אין עמודים הבאים בהיסטוריה'}
-                aria-label="קדימה"
-                className={`p-1.5 rounded-lg text-xs transition-all flex items-center justify-center ${
-                  canGoForward
-                    ? 'text-gray-300 hover:text-white hover:bg-gray-800 cursor-pointer active:scale-95 shadow-sm'
-                    : 'text-gray-600 cursor-not-allowed opacity-30'
-                }`}
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-              </button>
-            </div>
+          {/* Navigation View Switcher */}
+          <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                (isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-gray-400 hover:text-white border border-transparent')
+              }
+            >
+              מבט על וחריגות
+            </NavLink>
+            <NavLink
+              to="/scans"
+              className={({ isActive }) =>
+                'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                (isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-gray-400 hover:text-white border border-transparent')
+              }
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>ניהול ותחקור סריקות</span>
+            </NavLink>
+            <NavLink
+              to="/holders"
+              className={({ isActive }) =>
+                'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                (isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-gray-400 hover:text-white border border-transparent')
+              }
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>בעלי מצאי ({holders.length})</span>
+            </NavLink>
+            <NavLink
+              to="/masha-registry"
+              className={({ isActive }) =>
+                'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                (isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-gray-400 hover:text-white border border-transparent')
+              }
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>הגדרת מסחאות ({mashaList.length})</span>
+            </NavLink>
+            <NavLink
+              to="/items"
+              className={({ isActive }) =>
+                'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
+                (isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-gray-400 hover:text-white border border-transparent')
+              }
+            >
+              קטלוג פריטים ({displayItems.length})
+            </NavLink>
 
-            {/* Navigation View Switcher */}
-            <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 p-1 rounded-xl overflow-x-auto scrollbar-thin max-w-full">
+            {/* Manager-only User Management Tab */}
+            {isManager && (
               <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                  (isActive
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'text-gray-400 hover:text-white border border-transparent')
-                }
-              >
-                מבט על וחריגות
-              </NavLink>
-              <NavLink
-                to="/scans"
+                to="/users"
                 className={({ isActive }) =>
                   'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
                   (isActive
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'text-gray-400 hover:text-white border border-transparent')
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                    : 'text-purple-400/80 hover:text-purple-300 border border-transparent')
                 }
               >
-                <ClipboardList className="w-3.5 h-3.5" />
-                <span>ניהול ותחקור סריקות</span>
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>ניהול משתמשים</span>
               </NavLink>
-              <NavLink
-                to="/holders"
-                className={({ isActive }) =>
-                  'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                  (isActive
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'text-gray-400 hover:text-white border border-transparent')
-                }
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>בעלי מצאי ({holders.length})</span>
-              </NavLink>
-              <NavLink
-                to="/masha-registry"
-                className={({ isActive }) =>
-                  'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                  (isActive
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'text-gray-400 hover:text-white border border-transparent')
-                }
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span>הגדרת מסחאות ({mashaList.length})</span>
-              </NavLink>
-              <NavLink
-                to="/items"
-                className={({ isActive }) =>
-                  'whitespace-nowrap px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                  (isActive
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'text-gray-400 hover:text-white border border-transparent')
-                }
-              >
-                קטלוג פריטים ({displayItems.length})
-              </NavLink>
-
-              {/* Manager-only User Management Tab */}
-              {isManager && (
-                <NavLink
-                  to="/users"
-                  className={({ isActive }) =>
-                    'whitespace-nowrap flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] sm:text-xs font-medium rounded-lg transition-all shrink-0 ' +
-                    (isActive
-                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                      : 'text-purple-400/80 hover:text-purple-300 border border-transparent')
-                  }
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>ניהול משתמשים</span>
-                </NavLink>
-              )}
-            </div>
+            )}
           </div>
 
           {/* Action Buttons & Profile */}
