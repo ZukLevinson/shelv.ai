@@ -25,6 +25,24 @@ export async function submitScan(payload: {
   return res.json();
 }
 
+export async function revertScan(observationId: string, revertedBy?: string) {
+  const res = await fetch(`${SERVER_URL}/api/sweep/scans/${observationId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revertedBy }),
+  });
+  return res.json();
+}
+
+export async function revertAction(actionId: string, revertedBy?: string) {
+  const res = await fetch(`${SERVER_URL}/api/actions/${actionId}/revert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revertedBy }),
+  });
+  return res.json();
+}
+
 export async function lookupItem(sn?: string, masha?: string) {
   const params = new URLSearchParams();
   if (sn) params.append('sn', sn);

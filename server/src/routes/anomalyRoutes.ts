@@ -3,6 +3,7 @@ import { detectAnomalies, approveTransfer, confirmInternalMove, revertResolution
 import { broadcast } from '../sockets/socketServer.js';
 import { db } from '../db/database.js';
 import { optionalToken, AuthenticatedRequest } from '../auth/authMiddleware.js';
+import { logAction } from '../services/actionService.js';
 
 export const anomalyRouter = Router();
 
@@ -46,39 +47,60 @@ anomalyRouter.post('/approve-transfer', optionalToken, (req: AuthenticatedReques
     const updatedReport = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', updatedReport);
     broadcast('TRANSFER_APPROVED', { serialNumber, targetRoomId: resolvedRoomId, resolvedBy: user });
-    res.json(result);
+
+    const actionId = logAction({
+      actionType: 'transfer_approved',
+      description: `אישור העברת פריט ${serialNumber} לחדר`,
+      entityType: 'resolution',
+      entityId: result.resolutionId,
+      performedBy: user,
+      stateAfter: { serialNumber, targetRoomId: resolvedRoomId, resolutionId: result.resolutionId }
+    });
+
+    res.json({ ...result, actionId });
   } catch (error: any) {
     console.error('[Anomaly API] Error approving transfer:', error);
     res.status(500).json({ error: error.message || 'Failed to approve transfer' });
   }
 });
 
-anomalyRouter.post('/confirm-move', (req, res) => {
+anomalyRouter.post('/confirm-move', optionalToken, async (req: AuthenticatedRequest, res) => {
   const { serialNumber, targetRoomId, resolvedBy } = req.body;
-  if (!serialNumber || !targetRoomId || !resolvedBy) {
-    return res.status(400).json({ error: 'serialNumber, targetRoomId, and resolvedBy are required' });
+  const user = resolvedBy || req.user?.name || 'מנהל מערכת';
+  if (!serialNumber || !targetRoomId) {
+    return res.status(400).json({ error: 'serialNumber and targetRoomId are required' });
   }
 
   try {
-    const result = confirmInternalMove(serialNumber, targetRoomId, resolvedBy);
+    const result = confirmInternalMove(serialNumber, targetRoomId, user);
     const updatedReport = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', updatedReport);
-    broadcast('MOVE_CONFIRMED', { serialNumber, targetRoomId, resolvedBy });
-    res.json(result);
+    broadcast('MOVE_CONFIRMED', { serialNumber, targetRoomId, resolvedBy: user });
+
+    const actionId = logAction({
+      actionType: 'internal_move_confirmed',
+      description: `אישור הזזה פנימית לפריט ${serialNumber}`,
+      entityType: 'resolution',
+      entityId: result.resolutionId,
+      performedBy: user,
+      stateAfter: { serialNumber, targetRoomId, resolutionId: result.resolutionId }
+    });
+
+    res.json({ ...result, actionId });
   } catch (error: any) {
     console.error('[Anomaly API] Error confirming move:', error);
     res.status(500).json({ error: error.message || 'Failed to confirm move' });
   }
 });
 
-anomalyRouter.post('/revert-resolution', (req, res) => {
+anomalyRouter.post('/revert-resolution', optionalToken, (req: AuthenticatedRequest, res) => {
   const { resolutionId, revertedBy } = req.body;
   if (!resolutionId) {
     return res.status(400).json({ error: 'resolutionId is required' });
   }
 
   try {
-    const user = revertedBy || 'מנהל מערכת';
+    const user = revertedBy || req.user?.name || 'מנהל מערכת';
     const result = revertResolution(resolutionId, user);
     const updatedReport = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', updatedReport);

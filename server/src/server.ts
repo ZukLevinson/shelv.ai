@@ -7,6 +7,7 @@ import { initSocketServer, broadcast } from './sockets/socketServer.js';
 import { inventoryRouter } from './routes/inventoryRoutes.js';
 import { sweepRouter } from './routes/sweepRoutes.js';
 import { anomalyRouter } from './routes/anomalyRoutes.js';
+import { actionRouter } from './routes/actionRoutes.js';
 import { authRouter } from './routes/authRoutes.js';
 import { userRouter } from './routes/userRoutes.js';
 import { authenticateToken, requireRole } from './auth/authMiddleware.js';
@@ -48,6 +49,7 @@ app.use('/api/users', userRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/sweep', sweepRouter);
 app.use('/api/anomalies', anomalyRouter);
+app.use('/api/actions', actionRouter);
 
 app.post('/api/upload-excel', authenticateToken, requireRole(['manager']), upload.single('file'), (req, res) => {
   if (!req.file) {

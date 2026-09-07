@@ -26,7 +26,18 @@ import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { createWorker } from 'tesseract.js';
 import { parseLabelText } from './src/services/labelParser';
-import { fetchRooms, submitScan, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo } from './src/services/api';
+import { fetchRooms, submitScan, revertScan, revertAction, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo } from './src/services/api';
+
+export interface ScannedRecord {
+  id: string;
+  actionId?: string;
+  serialNumber?: string | null;
+  masha: string;
+  description: string;
+  ownerText?: string;
+  scannedAt: string;
+  roomName?: string;
+}
 
 type Step = 'select_room' | 'scan_masha' | 'scan_sn' | 'edit_form' | 'manual_entry' | 'summary';
 export type ScanPipelineStage = 'idle' | 'searching' | 'qualified' | 'deciphering' | 'success';
@@ -38,6 +49,13 @@ export default function App() {
   const [sweeperName, setSweeperName] = useState('עובד סריקה');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Reversibility & Scan History state
+  const [sessionScans, setSessionScans] = useState<ScannedRecord[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
+  const [lastUndoBanner, setLastUndoBanner] = useState<ScannedRecord | null>(null);
+  const [undoSuccessMsg, setUndoSuccessMsg] = useState<string | null>(null);
 
   // Real Camera & Scanner state
   const [cameraActive, setCameraActive] = useState(true);
@@ -997,6 +1015,19 @@ export default function App() {
       } else {
         setScannedItemsCount(prev => prev + 1);
         setLastScannedItem(res.item);
+
+        const newRecord: ScannedRecord = {
+          id: res.observationId,
+          actionId: res.actionId,
+          serialNumber: sn || null,
+          masha: masha.trim(),
+          description: description || res.item?.description || 'ציוד שנסרק',
+          ownerText,
+          scannedAt: new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          roomName: selectedRoom.name
+        };
+        setSessionScans(prev => [newRecord, ...prev]);
+        setLastUndoBanner(newRecord);
       }
 
       resetCurrentScan();
@@ -1008,16 +1039,86 @@ export default function App() {
     }
   };
 
+  const handleRevertScan = async (record: ScannedRecord) => {
+    try {
+      setRevertingId(record.id);
+      await revertScan(record.id, sweeperName);
+
+      setSessionScans(prev => prev.filter(s => s.id !== record.id));
+      setScannedItemsCount(prev => Math.max(0, prev - 1));
+      if (lastUndoBanner?.id === record.id) {
+        setLastUndoBanner(null);
+      }
+      setUndoSuccessMsg(`סריקה ${record.serialNumber ? 'S/N ' + record.serialNumber : 'מסח"א ' + record.masha}`);
+      setTimeout(() => setUndoSuccessMsg(null), 4000);
+      Alert.alert('הסריקה בוטלה ↩️', `הסריקה של פריט ${record.serialNumber || record.masha} בוטלה והוסרה מהמערכת בהצלחה.`);
+    } catch (err: any) {
+      console.error('Error reverting scan:', err);
+      Alert.alert('שגיאה', 'לא ניתן היה לבטל את הסריקה');
+    } finally {
+      setRevertingId(null);
+    }
+  };
+
 
   return (
     <SafeAreaView style={styles.container} {...({ dir: 'rtl' } as any)}>
       {/* App Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
-        <Text style={styles.headerSubtitle}>
-          {selectedRoom ? `סורק ב: ${selectedRoom.name}` : 'בחר חדר לביצוע סריקה'}
-        </Text>
+        <View style={styles.headerFlexRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>shelv.ai Scanner</Text>
+            <Text style={styles.headerSubtitle}>
+              {selectedRoom ? `סורק ב: ${selectedRoom.name}` : 'בחר חדר לביצוע סריקה'}
+            </Text>
+          </View>
+          {sessionScans.length > 0 && (
+            <TouchableOpacity
+              style={styles.headerHistoryBtn}
+              onPress={() => setShowHistoryModal(true)}
+            >
+              <Text style={styles.headerHistoryBtnText}>📋 סריקות ({sessionScans.length})</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+
+      {/* Universal Instant Undo Banner for Last Scan */}
+      {lastUndoBanner && (
+        <View style={styles.undoNotificationBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.undoNotificationTitle}>
+              ✓ נסרק: {lastUndoBanner.serialNumber ? 'S/N ' + lastUndoBanner.serialNumber : 'מסח"א ' + lastUndoBanner.masha}
+            </Text>
+            <Text style={styles.undoNotificationSubtitle}>
+              {lastUndoBanner.description} • {lastUndoBanner.scannedAt}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.undoActionBtn}
+            onPress={() => handleRevertScan(lastUndoBanner)}
+            disabled={revertingId === lastUndoBanner.id}
+          >
+            {revertingId === lastUndoBanner.id ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.undoActionBtnText}>↩️ בטל סריקה</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setLastUndoBanner(null)}
+            style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+          >
+            <Text style={{ color: '#9ca3af', fontSize: 16, fontWeight: 'bold' }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {undoSuccessMsg && (
+        <View style={styles.undoSuccessAlert}>
+          <Text style={styles.undoSuccessAlertText}>↩️ {undoSuccessMsg} בוטלה מהמערכת בהצלחה</Text>
+        </View>
+      )}
 
       {/* Screen 1: Room Selection */}
       {currentStep === 'select_room' && (
@@ -1276,7 +1377,14 @@ export default function App() {
 
           {/* Bottom Bar */}
           <View style={styles.bottomBarCompact}>
-            <Text style={styles.bottomBarText}>נסרקו בסשן זה: {scannedItemsCount}</Text>
+            <TouchableOpacity
+              onPress={() => setShowHistoryModal(true)}
+              style={styles.historyTriggerBtn}
+            >
+              <Text style={styles.bottomBarText}>
+                נסרקו: {scannedItemsCount} {sessionScans.length > 0 ? '(📋 היסטוריה/ביטול)' : ''}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setCurrentStep('select_room')}
               style={styles.cancelButtonCompact}
@@ -1513,7 +1621,14 @@ export default function App() {
 
           {/* Bottom Bar */}
           <View style={styles.bottomBarCompact}>
-            <Text style={styles.bottomBarText}>נסרקו בסשן זה: {scannedItemsCount}</Text>
+            <TouchableOpacity
+              onPress={() => setShowHistoryModal(true)}
+              style={styles.historyTriggerBtn}
+            >
+              <Text style={styles.bottomBarText}>
+                נסרקו: {scannedItemsCount} {sessionScans.length > 0 ? '(📋 היסטוריה/ביטול)' : ''}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setCurrentStep('select_room')}
               style={styles.cancelButtonCompact}
@@ -1834,6 +1949,66 @@ export default function App() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Session Scan History & Revert Modal */}
+      <Modal
+        visible={showHistoryModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '85%', borderColor: '#3b82f6' }]} {...({ dir: 'rtl' } as any)}>
+            <View style={styles.modalHeader}>
+              <Text style={{ fontSize: 32, marginBottom: 4 }}>📋</Text>
+              <Text style={[styles.modalTitle, { color: '#60a5fa' }]}>
+                סריקות שבוצעו בסשן ({sessionScans.length})
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                באפשרותך לבטל כל סריקה שגויה בלחיצה אחת
+              </Text>
+            </View>
+
+            {sessionScans.length === 0 ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={{ color: '#9ca3af', fontSize: 14 }}>טרם בוצעו סריקות בסשן זה</Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 380, width: '100%' }}>
+                {sessionScans.map((scan) => (
+                  <View key={scan.id} style={styles.historyScanCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyScanSn}>
+                        {scan.serialNumber ? `S/N: ${scan.serialNumber}` : 'ללא מספר סידורי'}
+                      </Text>
+                      <Text style={styles.historyScanMasha}>מסח"א: {scan.masha}</Text>
+                      <Text style={styles.historyScanDesc} numberOfLines={1}>{scan.description}</Text>
+                      <Text style={styles.historyScanTime}>שעת סריקה: {scan.scannedAt}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.historyRevertBtn}
+                      onPress={() => handleRevertScan(scan)}
+                      disabled={revertingId === scan.id}
+                    >
+                      {revertingId === scan.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.historyRevertBtnText}>↩️ בטל סריקה</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={[styles.modalPrimaryBtn, { backgroundColor: '#374151', marginTop: 12 }]}
+              onPress={() => setShowHistoryModal(false)}
+            >
+              <Text style={styles.modalPrimaryBtnText}>סגור</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3170,5 +3345,121 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
     writingDirection: 'rtl',
+  },
+  headerFlexRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  headerHistoryBtn: {
+    backgroundColor: '#1e3a8a',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#3b82f6',
+  },
+  headerHistoryBtnText: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  undoNotificationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#064e3b',
+    borderBottomWidth: 1,
+    borderColor: '#059669',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  undoNotificationTitle: {
+    color: '#a7f3d0',
+    fontSize: 13,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  undoNotificationSubtitle: {
+    color: '#6ee7b7',
+    fontSize: 11,
+    textAlign: 'right',
+  },
+  undoActionBtn: {
+    backgroundColor: '#047857',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#34d399',
+  },
+  undoActionBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  undoSuccessAlert: {
+    backgroundColor: '#1e293b',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderColor: '#3b82f6',
+    alignItems: 'center',
+  },
+  undoSuccessAlertText: {
+    color: '#60a5fa',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  historyTriggerBtn: {
+    flex: 1,
+  },
+  historyScanCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1f2937',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  historyScanSn: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  historyScanMasha: {
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  historyScanDesc: {
+    color: '#9ca3af',
+    fontSize: 11,
+    textAlign: 'right',
+  },
+  historyScanTime: {
+    color: '#6b7280',
+    fontSize: 10,
+    textAlign: 'right',
+    marginTop: 2,
+  },
+  historyRevertBtn: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  historyRevertBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

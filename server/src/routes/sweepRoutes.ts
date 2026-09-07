@@ -350,9 +350,10 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
   }
 });
 
-// DELETE /api/sweep/scans/:id - Delete erroneous or test scan observation
+// DELETE /api/sweep/scans/:id - Delete or revert scan observation
 sweepRouter.delete('/scans/:id', async (req, res) => {
   const { id } = req.params;
+  const user = req.body?.revertedBy || 'סורק / מנהל';
   try {
     const existing = db.prepare('SELECT * FROM sweep_observations WHERE id = ?').get(id) as any;
     if (!existing) {
@@ -361,17 +362,35 @@ sweepRouter.delete('/scans/:id', async (req, res) => {
 
     db.prepare('DELETE FROM sweep_observations WHERE id = ?').run(id);
 
-    // Import dynamic/lazy services to avoid circular dependency
+    // Import dynamic services to avoid circular dependency
     const { detectAnomalies } = await import('../services/anomalyService.js');
     const { broadcast } = await import('../sockets/socketServer.js');
+    const { logAction } = await import('../services/actionService.js');
+
+    // Mark any existing scan_created action for this observation as reverted
+    db.prepare(`
+      UPDATE action_history
+      SET reverted_at = CURRENT_TIMESTAMP, reverted_by = ?
+      WHERE entity_type = 'scan' AND entity_id = ? AND action_type = 'scan_created' AND reverted_at IS NULL
+    `).run(user, id);
+
+    // Log the deletion action so the deletion itself can also be undone
+    const actionId = logAction({
+      actionType: 'scan_deleted',
+      description: `ביטול/מחיקת סריקה ${existing.serial_number ? 'S/N ' + existing.serial_number : 'מסח"א ' + existing.masha}`,
+      entityType: 'scan',
+      entityId: id,
+      performedBy: user,
+      stateBefore: existing
+    });
 
     const anomalies = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('SCANS_UPDATED', { deletedObservationId: id, serialNumber: existing.serial_number });
 
-    res.json({ success: true, message: 'סריקה נמחקה בהצלחה', deletedId: id });
+    res.json({ success: true, message: 'הסריקה בוטלה בהצלחה', deletedId: id, actionId });
   } catch (error: any) {
-    console.error('[Sweep API] Error deleting scan:', error);
+    console.error('[Sweep API] Error deleting/reverting scan:', error);
     res.status(500).json({ error: error.message || 'Failed to delete scan' });
   }
 });

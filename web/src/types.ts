@@ -8,6 +8,24 @@ export interface Room {
   swept_items: number;
 }
 
+export type UserRole = 'manager' | 'inventory_owner' | 'scanner';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  holder_id?: string | null;
+  holder_name?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
 export interface InventoryHolder {
   id: string;
   name: string;
@@ -18,6 +36,8 @@ export interface InventoryHolder {
   swept_items_count?: number;
   created_at?: string;
   rooms: Array<{ id: string; name: string; code: string }>;
+  coupled_user_email?: string | null;
+  coupled_user_name?: string | null;
 }
 
 

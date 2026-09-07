@@ -138,15 +138,31 @@ export function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS action_history (
+      id TEXT PRIMARY KEY,
+      action_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      performed_by TEXT NOT NULL,
+      performed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reverted_at DATETIME,
+      reverted_by TEXT,
+      state_before TEXT,
+      state_after TEXT
+    );
   `);
 
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_holder_id ON users(holder_id);
+      CREATE INDEX IF NOT EXISTS idx_action_history_performed_at ON action_history(performed_at);
+      CREATE INDEX IF NOT EXISTS idx_action_history_entity ON action_history(entity_type, entity_id);
     `);
   } catch (err) {
-    console.error('[DB] Error creating users indexes:', err);
+    console.error('[DB] Error creating indexes:', err);
   }
 
   // Ensure import_id column exists on official_inventory

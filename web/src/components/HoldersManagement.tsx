@@ -18,6 +18,7 @@ import {
 import axios from 'axios';
 import type { InventoryHolder, Room } from '../types';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   holders: InventoryHolder[];
@@ -32,6 +33,7 @@ export const HoldersManagement: React.FC<Props> = ({
   onRefresh,
   onOpenRoomModal
 }) => {
+  const { isManager } = useAuth();
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingHolder, setEditingHolder] = useState<InventoryHolder | null>(null);
@@ -185,13 +187,19 @@ export const HoldersManagement: React.FC<Props> = ({
                 </button>
               )}
 
-              <button
-                onClick={openCreateModal}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>הוסף בעל מצאי</span>
-              </button>
+              {isManager ? (
+                <button
+                  onClick={openCreateModal}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>הוסף בעל מצאי</span>
+                </button>
+              ) : (
+                <span className="text-[11px] text-gray-500 bg-gray-950 px-2.5 py-1.5 rounded-xl border border-gray-800">
+                  הוספת בעלי מצאי מורשית למנהל בלבד
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -305,8 +313,14 @@ export const HoldersManagement: React.FC<Props> = ({
                             {holder.name.charAt(0)}
                           </div>
                           <div>
-                            <div className="font-bold text-white group-hover:text-emerald-300 transition-colors">
-                              {holder.name}
+                            <div className="font-bold text-white group-hover:text-emerald-300 transition-colors flex items-center gap-2">
+                              <span>{holder.name}</span>
+                              {holder.coupled_user_email && (
+                                <span className="text-[10px] text-teal-300 bg-teal-500/15 border border-teal-500/30 px-1.5 py-0.5 rounded font-normal flex items-center gap-1">
+                                  <UserCheck className="w-3 h-3 text-teal-400" />
+                                  <span>מקושר: {holder.coupled_user_name || holder.coupled_user_email}</span>
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-gray-500 font-mono">
                               {holder.id}
@@ -375,25 +389,29 @@ export const HoldersManagement: React.FC<Props> = ({
 
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-left">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => openEditModal(holder)}
-                            title="ערוך פרטים"
-                            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setFormError(null);
-                              setDeletingHolder(holder);
-                            }}
-                            title="מחק בעל מצאי"
-                            className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        {isManager ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => openEditModal(holder)}
+                              title="ערוך פרטים"
+                              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setFormError(null);
+                                setDeletingHolder(holder);
+                              }}
+                              title="מחק בעל מצאי"
+                              className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-gray-500 italic">צפייה בלבד</span>
+                        )}
                       </td>
                     </tr>
                   );

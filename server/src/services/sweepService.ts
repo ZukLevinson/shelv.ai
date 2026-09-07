@@ -1,6 +1,7 @@
 import { db } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { detectAnomalies } from './anomalyService.js';
+import { logAction } from './actionService.js';
 
 export interface RecordScanInput {
   sweepId?: string;
@@ -46,10 +47,37 @@ export function recordObservation(input: RecordScanInput) {
       WHERE i.serial_number = ?
     `).get(cleanSN) as any;
 
+    const actionId = logAction({
+      actionType: 'scan_created',
+      description: `עדכון סריקה כפולה לפריט ${cleanSN || cleanMasha}`,
+      entityType: 'scan',
+      entityId: existingScan.id,
+      performedBy: input.scannedBy,
+      stateBefore: existingScan,
+      stateAfter: { ...existingScan, scanned_by: input.scannedBy, masha: cleanMasha }
+    });
+
+    const scannedRoom = db.prepare(`
+      SELECT r.*, h.name as holder_name FROM rooms r
+      JOIN inventory_holders h ON r.holder_id = h.id
+      WHERE r.id = ?
+    `).get(input.roomId) as any;
+
+    broadcast('ITEM_SCANNED', {
+      observationId: existingScan.id,
+      serialNumber: cleanSN,
+      masha: cleanMasha,
+      scannedRoom,
+      officialItem: officialItem || null,
+      scannedBy: input.scannedBy,
+      timestamp: new Date().toISOString(),
+    });
+
     return {
       status: 'duplicate',
       message: 'Item has already been scanned in this room sweep session',
       observationId: existingScan.id,
+      actionId,
       item: officialItem || {
         serial_number: cleanSN,
         masha: cleanMasha,
@@ -132,10 +160,30 @@ export function recordObservation(input: RecordScanInput) {
   const anomalies = detectAnomalies();
   broadcast('ANOMALIES_UPDATED', anomalies);
 
+  const actionId = logAction({
+    actionType: 'scan_created',
+    description: `סריקת פריט ${cleanSN ? 'S/N ' + cleanSN : 'מסח"א ' + cleanMasha} ב${scannedRoom?.name || 'חדר'}`,
+    entityType: 'scan',
+    entityId: observationId,
+    performedBy: input.scannedBy,
+    stateAfter: {
+      id: observationId,
+      sweep_id: input.sweepId || null,
+      room_id: input.roomId,
+      masha: cleanMasha,
+      serial_number: cleanSN,
+      scanned_by: input.scannedBy,
+      sticker_owner_text: input.stickerOwnerText || null,
+      product_name_detected: input.productNameDetected || null,
+      scanned_at: new Date().toISOString()
+    }
+  });
+
   return {
     status: 'recorded',
     message: 'Item scan recorded successfully',
     observationId,
+    actionId,
     item: officialItem || {
       serial_number: cleanSN,
       masha: cleanMasha,

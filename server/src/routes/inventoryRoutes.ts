@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { authenticateToken, requireRole, optionalToken } from '../auth/authMiddleware.js';
+import { logAction } from '../services/actionService.js';
 
 export const inventoryRouter = Router();
 
@@ -17,7 +18,7 @@ inventoryRouter.get('/rooms', (req, res) => {
   res.json(rooms);
 });
 
-inventoryRouter.post('/rooms', (req, res) => {
+inventoryRouter.post('/rooms', async (req, res) => {
   const { name, code, holder_id, new_holder_name } = req.body;
   const cleanName = (name || '').trim();
   const cleanCode = (code || '').trim();
@@ -62,6 +63,15 @@ inventoryRouter.post('/rooms', (req, res) => {
 
   broadcast('ROOMS_UPDATED', { roomId, action: 'created' });
 
+  const actionId = logAction({
+    actionType: 'room_created',
+    description: `יצירת חדר חדש "${cleanName}" (${cleanCode})`,
+    entityType: 'room',
+    entityId: roomId,
+    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    stateAfter: { id: roomId, name: cleanName, code: cleanCode, holder_id: resolvedHolderId }
+  });
+
   const createdRoom = db.prepare(`
     SELECT r.*, h.name as holder_name, h.email as holder_email,
            0 as total_items, 0 as swept_items
@@ -70,10 +80,10 @@ inventoryRouter.post('/rooms', (req, res) => {
     WHERE r.id = ?
   `).get(roomId);
 
-  res.status(201).json(createdRoom);
+  res.status(201).json({ ...(createdRoom as any), actionId });
 });
 
-inventoryRouter.put('/rooms/:id', (req, res) => {
+inventoryRouter.put('/rooms/:id', authenticateToken, requireRole(['manager']), async (req, res) => {
   const { id } = req.params;
   const { name, code, holder_id, new_holder_name } = req.body;
 
@@ -121,6 +131,16 @@ inventoryRouter.put('/rooms/:id', (req, res) => {
 
   broadcast('ROOMS_UPDATED', { roomId: id, action: 'updated' });
 
+  const actionId = logAction({
+    actionType: 'room_updated',
+    description: `עדכון פרטי חדר "${cleanName}" (${cleanCode})`,
+    entityType: 'room',
+    entityId: id,
+    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    stateBefore: existingRoom,
+    stateAfter: { id, name: cleanName, code: cleanCode, holder_id: resolvedHolderId }
+  });
+
   const updatedRoom = db.prepare(`
     SELECT r.*, h.name as holder_name, h.email as holder_email,
            (SELECT COUNT(*) FROM official_inventory i WHERE i.room_id = r.id) as total_items,
@@ -130,10 +150,10 @@ inventoryRouter.put('/rooms/:id', (req, res) => {
       WHERE r.id = ?
   `).get(id);
 
-  res.json(updatedRoom);
+  res.json({ ...(updatedRoom as any), actionId });
 });
 
-inventoryRouter.delete('/rooms/:id', (req, res) => {
+inventoryRouter.delete('/rooms/:id', authenticateToken, requireRole(['manager']), (req, res) => {
   const { id } = req.params;
   const existingRoom = db.prepare('SELECT * FROM rooms WHERE id = ?').get(id) as any;
   if (!existingRoom) {
@@ -143,7 +163,17 @@ inventoryRouter.delete('/rooms/:id', (req, res) => {
   db.prepare('DELETE FROM rooms WHERE id = ?').run(id);
 
   broadcast('ROOMS_UPDATED', { roomId: id, action: 'deleted' });
-  res.json({ success: true, message: 'החדר נמחק בהצלחה' });
+
+  const actionId = logAction({
+    actionType: 'room_deleted',
+    description: `מחיקת חדר "${existingRoom.name}" (${existingRoom.code})`,
+    entityType: 'room',
+    entityId: id,
+    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    stateBefore: existingRoom
+  });
+
+  res.json({ success: true, message: 'החדר נמחק בהצלחה', actionId });
 });
 
 inventoryRouter.get('/holders', (req, res) => {
@@ -171,7 +201,7 @@ inventoryRouter.get('/holders', (req, res) => {
   res.json(formatted);
 });
 
-inventoryRouter.post('/holders', authenticateToken, requireRole(['manager']), (req, res) => {
+inventoryRouter.post('/holders', authenticateToken, requireRole(['manager']), async (req, res) => {
   const { name, personal_number, phone } = req.body;
   const cleanName = (name || '').trim();
   if (!cleanName) {
@@ -193,10 +223,20 @@ inventoryRouter.post('/holders', authenticateToken, requireRole(['manager']), (r
 
   broadcast('HOLDERS_UPDATED', { id, action: 'created', name: cleanName });
 
-  res.status(201).json({ success: true, id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone });
+  const { logAction } = await import('../services/actionService.js');
+  const actionId = logAction({
+    actionType: 'holder_created',
+    description: `הוספת בעל מצאי חדש "${cleanName}"`,
+    entityType: 'holder',
+    entityId: id,
+    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    stateAfter: { id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone }
+  });
+
+  res.status(201).json({ success: true, id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone, actionId });
 });
 
-inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']), (req, res) => {
+inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']), async (req, res) => {
   const { id } = req.params;
   const { name, personal_number, phone } = req.body;
 
@@ -226,6 +266,17 @@ inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']),
 
   broadcast('HOLDERS_UPDATED', { id, action: 'updated', name: cleanName });
 
+  const { logAction } = await import('../services/actionService.js');
+  const actionId = logAction({
+    actionType: 'holder_updated',
+    description: `עדכון פרטי בעל מצאי "${cleanName}"`,
+    entityType: 'holder',
+    entityId: id,
+    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    stateBefore: existing,
+    stateAfter: { id, name: cleanName, personal_number: cleanPersonalNumber, phone: cleanPhone }
+  });
+
   const updatedHolder = db.prepare(`
     SELECT h.*, 
            (SELECT COUNT(*) FROM official_inventory i WHERE i.holder_id = h.id) as total_signed_items,
@@ -243,11 +294,12 @@ inventoryRouter.put('/holders/:id', authenticateToken, requireRole(['manager']),
     ...updatedHolder,
     total_signed_items: Number(updatedHolder.total_signed_items || 0),
     swept_items_count: Number(updatedHolder.swept_items_count || 0),
-    rooms: JSON.parse(updatedHolder.rooms_json || '[]')
+    rooms: JSON.parse(updatedHolder.rooms_json || '[]'),
+    actionId
   });
 });
 
-inventoryRouter.delete('/holders/:id', authenticateToken, requireRole(['manager']), (req, res) => {
+inventoryRouter.delete('/holders/:id', authenticateToken, requireRole(['manager']), async (req, res) => {
   const { id } = req.params;
 
   const existing = db.prepare('SELECT * FROM inventory_holders WHERE id = ?').get(id) as any;
@@ -269,7 +321,17 @@ inventoryRouter.delete('/holders/:id', authenticateToken, requireRole(['manager'
 
   broadcast('HOLDERS_UPDATED', { id, action: 'deleted' });
 
-  res.json({ success: true, message: 'בעל המצאי נמחק בהצלחה' });
+  const { logAction } = await import('../services/actionService.js');
+  const actionId = logAction({
+    actionType: 'holder_deleted',
+    description: `מחיקת בעל מצאי "${existing.name}"`,
+    entityType: 'holder',
+    entityId: id,
+    performedBy: (req as any).user?.name || 'מנהל מערכת',
+    stateBefore: existing
+  });
+
+  res.json({ success: true, message: 'בעל המצאי נמחק בהצלחה', actionId });
 });
 
 inventoryRouter.get('/items', (req, res) => {
@@ -425,7 +487,7 @@ inventoryRouter.get('/masha-registry', (req, res) => {
   }
 });
 
-inventoryRouter.post('/masha-registry/update', (req, res) => {
+inventoryRouter.post('/masha-registry/update', async (req, res) => {
   const { masha, category, description } = req.body;
   if (!masha) {
     return res.status(400).json({ error: 'masha is required' });
@@ -436,6 +498,8 @@ inventoryRouter.post('/masha-registry/update', (req, res) => {
   const cleanDesc = (description || '').trim();
 
   try {
+    const existingMasha = db.prepare('SELECT category, description FROM masha_registry WHERE masha = ?').get(cleanMasha) as any;
+
     db.prepare(`
       INSERT INTO masha_registry (masha, category, description, updated_at)
       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -455,8 +519,19 @@ inventoryRouter.post('/masha-registry/update', (req, res) => {
       `).run(cleanDesc, cleanCategory, cleanMasha);
     }
 
+    const { logAction } = await import('../services/actionService.js');
+    const actionId = logAction({
+      actionType: 'masha_updated',
+      description: `עדכון הגדרות מסח"א ${cleanMasha}`,
+      entityType: 'masha',
+      entityId: cleanMasha,
+      performedBy: (req as any).user?.name || 'מנהל מערכת',
+      stateBefore: existingMasha || { masha: cleanMasha, category: 'Regular Workstation', description: '' },
+      stateAfter: { masha: cleanMasha, category: cleanCategory, description: cleanDesc }
+    });
+
     broadcast('MASHA_UPDATED', { masha: cleanMasha, category: cleanCategory, description: cleanDesc });
-    res.json({ success: true, masha: cleanMasha });
+    res.json({ success: true, masha: cleanMasha, actionId });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to update masha' });
   }
