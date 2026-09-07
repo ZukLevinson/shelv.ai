@@ -124,7 +124,7 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
       u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
       (u.holder_name || '').toLowerCase().includes(q) ||
-      (u.role === 'manager' ? 'מנהל' : 'בעל מצאי').includes(q)
+      (u.role === 'manager' ? 'הרשאת עריכה' : 'בעל מצאי').includes(q)
     );
   });
 
@@ -147,11 +147,11 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
 
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
           <div className="flex items-center justify-between text-gray-400 text-xs">
-            <span>מנהלי מערכת (Managers)</span>
+            <span>בעלי הרשאת עריכה (Full Access)</span>
             <ShieldCheck className="w-4 h-4 text-purple-400" />
           </div>
           <div className="text-2xl font-black text-purple-400 mt-2">{totalManagers}</div>
-          <div className="text-[11px] text-gray-500 mt-1">הרשאת ביצוע פעולות וניהול בעלי מצאי</div>
+          <div className="text-[11px] text-gray-500 mt-1">הרשאת ביצוע פעולות ועדכון בעלי מצאי</div>
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
@@ -182,7 +182,7 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
           <div className="font-semibold text-blue-100">שיוך משתמשים לבעלי מצאי קיימים:</div>
           <p className="text-blue-200/90 leading-relaxed">
             לא כל בעלי המצאי הרשומים בארגון ({holders.length}) מחוברים בהכרח דרך Google. כאשר משתמש נרשם עם חשבון Google,
-            מנהל מערכת יכול לקשר אותו לפרופיל בעל המצאי המתאים שלו (או לבטל את הקישור). שיוך זה מאפשר לו לצפות בציוד ובחדרים שלו.
+            משתמש בעל הרשאת עריכה יכול לקשר אותו לפרופיל בעל המצאי המתאים שלו (או לבטל את הקישור). שיוך זה מאפשר לו לצפות בציוד ובחדרים שלו.
           </p>
         </div>
       </div>
@@ -254,7 +254,7 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
               <tr>
                 <th className="py-3.5 px-4">משתמש</th>
                 <th className="py-3.5 px-4">אימייל Google</th>
-                <th className="py-3.5 px-4">תפקיד והרשאה</th>
+                <th className="py-3.5 px-4">הרשאה במערכת</th>
                 <th className="py-3.5 px-4">שיוך לבעל מצאי קיים</th>
                 <th className="py-3.5 px-4 text-center">פעולות</th>
               </tr>
@@ -314,7 +314,7 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
                             }`}
                           >
                             <option value="manager" className="bg-gray-900 text-purple-300">
-                              מנהל מערכת (Manager)
+                              הרשאת עריכה מלאה (Full Access)
                             </option>
                             <option value="inventory_owner" className="bg-gray-900 text-blue-300">
                               בעל מצאי (Inventory Owner)
