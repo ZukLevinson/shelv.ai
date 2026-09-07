@@ -170,6 +170,16 @@ export function initDatabase() {
     );
   `);
 
+  // Ensure last_login_at column exists on users for existing databases
+  try {
+    const userCols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+    if (!userCols.some(col => col.name === 'last_login_at')) {
+      db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for last_login_at:', err);
+  }
+
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -187,16 +197,6 @@ export function initDatabase() {
     `);
   } catch (err) {
     console.error('[DB] Error creating indexes:', err);
-  }
-
-  // Ensure last_login_at column exists on users for existing databases
-  try {
-    const userCols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
-    if (!userCols.some(col => col.name === 'last_login_at')) {
-      db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
-    }
-  } catch (err) {
-    console.error('[DB] Migration error for last_login_at:', err);
   }
 
   // Ensure import_id column exists on official_inventory
