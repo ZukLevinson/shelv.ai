@@ -183,3 +183,11 @@ export interface ScanInvestigationData {
     to_holder_name?: string;
   }>;
 }
+
+export interface OnlineScannerInfo {
+  id: string;
+  name: string;
+  roomId?: string | null;
+  roomName?: string | null;
+  connectedAt: string;
+}
