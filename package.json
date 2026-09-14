@@ -1,11 +1,13 @@
 {
   "name": "shelv-ai",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "packageManager": "pnpm@12.3.4",
   "scripts": {
     "install:all": "pnpm --dir server install && pnpm --dir web install && pnpm --dir mobile install",
-    "build:all": "pnpm --dir web build && pnpm --dir mobile build:web && pnpm --dir server build",
+    "build": "pnpm run build:all",
+    "build:all": "node scripts/sync-version.cjs patch && pnpm --dir web build && pnpm --dir mobile build:web && pnpm --dir server build",
+    "build:no-bump": "pnpm --dir web build && pnpm --dir mobile build:web && pnpm --dir server build",
     "build:web": "pnpm --dir web build",
     "build:mobile": "pnpm --dir mobile build:web",
     "build:server": "pnpm --dir server build",

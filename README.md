@@ -113,10 +113,15 @@ pnpm dev:mobile
 ### Building for Production
 
 ```bash
-# Build all workspaces
-pnpm build:all
+# Build all workspaces (automatically increments patch version across all manifests)
+pnpm build
+# or: pnpm build:all
+
+# Build all workspaces without bumping version
+pnpm build:no-bump
 ```
 
+- Increments semver patch version across all 5 manifests and updates `version.ts`
 - Web dashboard outputs to `web/dist`
 - Mobile PWA exports to `mobile/dist`
 - Server compiles TypeScript to `server/dist`
