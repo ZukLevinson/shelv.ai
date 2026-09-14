@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { execSync } from 'child_process'
 import fs from 'fs'
+import { fileURLToPath, URL } from 'node:url'
 
 // Determine App Version: env var, or git tag, or fallback to package.json
 let appVersion = process.env.VITE_APP_VERSION || process.env.APP_VERSION || ''
@@ -66,6 +67,11 @@ const buildTime = process.env.VITE_BUILD_TIME || process.env.BUILD_TIME || new D
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __BRANCH_NAME__: JSON.stringify(branchName),

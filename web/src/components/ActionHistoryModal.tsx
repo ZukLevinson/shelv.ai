@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   RotateCcw,
-  X,
   Search,
   Building2,
   Users,
@@ -11,9 +10,20 @@ import {
   ArrowRightLeft,
   Filter,
   RefreshCw,
-  Clock
+  Clock,
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Badge,
+  Input,
+} from './ui';
 
 export interface ActionRecord {
   id: string;
@@ -47,7 +57,7 @@ export const ActionHistoryModal: React.FC<Props> = ({
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const fetchActions = async () => {
+  const fetchActions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -59,15 +69,13 @@ export const ActionHistoryModal: React.FC<Props> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchActions();
     }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+  }, [isOpen, fetchActions]);
 
   const handleRevert = async (actionId: string) => {
     if (!window.confirm('האם אתה בטוח שברצונך לבטל פעולה זו? המערכת תחזיר את הנתונים למצבם הקודם.')) {
@@ -121,55 +129,50 @@ export const ActionHistoryModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 animate-in fade-in">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl sm:rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden bg-gray-900 border-gray-800 flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 bg-gray-950/40">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
-              <RotateCcw className="w-5 h-5" />
+        <DialogHeader className="px-5 py-4 border-b border-gray-800 bg-gray-950/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                  <span>מרכז ביטול פעולות והיסטוריה</span>
+                  <Badge variant="secondary">{actions.length} פעולות</Badge>
+                </DialogTitle>
+                <DialogDescription className="text-xs text-gray-400 mt-0.5">
+                  כל פעולה שבוצעה במערכת (סריקה, שינוי חדר, בעל מצאי, מסח"א או אישור) ניתנת לביטול
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>מרכז ביטול פעולות והיסטוריה</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 font-normal">
-                  {actions.length} פעולות מתועדות
-                </span>
-              </h2>
-              <p className="text-xs text-gray-400">
-                כל פעולה שבוצעה במערכת (סריקה, שינוי חדר, בעל מצאי, מסח"א או אישור) ניתנת לביטול
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={fetchActions}
-              disabled={loading}
-              className="p-2 text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-xl transition-all"
-              title="רענן רשימה"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-xl transition-all"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2 pl-6">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={fetchActions}
+                disabled={loading}
+                title="רענן רשימה"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
-        </div>
+        </DialogHeader>
 
         {/* Filters and Search Bar */}
         <div className="p-4 border-b border-gray-800/80 bg-gray-950/20 flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
-            <input
+            <Search className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Input
               type="text"
               placeholder="חיפוש פעולה או משתמש..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl pr-9 pl-3 py-1.5 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-500/50"
+              className="pr-9"
             />
           </div>
 
@@ -183,17 +186,15 @@ export const ActionHistoryModal: React.FC<Props> = ({
               { id: 'holder', label: 'בעלי מצאי' },
               { id: 'masha', label: 'מסח"א' },
             ].map((tab) => (
-              <button
+              <Button
                 key={tab.id}
+                variant={filterType === tab.id ? 'amber' : 'outline'}
+                size="sm"
                 onClick={() => setFilterType(tab.id)}
-                className={`px-3 py-1 text-xs rounded-lg font-medium transition-all shrink-0 ${
-                  filterType === tab.id
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    : 'text-gray-400 hover:text-white bg-gray-900 border border-gray-800'
-                }`}
+                className="shrink-0"
               >
                 {tab.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -244,13 +245,9 @@ export const ActionHistoryModal: React.FC<Props> = ({
                           {act.description}
                         </p>
                         {isReverted ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">
-                            בוטלה ↩️
-                          </span>
+                          <Badge variant="secondary">בוטלה ↩️</Badge>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            פעילה
-                          </span>
+                          <Badge variant="emerald">פעילה</Badge>
                         )}
                       </div>
 
@@ -275,14 +272,17 @@ export const ActionHistoryModal: React.FC<Props> = ({
                   </div>
 
                   {!isReverted && (
-                    <button
+                    <Button
+                      variant="amber"
+                      size="sm"
                       onClick={() => handleRevert(act.id)}
+                      loading={revertingId === act.id}
                       disabled={revertingId === act.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all shrink-0 disabled:opacity-50"
+                      className="shrink-0"
                     >
-                      <RotateCcw className={`w-3.5 h-3.5 ${revertingId === act.id ? 'animate-spin' : ''}`} />
-                      <span>{revertingId === act.id ? 'מבטל...' : 'בטל פעולה זו ↩️'}</span>
-                    </button>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>בטל פעולה זו ↩️</span>
+                    </Button>
                   )}
                 </div>
               );
@@ -291,16 +291,13 @@ export const ActionHistoryModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3.5 bg-gray-950/60 border-t border-gray-800 flex justify-between items-center text-xs text-gray-400">
+        <DialogFooter className="px-6 py-3.5 bg-gray-950/60 border-t border-gray-800 flex justify-between items-center text-xs text-gray-400">
           <span>ביטול פעולה מחזיר את המערכת והנתונים למצב המקורי ומעדכן את מנוע החריגות.</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition-all"
-          >
+          <Button variant="secondary" size="sm" onClick={onClose}>
             סגור
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
-import { Tag, X, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Tag, Save } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { CategoryPicker } from './CategoryPicker';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Textarea,
+} from './ui';
 
 interface Props {
   isOpen: boolean;
@@ -12,22 +22,19 @@ interface Props {
 }
 
 export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, onSaved }) => {
-  const [category, setCategory] = useState(
-    mashaItem?.category === 'PC' ? 'Regular Workstation' : (mashaItem?.category || 'Regular Workstation')
-  );
-  const [description, setDescription] = useState(mashaItem?.description || '');
+  const [category, setCategory] = useState('Regular Workstation');
+  const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (mashaItem) {
       setCategory(mashaItem.category === 'PC' ? 'Regular Workstation' : (mashaItem.category || 'Regular Workstation'));
       setDescription(mashaItem.description || '');
     }
   }, [mashaItem]);
 
-  if (!isOpen || !mashaItem) return null;
-
   const handleSave = async () => {
+    if (!mashaItem) return;
     setSaving(true);
     try {
       await axios.post(`${API_BASE_URL}/api/inventory/masha-registry/update`, {
@@ -44,55 +51,62 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800">
-          <div className="flex items-center gap-2">
-            <Tag className="w-5 h-5 text-emerald-400 shrink-0" />
-            <h3 className="font-semibold text-sm sm:text-base text-white">הגדרת פרטי מסח"א {mashaItem.masha}</h3>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  if (!mashaItem) return null;
 
-        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg p-0 overflow-hidden bg-gray-900 border-gray-800">
+        <DialogHeader className="px-5 py-4 border-b border-gray-800 bg-gray-950/40">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+              <Tag className="w-5 h-5" />
+            </div>
+            <div>
+              <DialogTitle className="font-bold text-sm sm:text-base text-white">
+                הגדרת פרטי מסח"א {mashaItem.masha}
+              </DialogTitle>
+              <DialogDescription className="text-[11px] text-gray-400 mt-0.5">
+                עדכון סוג פריט, אייקון ומפרט טכני
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="p-4 sm:p-6 space-y-4 max-h-[65vh] overflow-y-auto">
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-2">
+            <label className="block text-xs font-semibold text-gray-300 mb-2">
               סוג פריט ולוגו מסח"א:
             </label>
             <CategoryPicker value={category} onChange={setCategory} />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5">
               תיאור ומפרט הפריט:
             </label>
-            <textarea
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="לדוגמה: HP Elite Mini 800 G9 i7-12700 16GB/512GB..."
               rows={4}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-950/50 border-t border-gray-800">
-          <button onClick={onClose} className="px-4 py-2 text-xs text-gray-400 hover:text-white">
+        <DialogFooter className="px-6 py-4 bg-gray-950/50 border-t border-gray-800 flex-row justify-end gap-2.5">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
             ביטול
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="default"
             onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all shadow-md shadow-emerald-500/20"
+            loading={saving}
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? 'שומר...' : 'שמור הגדרות'}</span>
-          </button>
-        </div>
-      </div>
-    </div>
+            <span>שמור הגדרות</span>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

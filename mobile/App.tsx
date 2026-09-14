@@ -29,6 +29,18 @@ import { parseLabelText } from './src/services/labelParser';
 import { fetchRooms, submitScan, revertScan, revertAction, lookupItem, scanWithGemini, qualifyWithGemini, GeminiSuspicions, GeminiFrameQualification, checkSnAlreadyScanned, ExistingScanInfo, UserProfile, fetchCurrentAuthUser, getDashboardUrl } from './src/services/api';
 import { ScannerPresenceManager } from './src/services/scannerPresence';
 import { MobileVersionBadge } from './src/components/MobileVersionBadge';
+import {
+  Button,
+  Badge,
+  Card,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Input,
+} from './src/components/ui';
 
 export interface ScannedRecord {
   id: string;
@@ -2169,65 +2181,65 @@ export default function App() {
         </View>
       </Modal>
       {/* Session Scan History & Revert Modal */}
-      <Modal
-        visible={showHistoryModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowHistoryModal(false)}
+      <Dialog
+        open={showHistoryModal}
+        onOpenChange={setShowHistoryModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: '85%', borderColor: '#3b82f6' }]} {...({ dir: 'rtl' } as any)}>
-            <View style={styles.modalHeader}>
-              <Text style={{ fontSize: 32, marginBottom: 4 }}>📋</Text>
-              <Text style={[styles.modalTitle, { color: '#60a5fa' }]}>
-                סריקות שבוצעו בסשן ({sessionScans.length})
-              </Text>
-              <Text style={styles.modalSubtitle}>
-                באפשרותך לבטל כל סריקה שגויה בלחיצה אחת
-              </Text>
-            </View>
+        <DialogContent style={{ maxHeight: '85%', borderColor: '#3b82f6', width: '92%', maxWidth: 500 }}>
+          <DialogHeader>
+            <Text style={{ fontSize: 32, marginBottom: 4, textAlign: 'center' }}>📋</Text>
+            <DialogTitle style={{ color: '#60a5fa', textAlign: 'center' }}>
+              סריקות שבוצעו בסשן ({sessionScans.length})
+            </DialogTitle>
+            <DialogDescription style={{ textAlign: 'center' }}>
+              באפשרותך לבטל כל סריקה שגויה בלחיצה אחת
+            </DialogDescription>
+          </DialogHeader>
 
-            {sessionScans.length === 0 ? (
-              <View style={{ padding: 24, alignItems: 'center' }}>
-                <Text style={{ color: '#9ca3af', fontSize: 14 }}>טרם בוצעו סריקות בסשן זה</Text>
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 380, width: '100%' }}>
-                {sessionScans.map((scan) => (
-                  <View key={scan.id} style={styles.historyScanCard}>
-                    <View style={{ flex: 1 }}>
+          {sessionScans.length === 0 ? (
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <Text style={{ color: '#9ca3af', fontSize: 14 }}>טרם בוצעו סריקות בסשן זה</Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 380, width: '100%' }}>
+              {sessionScans.map((scan) => (
+                <View key={scan.id} style={styles.historyScanCard}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       <Text style={styles.historyScanSn}>
                         {scan.serialNumber ? `S/N: ${scan.serialNumber}` : 'ללא S/N'}
                       </Text>
-                      <Text style={styles.historyScanMasha}>מסח"א: {scan.masha}</Text>
-                      <Text style={styles.historyScanDesc} numberOfLines={1}>{scan.description}</Text>
-                      <Text style={styles.historyScanTime}>שעת סריקה: {scan.scannedAt}</Text>
+                      <Badge variant="cyan" style={{ transform: [{ scale: 0.85 }] }}>סריקה</Badge>
                     </View>
-                    <TouchableOpacity
-                      style={styles.historyRevertBtn}
-                      onPress={() => handleRevertScan(scan)}
-                      disabled={revertingId === scan.id}
-                    >
-                      {revertingId === scan.id ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={styles.historyRevertBtnText}>↩️ בטל סריקה</Text>
-                      )}
-                    </TouchableOpacity>
+                    <Text style={styles.historyScanMasha}>מסח"א: {scan.masha}</Text>
+                    <Text style={styles.historyScanDesc} numberOfLines={1}>{scan.description}</Text>
+                    <Text style={styles.historyScanTime}>שעת סריקה: {scan.scannedAt}</Text>
                   </View>
-                ))}
-              </ScrollView>
-            )}
+                  <Button
+                    variant="amber"
+                    size="sm"
+                    loading={revertingId === scan.id}
+                    onPress={() => handleRevertScan(scan)}
+                    style={{ minHeight: 34 }}
+                  >
+                    ↩️ בטל
+                  </Button>
+                </View>
+              ))}
+            </ScrollView>
+          )}
 
-            <TouchableOpacity
-              style={[styles.modalPrimaryBtn, { backgroundColor: '#374151', marginTop: 12 }]}
+          <DialogFooter style={{ marginTop: 12 }}>
+            <Button
+              variant="secondary"
               onPress={() => setShowHistoryModal(false)}
+              style={{ width: '100%' }}
             >
-              <Text style={styles.modalPrimaryBtnText}>סגור</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              סגור
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SafeAreaView>
   );
 }

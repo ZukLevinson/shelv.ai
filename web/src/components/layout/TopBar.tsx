@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Edit2, LogOut } from 'lucide-react';
 import type { User } from '../../types';
 import type { PageMeta } from '../../types/navigation';
+import { Badge, Button } from '../ui';
 
 export interface TopBarProps {
   pageMeta: PageMeta;
@@ -38,9 +39,9 @@ export function TopBar({
             <h1 className="text-base sm:text-xl font-bold text-emerald-400 tracking-tight whitespace-nowrap">
               {pageMeta.title}
             </h1>
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            <Badge variant="default" className="text-[9px] sm:text-[11px]">
               Live Anomaly Engine
-            </span>
+            </Badge>
           </div>
           <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 line-clamp-1">
             {pageMeta.description}
@@ -59,17 +60,17 @@ export function TopBar({
           <div className="hidden sm:flex items-center gap-1.5 text-right">
             <span className="font-semibold text-white max-w-[120px] truncate">{user?.name}</span>
             {isManager ? (
-              <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 text-[9px] font-bold rounded border border-purple-500/40">
+              <Badge variant="purple" className="text-[9px] py-0 px-1.5">
                 הרשאת ניהול
-              </span>
+              </Badge>
             ) : isInventoryOwner ? (
-              <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-300 text-[9px] font-bold rounded border border-blue-500/40">
+              <Badge variant="blue" className="text-[9px] py-0 px-1.5">
                 בעל מצאי
-              </span>
+              </Badge>
             ) : (
-              <span className="px-1.5 py-0.2 bg-cyan-500/20 text-cyan-300 text-[9px] font-bold rounded border border-cyan-500/40">
+              <Badge variant="cyan" className="text-[9px] py-0 px-1.5">
                 סורק
-              </span>
+              </Badge>
             )}
             {isInventoryOwner && user?.personal_number && (
               <span className="text-gray-500 font-mono text-[10px]">({user.personal_number})</span>
@@ -87,15 +88,17 @@ export function TopBar({
           </div>
         </div>
 
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onLogout}
           title="התנתק מהמערכת"
-          className="h-9 px-2.5 flex items-center justify-center gap-1.5 text-xs font-medium text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 border border-gray-800 hover:border-rose-500/30 rounded-xl transition-colors cursor-pointer"
+          className="text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden md:inline">התנתק</span>
-        </button>
+        </Button>
       </div>
     </div>
   );
