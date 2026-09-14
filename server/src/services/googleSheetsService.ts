@@ -1045,7 +1045,7 @@ export async function markScanDeletedInGoogleSheet(observationId: string): Promi
 }
 
 /**
- * Clears all scan rows from Google Sheets (keeps the header row A1:O1 intact).
+ * Clears all scan rows from Google Sheets (keeps the header row A1:P1 intact).
  */
 export async function clearAllScansInGoogleSheet(): Promise<boolean> {
   const { client, spreadsheetId } = getSheetsClient();
@@ -1063,6 +1063,38 @@ export async function clearAllScansInGoogleSheet(): Promise<boolean> {
     console.error('[GoogleSheets] Error clearing scans from sheet:', err?.message || err);
     return false;
   }
+}
+
+/**
+ * Clears all action rows from the 'יומן פעולות סריקה' sheet (keeps the header row A1:J1 intact).
+ */
+export async function clearAllActionsInGoogleSheet(): Promise<boolean> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return false;
+
+  try {
+    const sheetTitle = await ensureActionsSheet(client, spreadsheetId);
+    await client.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A2:J`,
+    });
+    return true;
+  } catch (err: any) {
+    console.error('[GoogleSheets] Error clearing actions from sheet:', err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Clears all scan rows AND all action history rows from Google Sheets, and reapplies formatting.
+ */
+export async function clearAllScansAndHistoryInGoogleSheet(): Promise<boolean> {
+  const [scansOk, actionsOk] = await Promise.all([
+    clearAllScansInGoogleSheet(),
+    clearAllActionsInGoogleSheet(),
+  ]);
+  await formatAllSheets();
+  return Boolean(scansOk || actionsOk);
 }
 
 /**
