@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserCheck, Smartphone, AlertCircle, CheckCircle2, RefreshCw, Shield, Sparkles } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from './ui';
 
 interface Props {
   isOpen: boolean;
@@ -13,8 +19,6 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'info'; text: string } | null>(null);
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,8 +62,8 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-gray-900 border border-gray-800 rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
+    <Dialog open={isOpen} onOpenChange={() => {}}>
+      <DialogContent size="lg" hideCloseButton={true} className="p-6 sm:p-8 rounded-3xl overflow-hidden relative">
         {/* Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -68,12 +72,12 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen }) => {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 mb-1">
             <Sparkles className="w-6 h-6" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white">
+          <DialogTitle className="text-xl sm:text-2xl font-black text-white text-center">
             שלום {user?.name || 'וברוך הבא'}!
-          </h2>
-          <p className="text-xs text-gray-400 max-w-sm mx-auto">
+          </DialogTitle>
+          <DialogDescription className="text-xs text-gray-400 max-w-sm mx-auto text-center">
             כדי להתאים עבורך את סביבת העבודה, אנא הגדר את תפקידך במערכת shelv.ai
-          </p>
+          </DialogDescription>
         </div>
 
         {error && (
@@ -213,7 +217,7 @@ export const OnboardingModal: React.FC<Props> = ({ isOpen }) => {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { UploadCloud, FileSpreadsheet, X, CheckCircle, AlertCircle, Download, Trash2, RotateCcw, Clock } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle, AlertCircle, Download, Trash2, RotateCcw, Clock } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import type { ExcelImportRecord } from '../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogBody,
+  DialogFooter,
+  Button,
+} from './ui';
 
 interface Props {
   isOpen: boolean;
@@ -43,8 +52,6 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
       setLoadingImports(false);
     }
   };
-
-  if (!isOpen) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -127,18 +134,15 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="xl" className="p-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800">
+        <DialogHeader className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-semibold text-base sm:text-lg text-white">ניהול מצאי רשמי (אקסל)</h3>
+            <DialogTitle className="font-semibold text-base sm:text-lg text-white">ניהול מצאי רשמי (אקסל)</DialogTitle>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        </DialogHeader>
 
         {/* Tab Navigation */}
         <div className="flex border-b border-gray-800 px-4 sm:px-6 bg-gray-950/40">
@@ -166,7 +170,7 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
           </button>
         </div>
 
-        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+        <DialogBody className="p-4 sm:p-6 space-y-4">
           {actionMessage && (
             <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
@@ -365,27 +369,30 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, 
               )}
             </div>
           )}
-        </div>
+        </DialogBody>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-950/50 border-t border-gray-800">
-          <button
+        <DialogFooter className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-950/50">
+          <Button
+            type="button"
+            variant="ghost"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
           >
             סגור
-          </button>
+          </Button>
           {activeTab === 'upload' && (
-            <button
+            <Button
+              type="button"
+              variant="default"
               onClick={handleUpload}
               disabled={!file || loading}
-              className="px-5 py-2 text-sm font-medium rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white transition-all shadow-lg shadow-emerald-500/20"
+              loading={loading}
             >
               {loading ? 'מייבא...' : 'ייבא נתונים'}
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
-  X, 
   Plus, 
   Trash2, 
   Edit3, 
@@ -16,6 +15,16 @@ import {
 import axios from 'axios';
 import type { Room, InventoryHolder } from '../types';
 import { API_BASE_URL } from '../config';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+  Button,
+} from './ui';
 
 interface Props {
   isOpen: boolean;
@@ -76,8 +85,6 @@ export const RoomManagementModal: React.FC<Props> = ({
       }
     }
   }, [isOpen, rooms.length]);
-
-  if (!isOpen) return null;
 
   const handleNameChange = (val: string) => {
     setName(val);
@@ -209,27 +216,24 @@ export const RoomManagementModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-2.5 sm:p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-        
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="2xl" className="p-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800 bg-gray-950/40">
+        <DialogHeader className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800 bg-gray-950/40">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 sm:p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base sm:text-lg text-white">ניהול חדרים ומבנים</h3>
-              <p className="text-[11px] sm:text-xs text-gray-400">הגדרת רשימת החדרים ובעלי המצאי בארגון</p>
+              <DialogTitle className="font-bold text-base sm:text-lg text-white">
+                ניהול חדרים ומבנים
+              </DialogTitle>
+              <DialogDescription className="text-[11px] sm:text-xs text-gray-400">
+                הגדרת רשימת החדרים ובעלי המצאי בארגון
+              </DialogDescription>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        </DialogHeader>
 
         {/* Navigation Tabs */}
         <div className="flex border-b border-gray-800 px-4 sm:px-6 pt-2.5 sm:pt-3 bg-gray-950/20 gap-2">
@@ -274,7 +278,7 @@ export const RoomManagementModal: React.FC<Props> = ({
         )}
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+        <DialogBody className="p-4 sm:p-6 space-y-4">
           {activeTab === 'create' ? (
             <form onSubmit={handleCreateRoom} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -561,19 +565,21 @@ export const RoomManagementModal: React.FC<Props> = ({
               )}
             </div>
           )}
-        </div>
+        </DialogBody>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-3.5 bg-gray-950/60 border-t border-gray-800 text-xs text-gray-400">
+        <DialogFooter className="flex items-center justify-between px-6 py-3.5 bg-gray-950/60 text-xs text-gray-400">
           <span>רשימת החדרים משמשת את אפליקציית הסריקה הניידת ואת מנוע זיהוי החריגות.</span>
-          <button
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
             onClick={onClose}
-            className="px-4 py-1.5 text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
           >
             סגור
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

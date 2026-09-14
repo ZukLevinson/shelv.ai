@@ -3,14 +3,12 @@ import axios from 'axios';
 import {
   UploadCloud,
   FileSpreadsheet,
-  X,
   CheckCircle2,
   CheckCircle,
   AlertTriangle,
   AlertCircle,
   Search,
   Check,
-  RotateCw,
   Info,
   MapPin,
   Tag,
@@ -19,6 +17,16 @@ import {
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
 import type { ExcelImportRecord } from '../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+  Button,
+} from './ui';
 
 interface Props {
   isOpen: boolean;
@@ -262,34 +270,25 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
     });
   }, [parseResult, statusFilter, searchTerm]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-        
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent size="5xl" className="p-0">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-800 bg-gray-950/60">
+        <DialogHeader className="px-4 sm:px-6 py-3.5 border-b border-gray-800 bg-gray-950/60">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base sm:text-lg text-white">
+              <DialogTitle className="font-bold text-base sm:text-lg text-white">
                 ייבוא סריקות מאקסל או PDF (Google Forms / Drive)
-              </h3>
-              <p className="text-[11px] sm:text-xs text-gray-400">
+              </DialogTitle>
+              <DialogDescription className="text-[11px] sm:text-xs text-gray-400">
                 טעינת סריקות היסטוריות מקובץ אקסל ("Form Responses 1") או יצוא PDF מ-Google Drive בנייד, זיהוי חדרים וסינון כפילויות
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        </DialogHeader>
 
         {/* Tab Navigation */}
         <div className="flex border-b border-gray-800 px-4 sm:px-6 bg-gray-950/40">
@@ -334,7 +333,7 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
         )}
 
         {/* Content Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+        <DialogBody className="p-4 sm:p-6 space-y-4">
           {mainTab === 'history' ? (
             <div className="space-y-4 max-w-3xl mx-auto py-2">
               <div>
@@ -775,10 +774,10 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
           </>
         )}
 
-        </div>
+        </DialogBody>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gray-950/70 border-t border-gray-800">
+        <DialogFooter className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gray-950/70">
           <div>
             {mainTab === 'upload' && step === 'preview' && (
               <button
@@ -794,77 +793,65 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
 
           <div className="flex items-center gap-2">
             {mainTab === 'history' ? (
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={handleClose}
-                className="px-6 py-2 text-xs sm:text-sm font-bold rounded-xl bg-gray-800 hover:bg-gray-700 text-white transition-all cursor-pointer"
               >
                 סגור
-              </button>
+              </Button>
             ) : step !== 'success' ? (
               <>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={handleClose}
                   disabled={analyzing || saving}
-                  className="px-4 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors"
                 >
                   ביטול
-                </button>
+                </Button>
 
                 {step === 'upload' ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="default"
+                    size="sm"
                     onClick={handleParseFile}
                     disabled={!file || analyzing}
-                    className="flex items-center gap-2 px-5 py-2 text-xs sm:text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
+                    loading={analyzing}
                   >
-                    {analyzing ? (
-                      <>
-                        <RotateCw className="w-4 h-4 animate-spin" />
-                        <span>מפענח ומנתח קובץ...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UploadCloud className="w-4 h-4" />
-                        <span>טען ובדוק נתונים</span>
-                      </>
-                    )}
-                  </button>
+                    <UploadCloud className="w-4 h-4" />
+                    <span>טען ובדוק נתונים</span>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="default"
+                    size="sm"
                     onClick={handleCommitImport}
                     disabled={saving || !parseResult || parseResult.validRowsCount === 0}
-                    className="flex items-center gap-2 px-5 py-2 text-xs sm:text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
+                    loading={saving}
                   >
-                    {saving ? (
-                      <>
-                        <RotateCw className="w-4 h-4 animate-spin" />
-                        <span>שומר סריקות במערכת...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-4 h-4" />
-                        <span>שמור {parseResult?.validRowsCount || 0} סריקות במערכת</span>
-                      </>
-                    )}
-                  </button>
+                    <Check className="w-4 h-4" />
+                    <span>שמור {parseResult?.validRowsCount || 0} סריקות במערכת</span>
+                  </Button>
                 )}
               </>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="default"
+                size="sm"
                 onClick={handleClose}
-                className="px-6 py-2 text-xs sm:text-sm font-bold rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-all"
               >
                 סגור ורענן תצוגה
-              </button>
+              </Button>
             )}
           </div>
-        </div>
-
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
