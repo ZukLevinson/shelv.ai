@@ -4,7 +4,7 @@ import { detectAnomalies } from './anomalyService.js';
 import { logAction } from './actionService.js';
 import { alertOnMisplacedItemScan } from './emailAlertService.js';
 import { parseMashaString } from '../utils/mashaUtils.js';
-import { appendScanToGoogleSheet } from './googleSheetsService.js';
+import { appendScanToGoogleSheet, updateScanInGoogleSheet } from './googleSheetsService.js';
 
 export interface RecordScanInput {
   sweepId?: string;
@@ -87,6 +87,12 @@ export function recordObservation(input: RecordScanInput) {
       officialItem: officialItem || null,
       scannedBy: input.scannedBy,
       timestamp: new Date().toISOString(),
+    });
+
+    setImmediate(() => {
+      updateScanInGoogleSheet(existingScan.id, input.baseUrl).catch((err) =>
+        console.error('[GoogleSheets] Failed to update scan status on rescan:', err)
+      );
     });
 
     return {

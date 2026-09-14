@@ -92,6 +92,9 @@ export function revertAction(actionId: string, revertedBy: string) {
       const obs = db.prepare('SELECT * FROM sweep_observations WHERE id = ?').get(action.entity_id) as any;
       if (obs) {
         db.prepare('DELETE FROM sweep_observations WHERE id = ?').run(action.entity_id);
+        import('./googleSheetsService.js').then(({ markScanDeletedInGoogleSheet }) => {
+          markScanDeletedInGoogleSheet(action.entity_id).catch(() => {});
+        });
       }
       const anomalies = detectAnomalies();
       broadcast('ANOMALIES_UPDATED', anomalies);
@@ -122,13 +125,21 @@ export function revertAction(actionId: string, revertedBy: string) {
       const anomalies = detectAnomalies();
       broadcast('ANOMALIES_UPDATED', anomalies);
       broadcast('SCANS_UPDATED', { restoredObservationId: stateBefore.id, serialNumber: stateBefore.serial_number });
+      import('./googleSheetsService.js').then(({ updateScanInGoogleSheet }) => {
+        updateScanInGoogleSheet(stateBefore.id).catch(() => {});
+      });
       break;
     }
 
     case 'transfer_approved':
     case 'internal_move_confirmed': {
       // Revert anomaly resolution using existing logic
-      revertResolution(action.entity_id, user);
+      const res = revertResolution(action.entity_id, user);
+      if (res?.serialNumber) {
+        import('./googleSheetsService.js').then(({ updateScansForAssetInGoogleSheet }) => {
+          updateScansForAssetInGoogleSheet(res.serialNumber).catch(() => {});
+        });
+      }
       break;
     }
 

@@ -91,6 +91,14 @@ app.post('/api/upload-excel', authenticateToken, requireRole(['manager']), uploa
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('INVENTORY_SYNCED', result);
     scheduleDebouncedBackup(1000); // Trigger prompt backup on bulk Excel imports
+
+    const baseUrl = req.protocol + '://' + req.get('host');
+    import('./services/googleSheetsService.js').then(({ syncAllScansToGoogleSheet }) => {
+      syncAllScansToGoogleSheet(baseUrl).catch((err) =>
+        console.error('[GoogleSheets] Failed to sync scans after baseline upload:', err)
+      );
+    });
+
     res.json({ message: 'Inventory baseline imported successfully', result });
   } catch (error: any) {
     console.error('[Excel API] Import error:', error);

@@ -142,17 +142,53 @@ async function ensureHeaders(client: sheets_v4.Sheets, spreadsheetId: string, sh
   }
 }
 
+let cachedBaseUrl: string | null = null;
+
+export function setCachedBaseUrl(url?: string | null) {
+  if (url && typeof url === 'string') {
+    cachedBaseUrl = url.replace(/\/$/, '');
+  }
+}
+
+export function getCachedBaseUrl(): string | null {
+  return cachedBaseUrl;
+}
+
 /**
  * Appends a single scan observation row to Google Sheets in real time.
+ * If the observation already exists in the sheet, it updates the existing row in place.
  */
-export async function appendScanToGoogleSheet(scan: GoogleSheetScanData): Promise<boolean> {
+export async function appendScanToGoogleSheet(scan: GoogleSheetScanData, baseUrl?: string): Promise<boolean> {
   const { client, spreadsheetId, error } = getSheetsClient();
   if (!client || !spreadsheetId) {
     return false;
   }
 
+  if (baseUrl) {
+    setCachedBaseUrl(baseUrl);
+  } else if (scan.imageSnUrl) {
+    try {
+      setCachedBaseUrl(new URL(scan.imageSnUrl).origin);
+    } catch {}
+  }
+
   try {
     const sheetTitle = await ensureHeaders(client, spreadsheetId);
+
+    // Check if row already exists by observationId
+    const colARes = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A:A`,
+    });
+
+    const rows = colARes.data.values || [];
+    let foundRowIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i]?.[0] === scan.observationId) {
+        foundRowIndex = i + 1;
+        break;
+      }
+    }
 
     const snCell = scan.imageSnUrl
       ? `=HYPERLINK("${scan.imageSnUrl}", "📷 תמונת S/N")`
@@ -180,20 +216,272 @@ export async function appendScanToGoogleSheet(scan: GoogleSheetScanData): Promis
       mashaCell,
     ];
 
-    await client.spreadsheets.values.append({
-      spreadsheetId,
-      range: `'${sheetTitle}'!A:O`,
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: {
-        values: [rowValues],
-      },
-    });
+    if (foundRowIndex > 0) {
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${sheetTitle}'!A${foundRowIndex}:O${foundRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [rowValues],
+        },
+      });
+    } else {
+      await client.spreadsheets.values.append({
+        spreadsheetId,
+        range: `'${sheetTitle}'!A:O`,
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [rowValues],
+        },
+      });
+    }
 
     lastSyncTimestamp = new Date().toISOString();
     return true;
   } catch (err: any) {
-    console.error('[GoogleSheets] Error appending scan row to Google Sheet:', err?.message || err);
+    console.error('[GoogleSheets] Error appending/updating scan row to Google Sheet:', err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Updates an existing scan row in Google Sheets with its freshly recalculated match status,
+ * official room, and official holder from SQLite.
+ */
+export async function updateScanInGoogleSheet(observationId: string, baseUrl?: string): Promise<boolean> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return false;
+
+  if (baseUrl) {
+    setCachedBaseUrl(baseUrl);
+  }
+  const effectiveBaseUrl = baseUrl || cachedBaseUrl || undefined;
+
+  try {
+    const sheetTitle = await ensureHeaders(client, spreadsheetId);
+
+    const s = db.prepare(`
+      SELECT 
+        o.id as observationId,
+        o.scanned_at as scannedAt,
+        o.masha,
+        o.serial_number as serialNumber,
+        o.product_name_detected as productName,
+        o.sticker_owner_text as stickerOwnerText,
+        o.scanned_by as scannedBy,
+        (o.image_sn IS NOT NULL AND o.image_sn != '') as hasImageSn,
+        (o.image_masha IS NOT NULL AND o.image_masha != '') as hasImageMasha,
+        (o.image IS NOT NULL AND o.image != '') as hasLegacyImage,
+        r.name as roomName,
+        r.code as roomCode,
+        h.name as roomHolderName,
+        i.id as official_item_id,
+        off_r.name as officialRoomName,
+        off_h.name as officialHolderName,
+        COALESCE(m.description, i.description, o.product_name_detected, 'ציוד') as resolvedDescription,
+        CASE
+          WHEN i.id IS NULL THEN 'לא רשום באקסל'
+          WHEN i.holder_id != r.holder_id THEN 'חריגת מיקום / חתימה'
+          ELSE 'תואם חתימה'
+        END as scanStatus
+      FROM sweep_observations o
+      JOIN rooms r ON o.room_id = r.id
+      JOIN inventory_holders h ON r.holder_id = h.id
+      LEFT JOIN official_inventory i ON i.id = COALESCE(
+        (SELECT i1.id FROM official_inventory i1 WHERE o.serial_number IS NOT NULL AND o.serial_number != '' AND i1.serial_number = o.serial_number LIMIT 1),
+        (SELECT i2.id FROM official_inventory i2 WHERE i2.masha = o.masha AND i2.holder_id = r.holder_id LIMIT 1),
+        (SELECT i3.id FROM official_inventory i3 WHERE i3.masha = o.masha LIMIT 1)
+      )
+      LEFT JOIN rooms off_r ON i.room_id = off_r.id
+      LEFT JOIN inventory_holders off_h ON i.holder_id = off_h.id
+      LEFT JOIN masha_registry m ON COALESCE(o.masha, i.masha) = m.masha
+      WHERE o.id = ?
+    `).get(observationId) as any;
+
+    const colARes = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A:A`,
+    });
+
+    const rows = colARes.data.values || [];
+    let foundRowIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i]?.[0] === observationId) {
+        foundRowIndex = i + 1;
+        break;
+      }
+    }
+
+    if (!s) {
+      // The scan was deleted from database
+      if (foundRowIndex > 0) {
+        await client.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${sheetTitle}'!J${foundRowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [['נמחק (בוטל במערכת)']],
+          },
+        });
+        lastSyncTimestamp = new Date().toISOString();
+        return true;
+      }
+      return false;
+    }
+
+    let snCell = '-';
+    let mashaCell = '-';
+    const hasSn = Boolean(s.hasImageSn || s.hasLegacyImage);
+    const hasMasha = Boolean(s.hasImageMasha);
+
+    if (hasSn) {
+      if (effectiveBaseUrl) {
+        snCell = `=HYPERLINK("${effectiveBaseUrl}/api/sweep/scans/${s.observationId}/image/sn", "📷 תמונת S/N")`;
+      } else {
+        snCell = '📷 שמורה';
+      }
+    }
+
+    if (hasMasha) {
+      if (effectiveBaseUrl) {
+        mashaCell = `=HYPERLINK("${effectiveBaseUrl}/api/sweep/scans/${s.observationId}/image/masha", "📷 תמונת מסח\"א")`;
+      } else {
+        mashaCell = '📷 שמורה';
+      }
+    }
+
+    const rowValues = [
+      s.observationId,
+      new Date(s.scannedAt).toLocaleString('he-IL'),
+      s.masha,
+      s.serialNumber || '',
+      s.resolvedDescription || '',
+      s.roomName,
+      s.roomCode,
+      s.roomHolderName || '',
+      s.scannedBy,
+      s.scanStatus,
+      s.officialRoomName || '',
+      s.officialHolderName || '',
+      s.stickerOwnerText || '',
+      snCell,
+      mashaCell,
+    ];
+
+    if (foundRowIndex > 0) {
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${sheetTitle}'!A${foundRowIndex}:O${foundRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [rowValues],
+        },
+      });
+    } else {
+      await client.spreadsheets.values.append({
+        spreadsheetId,
+        range: `'${sheetTitle}'!A:O`,
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [rowValues],
+        },
+      });
+    }
+
+    lastSyncTimestamp = new Date().toISOString();
+    return true;
+  } catch (err: any) {
+    console.error(`[GoogleSheets] Error updating scan ${observationId} in sheet:`, err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Updates all Google Sheet rows corresponding to a specific asset S/N or Masha
+ * (e.g. after a transfer is approved, physical move confirmed, or resolution reverted,
+ * changing its status from mismatch to matching).
+ */
+export async function updateScansForAssetInGoogleSheet(identifier: string, baseUrl?: string): Promise<number> {
+  if (!identifier) return 0;
+  try {
+    const observations = db.prepare(`
+      SELECT id FROM sweep_observations 
+      WHERE serial_number = ? OR masha = ?
+    `).all(identifier, identifier) as Array<{ id: string }>;
+
+    let updatedCount = 0;
+    for (const obs of observations) {
+      const ok = await updateScanInGoogleSheet(obs.id, baseUrl);
+      if (ok) updatedCount++;
+    }
+    return updatedCount;
+  } catch (err) {
+    console.error(`[GoogleSheets] Error updating scans for asset ${identifier}:`, err);
+    return 0;
+  }
+}
+
+/**
+ * Marks a scan row in Google Sheets as deleted.
+ */
+export async function markScanDeletedInGoogleSheet(observationId: string): Promise<boolean> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return false;
+
+  try {
+    const sheetTitle = await ensureHeaders(client, spreadsheetId);
+    const colARes = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A:A`,
+    });
+
+    const rows = colARes.data.values || [];
+    let foundRowIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i]?.[0] === observationId) {
+        foundRowIndex = i + 1;
+        break;
+      }
+    }
+
+    if (foundRowIndex > 0) {
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${sheetTitle}'!J${foundRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [['נמחק (בוטל במערכת)']],
+        },
+      });
+      lastSyncTimestamp = new Date().toISOString();
+      return true;
+    }
+    return false;
+  } catch (err: any) {
+    console.error(`[GoogleSheets] Error marking scan ${observationId} deleted in sheet:`, err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Clears all scan rows from Google Sheets (keeps the header row A1:O1 intact).
+ */
+export async function clearAllScansInGoogleSheet(): Promise<boolean> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return false;
+
+  try {
+    const sheetTitle = await ensureHeaders(client, spreadsheetId);
+    await client.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A2:O`,
+    });
+    lastSyncTimestamp = new Date().toISOString();
+    return true;
+  } catch (err: any) {
+    console.error('[GoogleSheets] Error clearing scans from sheet:', err?.message || err);
     return false;
   }
 }

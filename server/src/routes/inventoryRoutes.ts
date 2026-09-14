@@ -750,6 +750,13 @@ inventoryRouter.delete('/excel-imports/:id', authenticateToken, requireRole(['ma
       stateBefore: { filename: result.filename, itemsCount: result.deletedItemsCount, holdersCount: result.deletedHoldersCount }
     });
 
+    const baseUrl = req.protocol + '://' + req.get('host');
+    import('../services/googleSheetsService.js').then(({ syncAllScansToGoogleSheet }) => {
+      syncAllScansToGoogleSheet(baseUrl).catch((e) =>
+        console.error('[GoogleSheets] Failed to sync scans after import deleted:', e)
+      );
+    });
+
     res.json({
       success: true,
       message: `${desc} בהצלחה`,
@@ -777,6 +784,13 @@ inventoryRouter.post('/baseline/reset', authenticateToken, requireRole(['manager
       broadcast('HOLDERS_UPDATED', { action: 'orphan_holders_cleaned' });
     }
     scheduleDebouncedBackup(1000);
+
+    const baseUrl = req.protocol + '://' + req.get('host');
+    import('../services/googleSheetsService.js').then(({ syncAllScansToGoogleSheet }) => {
+      syncAllScansToGoogleSheet(baseUrl).catch((e) =>
+        console.error('[GoogleSheets] Failed to sync scans after baseline reset:', e)
+      );
+    });
 
     const desc = `איפוס כל המצאי הנדרש: נמחקו ${result.deletedItemsCount} פריטים, ${result.deletedImportsCount} קבצים${result.deletedHoldersCount > 0 ? `, ו-${result.deletedHoldersCount} בעלי מצאי יתומים` : ''}`;
     logAction({

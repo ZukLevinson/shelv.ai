@@ -4,6 +4,7 @@ import { broadcast } from '../sockets/socketServer.js';
 import { db } from '../db/database.js';
 import { optionalToken, AuthenticatedRequest } from '../auth/authMiddleware.js';
 import { logAction } from '../services/actionService.js';
+import { updateScansForAssetInGoogleSheet } from '../services/googleSheetsService.js';
 
 export const anomalyRouter = Router();
 
@@ -58,6 +59,13 @@ anomalyRouter.post('/approve-transfer', optionalToken, (req: AuthenticatedReques
       stateAfter: { serialNumber, targetRoomId: resolvedRoomId, resolutionId: result.resolutionId }
     });
 
+    const baseUrl = req.protocol + '://' + req.get('host');
+    setImmediate(() => {
+      updateScansForAssetInGoogleSheet(serialNumber, baseUrl).catch((err) =>
+        console.error('[GoogleSheets] Failed to update scan status on approve-transfer:', err)
+      );
+    });
+
     res.json({ ...result, actionId });
   } catch (error: any) {
     console.error('[Anomaly API] Error approving transfer:', error);
@@ -87,6 +95,13 @@ anomalyRouter.post('/confirm-move', optionalToken, async (req: AuthenticatedRequ
       stateAfter: { serialNumber, targetRoomId, resolutionId: result.resolutionId }
     });
 
+    const baseUrl = req.protocol + '://' + req.get('host');
+    setImmediate(() => {
+      updateScansForAssetInGoogleSheet(serialNumber, baseUrl).catch((err) =>
+        console.error('[GoogleSheets] Failed to update scan status on confirm-move:', err)
+      );
+    });
+
     res.json({ ...result, actionId });
   } catch (error: any) {
     console.error('[Anomaly API] Error confirming move:', error);
@@ -106,6 +121,16 @@ anomalyRouter.post('/revert-resolution', optionalToken, (req: AuthenticatedReque
     const updatedReport = detectAnomalies();
     broadcast('ANOMALIES_UPDATED', updatedReport);
     broadcast('RESOLUTION_REVERTED', { resolutionId, serialNumber: result.serialNumber, revertedBy: user });
+
+    const baseUrl = req.protocol + '://' + req.get('host');
+    setImmediate(() => {
+      if (result.serialNumber) {
+        updateScansForAssetInGoogleSheet(result.serialNumber, baseUrl).catch((err) =>
+          console.error('[GoogleSheets] Failed to update scan status on revert-resolution:', err)
+        );
+      }
+    });
+
     res.json(result);
   } catch (error: any) {
     console.error('[Anomaly API] Error reverting resolution:', error);

@@ -468,6 +468,13 @@ const handleDeleteAllScans = async (req: any, res: any) => {
     broadcast('ROOMS_UPDATED', { action: 'scans_cleared' });
     broadcast('INVENTORY_SYNCED', { action: 'scans_cleared' });
 
+    const { clearAllScansInGoogleSheet } = await import('../services/googleSheetsService.js');
+    setImmediate(() => {
+      clearAllScansInGoogleSheet().catch((e) =>
+        console.error('[GoogleSheets] Failed to clear scans from sheet:', e)
+      );
+    });
+
     scheduleDebouncedBackup();
 
     res.json({
@@ -525,6 +532,13 @@ sweepRouter.delete('/scans/:id', async (req, res) => {
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('SCANS_UPDATED', { deletedObservationId: id, serialNumber: existing.serial_number });
 
+    const { markScanDeletedInGoogleSheet } = await import('../services/googleSheetsService.js');
+    setImmediate(() => {
+      markScanDeletedInGoogleSheet(id).catch((e) =>
+        console.error('[GoogleSheets] Failed to mark scan deleted:', e)
+      );
+    });
+
     res.json({ success: true, message: 'הסריקה בוטלה בהצלחה', deletedId: id, actionId });
   } catch (error: any) {
     console.error('[Sweep API] Error deleting/reverting scan:', error);
@@ -578,6 +592,13 @@ sweepRouter.post('/scans/bulk-delete', async (req, res) => {
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('SCANS_UPDATED', { bulkDeleted: true, count: deletedCount });
 
+    const { markScanDeletedInGoogleSheet } = await import('../services/googleSheetsService.js');
+    setImmediate(() => {
+      for (const id of ids) {
+        markScanDeletedInGoogleSheet(id).catch(() => {});
+      }
+    });
+
     res.json({ success: true, message: `נמחקו ${deletedCount} סריקות בהצלחה`, deletedCount });
   } catch (error: any) {
     console.error('[Sweep API] Error bulk deleting scans:', error);
@@ -615,6 +636,14 @@ sweepRouter.post('/scans/import-excel', authenticateToken, requireRole(['manager
   try {
     const userScannedBy = scannedBy || req.user?.name || 'ייבוא אקסל (Google Forms)';
     const result = importScansToDatabase(rows, userScannedBy, originalFilename || 'scans.xlsx');
+
+    const baseUrl = req.protocol + '://' + req.get('host');
+    import('../services/googleSheetsService.js').then(({ syncAllScansToGoogleSheet }) => {
+      syncAllScansToGoogleSheet(baseUrl).catch((err) =>
+        console.error('[GoogleSheets] Failed to sync scans after excel import:', err)
+      );
+    });
+
     res.json(result);
   } catch (error: any) {
     console.error('[Sweep API] Error importing scans from excel:', error);
