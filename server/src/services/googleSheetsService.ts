@@ -123,6 +123,404 @@ export function getSheetsClient(): { client: sheets_v4.Sheets | null; spreadshee
 }
 
 /**
+ * Applies professional formatting, RTL, frozen header, auto-filters, zebra banding,
+ * custom column widths, alignments, and conditional formatting to a given sheet tab.
+ */
+export async function applySheetFormatting(
+  client: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tabType: 'scans' | 'actions'
+): Promise<boolean> {
+  try {
+    const meta = await client.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets(properties(sheetId,title,gridProperties,rightToLeft),basicFilter,bandedRanges(bandedRangeId),conditionalFormats)',
+    });
+
+    const targetTitle = tabType === 'scans' ? (meta.data.sheets?.[0]?.properties?.title || 'סריקות') : ACTIONS_SHEET_TITLE;
+    const targetSheet = meta.data.sheets?.find((s) => s.properties?.title === targetTitle) || (tabType === 'scans' ? meta.data.sheets?.[0] : null);
+
+    if (!targetSheet || targetSheet.properties?.sheetId === undefined || targetSheet.properties?.sheetId === null) {
+      return false;
+    }
+
+    const sheetId = targetSheet.properties.sheetId;
+    const colCount = tabType === 'scans' ? HEADERS.length : ACTION_HEADERS.length;
+
+    // 1. Cleanup existing bandings and conditional formats to avoid duplicate errors
+    const cleanupRequests: sheets_v4.Schema$Request[] = [];
+    if (targetSheet.bandedRanges && targetSheet.bandedRanges.length > 0) {
+      for (const br of targetSheet.bandedRanges) {
+        if (br.bandedRangeId !== undefined && br.bandedRangeId !== null) {
+          cleanupRequests.push({
+            deleteBanding: {
+              bandedRangeId: br.bandedRangeId,
+            },
+          });
+        }
+      }
+    }
+
+    if (targetSheet.conditionalFormats && targetSheet.conditionalFormats.length > 0) {
+      for (let idx = targetSheet.conditionalFormats.length - 1; idx >= 0; idx--) {
+        cleanupRequests.push({
+          deleteConditionalFormatRule: {
+            sheetId,
+            index: idx,
+          },
+        });
+      }
+    }
+
+    if (cleanupRequests.length > 0) {
+      try {
+        await client.spreadsheets.batchUpdate({
+          spreadsheetId,
+          requestBody: { requests: cleanupRequests },
+        });
+      } catch (cleanupErr) {
+        console.warn('[GoogleSheets] Note during format cleanup (continuing):', cleanupErr);
+      }
+    }
+
+    // 2. Prepare comprehensive professional styling requests
+    const formatRequests: sheets_v4.Schema$Request[] = [];
+
+    // A. Native RTL + Frozen Header Row (1 row) + Visible Gridlines
+    formatRequests.push({
+      updateSheetProperties: {
+        properties: {
+          sheetId,
+          gridProperties: {
+            frozenRowCount: 1,
+            hideGridlines: false,
+          },
+          rightToLeft: true,
+        },
+        fields: 'gridProperties.frozenRowCount,gridProperties.hideGridlines,rightToLeft',
+      },
+    });
+
+    // B. Header Row Styling: Elegant dark theme, white bold text, centered, vertically middle, text wrap
+    const headerBgColor = tabType === 'scans'
+      ? { red: 0.06, green: 0.26, blue: 0.24 } // Dark Emerald (#0F423D)
+      : { red: 0.12, green: 0.16, blue: 0.23 }; // Dark Slate (#1E293B)
+
+    formatRequests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: colCount,
+        },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: headerBgColor,
+            textFormat: {
+              foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 },
+              bold: true,
+              fontSize: 10,
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE',
+            wrapStrategy: 'WRAP',
+          },
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)',
+      },
+    });
+
+    // C. Header Row Height: 38px
+    formatRequests.push({
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: 'ROWS',
+          startIndex: 0,
+          endIndex: 1,
+        },
+        properties: {
+          pixelSize: 38,
+        },
+        fields: 'pixelSize',
+      },
+    });
+
+    // D. Native Auto-Filter on entire header width
+    formatRequests.push({
+      setBasicFilter: {
+        filter: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            startColumnIndex: 0,
+            endColumnIndex: colCount,
+          },
+        },
+      },
+    });
+
+    // E. Column Widths
+    const colWidths = tabType === 'scans'
+      ? [140, 150, 100, 130, 220, 140, 90, 140, 120, 160, 140, 140, 140, 130, 130, 160]
+      : [130, 150, 140, 260, 100, 140, 120, 130, 120, 150];
+
+    for (let i = 0; i < colWidths.length; i++) {
+      formatRequests.push({
+        updateDimensionProperties: {
+          range: {
+            sheetId,
+            dimension: 'COLUMNS',
+            startIndex: i,
+            endIndex: i + 1,
+          },
+          properties: {
+            pixelSize: colWidths[i],
+          },
+          fields: 'pixelSize',
+        },
+      });
+    }
+
+    // F. General Data Row Styling: Font size 10, Middle vertical alignment
+    formatRequests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: colCount,
+        },
+        cell: {
+          userEnteredFormat: {
+            verticalAlignment: 'MIDDLE',
+            textFormat: {
+              fontSize: 10,
+            },
+          },
+        },
+        fields: 'userEnteredFormat(verticalAlignment,textFormat.fontSize)',
+      },
+    });
+
+    // Right-align Hebrew text columns
+    const rightAlignCols = tabType === 'scans' ? [4, 5, 7, 8, 10, 11, 12] : [3, 6, 8];
+    for (const c of rightAlignCols) {
+      formatRequests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            startColumnIndex: c,
+            endColumnIndex: c + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              horizontalAlignment: 'RIGHT',
+            },
+          },
+          fields: 'userEnteredFormat.horizontalAlignment',
+        },
+      });
+    }
+
+    // Center-align remaining columns (codes, dates, badges, pictures, IDs)
+    const centerAlignCols = tabType === 'scans' ? [0, 1, 2, 3, 6, 9, 13, 14, 15] : [0, 1, 2, 4, 5, 7, 9];
+    for (const c of centerAlignCols) {
+      formatRequests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            startColumnIndex: c,
+            endColumnIndex: c + 1,
+          },
+          cell: {
+            userEnteredFormat: {
+              horizontalAlignment: 'CENTER',
+            },
+          },
+          fields: 'userEnteredFormat.horizontalAlignment',
+        },
+      });
+    }
+
+    // G. Alternating Row Colors (Zebra Banding)
+    formatRequests.push({
+      addBanding: {
+        bandedRange: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            startColumnIndex: 0,
+            endColumnIndex: colCount,
+          },
+          rowProperties: {
+            headerColor: headerBgColor,
+            firstBandColor: { red: 1.0, green: 1.0, blue: 1.0 },
+            secondBandColor: { red: 0.973, green: 0.980, blue: 0.988 }, // #F8FAFC
+          },
+        },
+      },
+    });
+
+    // H. Conditional Formatting Rules (Status Badges)
+    if (tabType === 'scans') {
+      // Column 9: 'סטטוס התאמה'
+      // 1. 'תואם חתימה' -> Mint Green (#DCFCE7 / #166534)
+      formatRequests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 9, endColumnIndex: 10 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_EQ',
+                values: [{ userEnteredValue: 'תואם חתימה' }],
+              },
+              format: {
+                backgroundColor: { red: 0.863, green: 0.988, blue: 0.906 },
+                textFormat: { foregroundColor: { red: 0.086, green: 0.396, blue: 0.204 }, bold: true },
+              },
+            },
+          },
+          index: 0,
+        },
+      });
+
+      // 2. 'חריגת מיקום / חתימה' -> Soft Amber (#FEF3C7 / #92400E)
+      formatRequests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 9, endColumnIndex: 10 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_EQ',
+                values: [{ userEnteredValue: 'חריגת מיקום / חתימה' }],
+              },
+              format: {
+                backgroundColor: { red: 0.996, green: 0.953, blue: 0.780 },
+                textFormat: { foregroundColor: { red: 0.573, green: 0.251, blue: 0.055 }, bold: true },
+              },
+            },
+          },
+          index: 1,
+        },
+      });
+
+      // 3. 'לא רשום באקסל' -> Soft Red (#FEE2E2 / #991B1B)
+      formatRequests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 9, endColumnIndex: 10 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_EQ',
+                values: [{ userEnteredValue: 'לא רשום באקסל' }],
+              },
+              format: {
+                backgroundColor: { red: 0.996, green: 0.886, blue: 0.886 },
+                textFormat: { foregroundColor: { red: 0.600, green: 0.106, blue: 0.106 }, bold: true },
+              },
+            },
+          },
+          index: 2,
+        },
+      });
+
+      // 4. Column 15: 'פעולה אחרונה' -> Soft Rose for cancellations
+      formatRequests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 15, endColumnIndex: 16 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_CONTAINS',
+                values: [{ userEnteredValue: 'ביטול' }],
+              },
+              format: {
+                backgroundColor: { red: 1.0, green: 0.945, blue: 0.949 },
+                textFormat: { foregroundColor: { red: 0.624, green: 0.071, blue: 0.224 }, bold: true },
+              },
+            },
+          },
+          index: 3,
+        },
+      });
+    } else if (tabType === 'actions') {
+      // Column 7: 'סטטוס ביטול'
+      // 1. 'פעיל' -> Soft Green
+      formatRequests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 7, endColumnIndex: 8 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_EQ',
+                values: [{ userEnteredValue: 'פעיל' }],
+              },
+              format: {
+                backgroundColor: { red: 0.863, green: 0.988, blue: 0.906 },
+                textFormat: { foregroundColor: { red: 0.086, green: 0.396, blue: 0.204 }, bold: true },
+              },
+            },
+          },
+          index: 0,
+        },
+      });
+
+      // 2. 'בוטל' -> Soft Red
+      formatRequests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, startColumnIndex: 7, endColumnIndex: 8 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_CONTAINS',
+                values: [{ userEnteredValue: 'בוטל' }],
+              },
+              format: {
+                backgroundColor: { red: 0.996, green: 0.886, blue: 0.886 },
+                textFormat: { foregroundColor: { red: 0.600, green: 0.106, blue: 0.106 }, bold: true },
+              },
+            },
+          },
+          index: 1,
+        },
+      });
+    }
+
+    await client.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: formatRequests },
+    });
+
+    console.log(`[GoogleSheets] Applied professional styling, RTL, filters and badges to tab "${targetTitle}"`);
+    return true;
+  } catch (err: any) {
+    console.error(`[GoogleSheets] Failed to apply formatting to tab "${tabType}":`, err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Formats both the scans tab and the actions tab in the Google Spreadsheet.
+ */
+export async function formatAllSheets(providedClient?: sheets_v4.Sheets): Promise<boolean> {
+  const spreadsheetId = getSpreadsheetId();
+  const client = providedClient || getSheetsClient().client;
+  if (!client || !spreadsheetId) return false;
+
+  const [scansOk, actionsOk] = await Promise.all([
+    applySheetFormatting(client, spreadsheetId, 'scans'),
+    applySheetFormatting(client, spreadsheetId, 'actions'),
+  ]);
+
+  return Boolean(scansOk || actionsOk);
+}
+
+/**
  * Ensures header row exists in the first sheet.
  */
 async function ensureHeaders(client: sheets_v4.Sheets, spreadsheetId: string, sheetTitle = 'סריקות'): Promise<string> {
@@ -152,6 +550,9 @@ async function ensureHeaders(client: sheets_v4.Sheets, spreadsheetId: string, sh
       });
       console.log(`[GoogleSheets] Initialized Hebrew headers in sheet "${targetTitle}"`);
     }
+
+    // Apply formatting to ensure RTL, filters, and styles
+    await applySheetFormatting(client, spreadsheetId, 'scans');
 
     lastHeaderCheckSpreadsheetId = spreadsheetId;
     return targetTitle;
@@ -208,6 +609,9 @@ export async function ensureActionsSheet(client: sheets_v4.Sheets, spreadsheetId
       });
       console.log(`[GoogleSheets] Initialized headers in actions sheet "${ACTIONS_SHEET_TITLE}"`);
     }
+
+    // Apply formatting to ensure RTL, filters, and styles
+    await applySheetFormatting(client, spreadsheetId, 'actions');
 
     lastActionsHeaderCheckSpreadsheetId = spreadsheetId;
     return ACTIONS_SHEET_TITLE;
@@ -792,6 +1196,9 @@ export async function syncAllScansToGoogleSheet(baseUrl?: string): Promise<{
       },
     });
 
+    // Ensure styling, filters, zebra striping, and conditional formatting are freshly applied
+    await applySheetFormatting(client, spreadsheetId, 'scans');
+
     lastSyncTimestamp = new Date().toISOString();
     lastHeaderCheckSpreadsheetId = spreadsheetId;
 
@@ -1108,6 +1515,9 @@ export async function syncAllActionsToGoogleSheet(): Promise<number> {
         values: rows,
       },
     });
+
+    // Ensure styling, filters, zebra striping, and conditional formatting are applied
+    await applySheetFormatting(client, spreadsheetId, 'actions');
 
     console.log(`[GoogleSheets] Synchronized ${actions.length} scan actions to "${sheetTitle}"`);
     return actions.length;
