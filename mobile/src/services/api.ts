@@ -83,6 +83,15 @@ export async function revertScan(observationId: string, revertedBy?: string) {
   return res.json();
 }
 
+export async function clearAllScans(revertedBy?: string) {
+  const res = await fetch(`${SERVER_URL}/api/sweep/scans`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revertedBy }),
+  });
+  return res.json();
+}
+
 export async function revertAction(actionId: string, revertedBy?: string) {
   const res = await fetch(`${SERVER_URL}/api/actions/${actionId}/revert`, {
     method: 'POST',

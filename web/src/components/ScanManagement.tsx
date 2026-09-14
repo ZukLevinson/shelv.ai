@@ -60,6 +60,7 @@ export const ScanManagement: React.FC<Props> = ({
 
   // Deletion state
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
   // Revert resolution state
   const [revertingResolutionId, setRevertingResolutionId] = useState<string | null>(null);
 
@@ -144,6 +145,29 @@ export const ScanManagement: React.FC<Props> = ({
       alert('שגיאה בעת מחיקת הסריקה');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDeleteAllScans = async () => {
+    if (total === 0 && scans.length === 0) return;
+    const confirmMessage = total > 0
+      ? `האם אתה בטוח לחלוטין שברצונך למחוק את כל ${total} הסריקות הקיימות במערכת? פעולה זו תאפס את כל תצפיות הסריקה, תנקה קבצי סריקות והחריגות יחושבו מחדש.`
+      : 'האם אתה בטוח שברצונך לנקות את כל הסריקות הקיימות?';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+    setDeletingAll(true);
+    try {
+      await axios.delete(`${API_BASE_URL}/api/sweep/scans`);
+      setScans([]);
+      setTotal(0);
+      await fetchScanners();
+    } catch (err: any) {
+      console.error('Failed to delete all scans:', err);
+      alert(err.response?.data?.error || 'שגיאה בעת מחיקת כל הסריקות');
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -321,6 +345,17 @@ export const ScanManagement: React.FC<Props> = ({
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
               <span>ייצוא CSV</span>
             </button>
+            {isManager && (
+              <button
+                onClick={handleDeleteAllScans}
+                disabled={total === 0 || loading || deletingAll}
+                className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-rose-300 hover:text-white bg-rose-500/15 hover:bg-rose-600 active:bg-rose-700 border border-rose-500/30 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                title="מחיקת כל הסריקות הקיימות במערכת"
+              >
+                <Trash2 className={`w-3.5 h-3.5 ${deletingAll ? 'animate-spin' : ''}`} />
+                <span>מחק את כל הסריקות</span>
+              </button>
+            )}
           </div>
         </div>
 

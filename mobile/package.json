@@ -1,6 +1,6 @@
 {
   "name": "shelv-ai-mobile",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "prebuild": "node -e \"const fs=require('fs'),p='../scripts/git-info.cjs';if(fs.existsSync(p)){require(p).writeMobileVersionFile();}else{console.warn('[shelv-mobile] scripts/git-info.cjs not found, using existing version.ts');}\"",

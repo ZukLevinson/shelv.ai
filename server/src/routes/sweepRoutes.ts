@@ -408,6 +408,64 @@ sweepRouter.get('/scans/investigate/:serialNumber', (req, res) => {
   }
 });
 
+// DELETE /api/sweep/scans & /api/sweep/scans/all - Delete all scan observations, sessions, and scan imports
+const handleDeleteAllScans = async (req: any, res: any) => {
+  const user = req.body?.revertedBy || req.user?.name || 'משתמש מערכת';
+  try {
+    const existingObsCount = (db.prepare('SELECT COUNT(*) as c FROM sweep_observations').get() as { c: number }).c;
+    const existingSessionsCount = (db.prepare('SELECT COUNT(*) as c FROM sweep_sessions').get() as { c: number }).c;
+    const existingImportsCount = (db.prepare("SELECT COUNT(*) as c FROM excel_imports WHERE import_type = 'scans'").get() as { c: number }).c;
+
+    db.prepare('DELETE FROM sweep_observations').run();
+    db.prepare('DELETE FROM sweep_sessions').run();
+    db.prepare("DELETE FROM excel_imports WHERE import_type = 'scans'").run();
+
+    // Mark active scan actions as reverted
+    db.prepare(`
+      UPDATE action_history
+      SET reverted_at = CURRENT_TIMESTAMP, reverted_by = ?
+      WHERE entity_type IN ('scan', 'scan_batch') AND reverted_at IS NULL
+    `).run(user);
+
+    // Import dynamic services to avoid circular dependency
+    const { detectAnomalies } = await import('../services/anomalyService.js');
+    const { broadcast } = await import('../sockets/socketServer.js');
+    const { logAction } = await import('../services/actionService.js');
+    const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+
+    const actionId = logAction({
+      actionType: 'all_scans_deleted',
+      description: `מחיקת כל ${existingObsCount} הסריקות ו-${existingImportsCount} קבצי הסריקות מהמערכת`,
+      entityType: 'scan_batch',
+      entityId: 'all',
+      performedBy: user
+    });
+
+    const anomalies = detectAnomalies();
+    broadcast('ANOMALIES_UPDATED', anomalies);
+    broadcast('SCANS_UPDATED', { allCleared: true });
+    broadcast('ROOMS_UPDATED', { action: 'scans_cleared' });
+    broadcast('INVENTORY_SYNCED', { action: 'scans_cleared' });
+
+    scheduleDebouncedBackup();
+
+    res.json({
+      success: true,
+      message: `כל הסריקות נמחקו בהצלחה (${existingObsCount} תצפיות, ${existingImportsCount} קבצים)`,
+      deletedObservationsCount: existingObsCount,
+      deletedSessionsCount: existingSessionsCount,
+      deletedImportsCount: existingImportsCount,
+      actionId
+    });
+  } catch (error: any) {
+    console.error('[Sweep API] Error deleting all scans:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete all scans' });
+  }
+};
+
+sweepRouter.delete('/scans', handleDeleteAllScans);
+sweepRouter.delete('/scans/all', handleDeleteAllScans);
+
 // DELETE /api/sweep/scans/:id - Delete or revert scan observation
 sweepRouter.delete('/scans/:id', async (req, res) => {
   const { id } = req.params;
