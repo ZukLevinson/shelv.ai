@@ -39,12 +39,14 @@ steps:
       - '--all-tags'
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai'
 
-  # 3. Ensure Cloud Storage bucket for database persistence exists
+  # 3. Ensure Cloud Storage bucket exists and Google Sheets API is enabled
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: bash
     args:
       - '-c'
       - |
+        echo "Checking Google Sheets API status..."
+        gcloud services enable sheets.googleapis.com || true
         BUCKET_NAME="shelv-ai-db-$PROJECT_ID"
         if ! gcloud storage buckets describe "gs://$$BUCKET_NAME" >/dev/null 2>&1; then
           echo "Creating GCS bucket $$BUCKET_NAME..."
@@ -85,7 +87,7 @@ steps:
       - '--concurrency'
       - '80'
       - '--set-env-vars'
-      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA,BRANCH_NAME=$BRANCH_NAME'
+      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA,BRANCH_NAME=$BRANCH_NAME,GOOGLE_SHEETS_SPREADSHEET_ID=110ZY-5XFP1fD55O3qu38RDDx4hZ8szPrMjWlRHMs-qg'
 
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA'
