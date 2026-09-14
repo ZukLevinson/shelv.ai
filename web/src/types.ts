@@ -167,6 +167,9 @@ export interface ScanObservation {
   item_description: string;
   category: string;
   scan_status: 'matched' | 'mismatch' | 'unregistered';
+  has_image_sn?: boolean;
+  has_image_masha?: boolean;
+  has_image?: boolean;
 }
 
 export interface ScanInvestigationData {

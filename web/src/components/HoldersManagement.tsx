@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   Search, 
@@ -13,12 +13,17 @@ import {
   X, 
   Check, 
   UserCheck,
-  IdCard
+  IdCard,
+  Download
 } from 'lucide-react';
 import axios from 'axios';
 import type { InventoryHolder, Room } from '../types';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
+import { useTableSelection } from '../hooks/useTableSelection';
+import { TableCheckbox } from './ui/TableCheckbox';
+import { TableBulkActionsBar } from './ui/TableBulkActionsBar';
+import { exportToExcel } from '../utils/excelExportUtils';
 
 interface Props {
   holders: InventoryHolder[];
@@ -48,21 +53,87 @@ export const HoldersManagement: React.FC<Props> = ({
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // Filter holders
-  const filteredHolders = holders.filter((h) => {
-    const q = search.toLowerCase().trim();
-    if (!q) return true;
-    const nameMatch = h.name.toLowerCase().includes(q);
-    const personalNumberMatch = (h.personal_number || '').toLowerCase().includes(q);
-    const phoneMatch = (h.phone || '').toLowerCase().includes(q);
-    const roomMatch = h.rooms?.some(
-      (r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q)
-    );
-    return nameMatch || personalNumberMatch || phoneMatch || roomMatch;
+  const filteredHolders = useMemo(() => {
+    return holders.filter((h) => {
+      const q = search.toLowerCase().trim();
+      if (!q) return true;
+      const nameMatch = h.name.toLowerCase().includes(q);
+      const personalNumberMatch = (h.personal_number || '').toLowerCase().includes(q);
+      const phoneMatch = (h.phone || '').toLowerCase().includes(q);
+      const roomMatch = h.rooms?.some(
+        (r) => r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q)
+      );
+      return nameMatch || personalNumberMatch || phoneMatch || roomMatch;
+    });
+  }, [holders, search]);
+
+  // Multi-select for filtered holders
+  const {
+    selectedCount,
+    totalPresentCount,
+    isAllSelected,
+    isIndeterminate,
+    selectedItems,
+    toggleRow,
+    toggleSelectAll,
+    selectAllPresent,
+    clearSelection,
+    isSelected,
+  } = useTableSelection<InventoryHolder>({
+    items: filteredHolders,
+    getItemId: (h) => h.id,
   });
+
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) return;
+    if (
+      !window.confirm(
+        `האם אתה בטוח שברצונך למחוק ${selectedItems.length} בעלי מצאי שנבחרו? פעולה זו תמחק גם את שיוך החדרים שלהם.`
+      )
+    ) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      for (const h of selectedItems) {
+        await axios.delete(`${API_BASE_URL}/api/inventory/holders/${h.id}`);
+      }
+      clearSelection();
+      setActionSuccess(`נמחקו ${selectedItems.length} בעלי מצאי בהצלחה`);
+      onRefresh();
+      setTimeout(() => setActionSuccess(null), 4000);
+    } catch (err: any) {
+      console.error('Failed to bulk delete holders:', err);
+      alert(err.response?.data?.error || 'שגיאה במחיקת בעלי המצאי הנבחרים');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleExportSelected = () => {
+    if (selectedItems.length === 0) return;
+    exportToExcel({
+      filename: `shelv_selected_holders_${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Selected Holders',
+      columns: [
+        { header: 'שם בעל מצאי', accessor: (h) => h.name },
+        { header: 'מזהה', accessor: (h) => h.id },
+        { header: 'מ"א', accessor: (h) => h.personal_number || '' },
+        { header: 'טלפון', accessor: (h) => h.phone || '' },
+        { header: 'חדרים משויכים', accessor: (h) => (h.rooms || []).map((r) => `${r.name} (${r.code})`).join(', ') },
+        { header: 'מצאי חתום', accessor: (h) => h.total_signed_items || 0 },
+        { header: 'נסרק בפועל', accessor: (h) => h.swept_items_count || 0 },
+      ],
+      data: selectedItems,
+    });
+  };
 
   // Calculate summary stats
   const totalHolders = holders.length;
-  const holdersWithRooms = holders.filter(h => (h.rooms?.length || 0) > 0).length;
+  const holdersWithRooms = holders.filter((h) => (h.rooms?.length || 0) > 0).length;
   const totalRoomsCount = rooms.length || holders.reduce((sum, h) => sum + (h.rooms?.length || 0), 0);
   const totalAssignedItems = holders.reduce((sum, h) => sum + (h.total_signed_items || 0), 0);
   const totalSwept = holders.reduce((sum, h) => sum + (h.swept_items_count || 0), 0);
@@ -250,6 +321,37 @@ export const HoldersManagement: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      <TableBulkActionsBar
+        selectedCount={selectedCount}
+        totalPresentCount={totalPresentCount}
+        itemLabel="בעלי מצאי"
+        onClearSelection={clearSelection}
+        onSelectAllPresent={selectAllPresent}
+        isAllSelected={isAllSelected}
+      >
+        <button
+          type="button"
+          onClick={handleExportSelected}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 text-xs font-medium transition-all cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5 text-emerald-400" />
+          <span>ייצא לאקסל ({selectedCount})</span>
+        </button>
+
+        {isManager && (
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{bulkDeleting ? 'מוחק...' : `מחק ${selectedCount} בעלי מצאי`}</span>
+          </button>
+        )}
+      </TableBulkActionsBar>
+
       {/* Holders Table */}
       {filteredHolders.length === 0 ? (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 sm:p-12 text-center space-y-3">
@@ -265,6 +367,14 @@ export const HoldersManagement: React.FC<Props> = ({
             <table className="w-full text-right text-xs min-w-[720px]">
               <thead>
                 <tr className="border-b border-gray-800 bg-gray-950/40 text-gray-400">
+                  <th className="py-3.5 px-3 w-10 text-center">
+                    <TableCheckbox
+                      checked={isAllSelected}
+                      indeterminate={isIndeterminate}
+                      onChange={toggleSelectAll}
+                      title="בחר / בטל בחירת כל בעלי המצאי בסינון"
+                    />
+                  </th>
                   <th className="py-3.5 px-4 font-semibold">בעל מצאי</th>
                   <th className="py-3.5 px-4 font-semibold">
                     <div className="flex items-center gap-1.5">
@@ -300,12 +410,22 @@ export const HoldersManagement: React.FC<Props> = ({
                   const hasRooms = (holder.rooms?.length || 0) > 0;
                   const signedCount = holder.total_signed_items || 0;
                   const sweptCount = holder.swept_items_count || 0;
+                  const selected = isSelected(holder.id);
 
                   return (
                     <tr 
                       key={holder.id} 
-                      className="hover:bg-gray-800/40 transition-colors group"
+                      className={`hover:bg-gray-800/40 transition-colors group ${
+                        selected ? 'bg-emerald-950/25 border-r-2 border-r-emerald-500' : ''
+                      }`}
                     >
+                      <td className="py-3.5 px-3 text-center">
+                        <TableCheckbox
+                          checked={selected}
+                          onChange={() => toggleRow(holder.id)}
+                          title={`בחר בעל מצאי ${holder.name}`}
+                        />
+                      </td>
                       {/* Name & Avatar */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">

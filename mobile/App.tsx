@@ -115,11 +115,29 @@ export default function App() {
   const [showScanGuideModal, setShowScanGuideModal] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [frozenImage, setFrozenImage] = useState<string | null>(null);
+  const [capturedSnImage, setCapturedSnImage] = useState<string | null>(null);
+  const [capturedMashaImage, setCapturedMashaImage] = useState<string | null>(null);
+  const capturedSnImageRef = useRef<string | null>(null);
+  capturedSnImageRef.current = capturedSnImage;
+  const capturedMashaImageRef = useRef<string | null>(null);
+  capturedMashaImageRef.current = capturedMashaImage;
+  const [previewModalImage, setPreviewModalImage] = useState<{ uri: string; title: string } | null>(null);
   const [isProcessingFound, setIsProcessingFound] = useState(false);
   const [foundInfoText, setFoundInfoText] = useState<string>('');
   const [activeBoundingBox, setActiveBoundingBox] = useState<{ box_2d: [number, number, number, number]; label?: string; confidence?: string } | null>(null);
   const geminiAttemptsRef = useRef(0);
   const isDecipheringRef = useRef<boolean>(false);
+
+  const saveCapturedImageForStep = (step: Step, imageBase64: string | null) => {
+    if (!imageBase64) return;
+    if (step === 'scan_sn') {
+      setCapturedSnImage(imageBase64);
+      capturedSnImageRef.current = imageBase64;
+    } else if (step === 'scan_masha') {
+      setCapturedMashaImage(imageBase64);
+      capturedMashaImageRef.current = imageBase64;
+    }
+  };
 
   // Scan state
   const [scannedMasha, setScannedMasha] = useState('');
@@ -344,6 +362,14 @@ export default function App() {
     setLastQualificationHint('');
     setScanError(null);
     setFrozenImage(null);
+    setCapturedSnImage(null);
+    setCapturedMashaImage(null);
+    capturedSnImageRef.current = null;
+    capturedMashaImageRef.current = null;
+    scannedSnRef.current = '';
+    scannedMashaRef.current = '';
+    detectedDescRef.current = '';
+    detectedOwnerRef.current = '';
     setIsProcessingFound(false);
     setFoundInfoText('');
     setActiveBoundingBox(null);
@@ -632,6 +658,7 @@ export default function App() {
           if (geminiRes.masha) {
             setScanStage('success');
             setFrozenImage(hiResJpg);
+            saveCapturedImageForStep('scan_masha', hiResJpg);
             setIsProcessingFound(true);
             setFoundInfoText(`מסח"א ${geminiRes.masha}${geminiRes.productDescription ? ` • ${geminiRes.productDescription}` : ''}`);
             stopLiveOcrStream();
@@ -656,6 +683,7 @@ export default function App() {
           if (detectedSn) {
             setScanStage('success');
             setFrozenImage(hiResJpg);
+            saveCapturedImageForStep('scan_sn', hiResJpg);
             setIsProcessingFound(true);
             setFoundInfoText(`מספר סידורי (S/N): ${detectedSn}`);
             stopLiveOcrStream();
@@ -854,7 +882,9 @@ export default function App() {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(video, 0, 0, vw, vh);
-          setFrozenImage(canvas.toDataURL('image/jpeg', 0.72));
+          const imgData = canvas.toDataURL('image/jpeg', 0.72);
+          setFrozenImage(imgData);
+          saveCapturedImageForStep('scan_sn', imgData);
         }
       } catch (e) {
         console.warn('Could not capture freeze frame for SN:', e);
@@ -936,6 +966,7 @@ export default function App() {
 
       const base64Jpg = preEncodedJpg || sourceCanvas.toDataURL('image/jpeg', 0.72);
       setFrozenImage(base64Jpg);
+      saveCapturedImageForStep(step, base64Jpg);
       const geminiRes = await scanWithGemini(base64Jpg, targetMode);
 
       if (geminiRes.box_2d) {
@@ -1189,6 +1220,10 @@ export default function App() {
       return;
     }
 
+    const imgSn = capturedSnImageRef.current || capturedSnImage || null;
+    const imgMasha = capturedMashaImageRef.current || capturedMashaImage || null;
+    const legacyImg = imgSn || imgMasha || null;
+
     try {
       setLoading(true);
       const res = await submitScan({
@@ -1198,6 +1233,9 @@ export default function App() {
         scannedBy: sweeperName,
         stickerOwnerText: ownerText,
         productNameDetected: description,
+        image: legacyImg,
+        imageSn: imgSn,
+        imageMasha: imgMasha,
       });
 
       if (res.status === 'duplicate') {
@@ -1881,6 +1919,43 @@ export default function App() {
             </Text>
           </View>
 
+          {/* Dual Photo Previews (S/N and Masha) */}
+          <View style={styles.photoThumbnailsRow}>
+            <View style={styles.photoThumbnailBox}>
+              <Text style={styles.photoThumbnailLabel}>📸 תמונת מדבקת S/N</Text>
+              {capturedSnImage ? (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setPreviewModalImage({ uri: capturedSnImage, title: 'מדבקת יצרן / S/N' })}
+                >
+                  <Image source={{ uri: capturedSnImage }} style={styles.photoThumbnailImage} />
+                  <Text style={styles.photoThumbnailHint}>לחץ להגדלה 🔍</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.photoThumbnailPlaceholder}>
+                  <Text style={styles.photoThumbnailPlaceholderText}>לא צולמה תמונה</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.photoThumbnailBox}>
+              <Text style={styles.photoThumbnailLabel}>📸 תמונת מדבקת מסח"א</Text>
+              {capturedMashaImage ? (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setPreviewModalImage({ uri: capturedMashaImage, title: 'מדבקת מסח"א' })}
+                >
+                  <Image source={{ uri: capturedMashaImage }} style={styles.photoThumbnailImage} />
+                  <Text style={styles.photoThumbnailHint}>לחץ להגדלה 🔍</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.photoThumbnailPlaceholder}>
+                  <Text style={styles.photoThumbnailPlaceholderText}>לא צולמה תמונה</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
           <View style={styles.card}>
             <View style={styles.formFieldGroup}>
               <Text style={styles.label}>
@@ -2018,6 +2093,37 @@ export default function App() {
           </View>
         </ScrollView>
       )}
+
+      {/* Modal: Full Preview of Scanned Photo */}
+      <Modal
+        visible={Boolean(previewModalImage)}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPreviewModalImage(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: 440, padding: 16 }]} {...({ dir: 'rtl' } as any)}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{previewModalImage?.title || 'תמונת סריקה'}</Text>
+              <TouchableOpacity onPress={() => setPreviewModalImage(null)} style={{ padding: 6 }}>
+                <Text style={{ color: '#9ca3af', fontSize: 18, fontWeight: 'bold' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {previewModalImage?.uri && (
+              <Image
+                source={{ uri: previewModalImage.uri }}
+                style={{ width: '100%', height: 320, borderRadius: 12, resizeMode: 'contain', backgroundColor: '#030712' }}
+              />
+            )}
+            <TouchableOpacity
+              onPress={() => setPreviewModalImage(null)}
+              style={[styles.primaryButton, { marginTop: 16 }]}
+            >
+              <Text style={styles.primaryButtonText}>סגור תצוגה</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal: Teaching User How To Scan Correctly (Triggered after 10 failed Gemini calls) */}
       <Modal
@@ -3792,5 +3898,56 @@ const styles: any = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  photoThumbnailsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  photoThumbnailBox: {
+    flex: 1,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderRadius: 14,
+    padding: 10,
+    alignItems: 'center',
+  },
+  photoThumbnailLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  photoThumbnailImage: {
+    width: 120,
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: '#030712',
+    resizeMode: 'cover',
+  },
+  photoThumbnailHint: {
+    color: '#60a5fa',
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  photoThumbnailPlaceholder: {
+    width: 120,
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: '#1f2937',
+    borderWidth: 1,
+    borderColor: '#374151',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoThumbnailPlaceholderText: {
+    color: '#6b7280',
+    fontSize: 11,
+    textAlign: 'center',
   },
 });

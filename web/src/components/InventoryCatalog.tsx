@@ -51,9 +51,7 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
     item.serial_number ? `sn:${item.serial_number}` : `masha:${item.masha}:${item.room_code}:${item.holder_name}`;
 
   const {
-    selectedIds,
     selectedCount,
-    presentSelectedCount,
     totalPresentCount,
     isAllSelected,
     isIndeterminate,

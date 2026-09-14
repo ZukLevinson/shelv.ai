@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
   Users, 
   ShieldCheck, 
   UserCheck, 
-  Smartphone,
+  Smartphone, 
   Search, 
   Link2, 
   Unlink, 
@@ -14,11 +14,16 @@ import {
   RefreshCw,
   Info,
   Shield,
-  Edit2
+  Edit2,
+  Download
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import type { User, InventoryHolder } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useTableSelection } from '../hooks/useTableSelection';
+import { TableCheckbox } from './ui/TableCheckbox';
+import { TableBulkActionsBar } from './ui/TableBulkActionsBar';
+import { exportToExcel } from '../utils/excelExportUtils';
 
 interface Props {
   holders: InventoryHolder[];
@@ -174,17 +179,99 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
     }
   };
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      (u.personal_number || '').toLowerCase().includes(q) ||
-      (u.holder_name || '').toLowerCase().includes(q) ||
-      (u.role === 'scanner' ? 'סורק' : 'בעל מצאי').includes(q)
-    );
+    if (!q) return users;
+    return users.filter((u) => {
+      return (
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.personal_number || '').toLowerCase().includes(q) ||
+        (u.holder_name || '').toLowerCase().includes(q) ||
+        (u.role === 'scanner' ? 'סורק' : 'בעל מצאי').includes(q)
+      );
+    });
+  }, [users, search]);
+
+  // Multi-select for filtered users
+  const {
+    selectedCount,
+    totalPresentCount,
+    isAllSelected,
+    isIndeterminate,
+    selectedItems,
+    toggleRow,
+    toggleSelectAll,
+    selectAllPresent,
+    clearSelection,
+    isSelected,
+  } = useTableSelection<User>({
+    items: filteredUsers,
+    getItemId: (u) => u.id,
   });
+
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const handleBulkDelete = async () => {
+    const deletable = selectedItems.filter(
+      (u) => u.id !== currentUser?.id && u.email.toLowerCase() !== 'zuklevinson@gmail.com'
+    );
+    if (deletable.length === 0) {
+      alert('לא ניתן למחוק את המשתמש הנוכחי או את המנהל הראשי.');
+      return;
+    }
+    if (!window.confirm(`האם אתה בטוח שברצונך למחוק ${deletable.length} משתמשים שנבחרו?`)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      for (const u of deletable) {
+        await axios.delete(`${API_BASE_URL}/api/users/${u.id}`);
+      }
+      clearSelection();
+      setActionMessage({ type: 'success', text: `נמחקו ${deletable.length} משתמשים בהצלחה` });
+      fetchUsers();
+    } catch (err: any) {
+      console.error('Failed to bulk delete users:', err);
+      setActionMessage({ type: 'error', text: 'שגיאה במחיקת משתמשים' });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleBulkChangeRole = async (newRole: 'inventory_owner' | 'scanner') => {
+    if (selectedItems.length === 0) return;
+    try {
+      for (const u of selectedItems) {
+        await axios.put(`${API_BASE_URL}/api/users/${u.id}/role`, { role: newRole });
+      }
+      clearSelection();
+      setActionMessage({ type: 'success', text: `עודכן תפקיד עבור ${selectedItems.length} משתמשים` });
+      fetchUsers();
+    } catch (err: any) {
+      console.error('Failed to bulk change role:', err);
+      setActionMessage({ type: 'error', text: 'שגיאה בעדכון תפקיד משתמשים' });
+    }
+  };
+
+  const handleExportSelected = () => {
+    if (selectedItems.length === 0) return;
+    exportToExcel({
+      filename: `shelv_selected_users_${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Selected Users',
+      columns: [
+        { header: 'שם משתמש', accessor: (u) => u.name },
+        { header: 'אימייל Google', accessor: (u) => u.email },
+        { header: 'תפקיד', accessor: (u) => u.role === 'scanner' ? 'סורק' : 'בעל מצאי' },
+        { header: 'מספר אישי (מ"א)', accessor: (u) => u.personal_number || '' },
+        { header: 'מנהל', accessor: (u) => u.is_manager ? 'כן' : 'לא' },
+        { header: 'בעל מצאי מקושר', accessor: (u) => u.holder_name || '' },
+        { header: 'תאריך הצטרפות', accessor: (u) => u.created_at ? new Date(u.created_at).toLocaleDateString('he-IL') : '' },
+      ],
+      data: selectedItems,
+    });
+  };
 
   const totalManagers = users.filter((u) => u.is_manager).length;
   const totalOwners = users.filter((u) => u.role === 'inventory_owner').length;
@@ -310,11 +397,65 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
           </div>
         </div>
 
+        {/* Bulk Actions Bar */}
+        <TableBulkActionsBar
+          selectedCount={selectedCount}
+          totalPresentCount={totalPresentCount}
+          itemLabel="משתמשים"
+          onClearSelection={clearSelection}
+          onSelectAllPresent={selectAllPresent}
+          isAllSelected={isAllSelected}
+        >
+          <button
+            type="button"
+            onClick={handleExportSelected}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 text-xs font-medium transition-all cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>ייצא לאקסל ({selectedCount})</span>
+          </button>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleBulkChangeRole('inventory_owner')}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-medium transition-all cursor-pointer"
+            >
+              הגדר כבעלי מצאי
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkChangeRole('scanner')}
+              className="px-2.5 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-medium transition-all cursor-pointer"
+            >
+              הגדר כסורקים
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{bulkDeleting ? 'מוחק...' : `מחק ${selectedCount} משתמשים`}</span>
+          </button>
+        </TableBulkActionsBar>
+
         {/* Users Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-gray-950/70 border-b border-gray-800 text-gray-400 font-semibold">
               <tr>
+                <th className="py-3.5 px-3 w-10 text-center">
+                  <TableCheckbox
+                    checked={isAllSelected}
+                    indeterminate={isIndeterminate}
+                    onChange={toggleSelectAll}
+                    title="בחר / בטל בחירת כל המשתמשים בסינון"
+                  />
+                </th>
                 <th className="py-3.5 px-4">משתמש</th>
                 <th className="py-3.5 px-4">אימייל Google</th>
                 <th className="py-3.5 px-4">תפקיד</th>
@@ -327,7 +468,7 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
             <tbody className="divide-y divide-gray-800/60">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                  <td colSpan={8} className="py-8 text-center text-gray-500">
                     {search ? 'לא נמצאו משתמשים התואמים לחיפוש' : 'אין עדיין משתמשים רשומים במערכת'}
                   </td>
                 </tr>
@@ -337,9 +478,22 @@ export const UserManagement: React.FC<Props> = ({ holders, onRefreshHolders }) =
                   const isUpdating = updatingUserId === u.id;
                   const isZuk = u.email.toLowerCase() === 'zuklevinson@gmail.com';
                   const isOwner = u.role === 'inventory_owner';
+                  const selected = isSelected(u.id);
 
                   return (
-                    <tr key={u.id} className="hover:bg-gray-800/30 transition-colors">
+                    <tr
+                      key={u.id}
+                      className={`hover:bg-gray-800/30 transition-colors ${
+                        selected ? 'bg-emerald-950/25 border-r-2 border-r-emerald-500' : ''
+                      }`}
+                    >
+                      <td className="py-3.5 px-3 text-center">
+                        <TableCheckbox
+                          checked={selected}
+                          onChange={() => toggleRow(u.id)}
+                          title={`בחר משתמש ${u.name}`}
+                        />
+                      </td>
                       {/* Name */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">

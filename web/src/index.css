@@ -44,3 +44,58 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Dialog & Modal Animations for Tailwind v4 */
+@keyframes dialogOverlayShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialogOverlayHide {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialogContentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes dialogContentHide {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+}
+
+.dialog-overlay-animate[data-state='open'] {
+  animation: dialogOverlayShow 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.dialog-overlay-animate[data-state='closed'] {
+  animation: dialogOverlayHide 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.dialog-content-animate[data-state='open'] {
+  animation: dialogContentShow 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.dialog-content-animate[data-state='closed'] {
+  animation: dialogContentHide 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

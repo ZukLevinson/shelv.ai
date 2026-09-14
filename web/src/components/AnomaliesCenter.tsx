@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import type { AnomalyReport } from '../types';
-import { AlertTriangle, HelpCircle, Check, MapPin, UserCheck, ShieldAlert, BarChart3 } from 'lucide-react';
+import { AlertTriangle, HelpCircle, Check, MapPin, UserCheck, ShieldAlert, BarChart3, Download } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { CategoryLogo } from './CategoryLogo';
+import { useTableSelection } from '../hooks/useTableSelection';
+import { TableCheckbox } from './ui/TableCheckbox';
+import { TableBulkActionsBar } from './ui/TableBulkActionsBar';
+import { exportToExcel } from '../utils/excelExportUtils';
 
 interface Props {
   anomalies: AnomalyReport | null;
@@ -13,11 +17,11 @@ interface Props {
 export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
   const [activeTab, setActiveTab] = useState<'unauthorized' | 'discrepancies' | 'distribution'>('unauthorized');
   const [resolvingSn, setResolvingSn] = useState<string | null>(null);
-  if (!anomalies) return null;
+  const [bulkApproving, setBulkApproving] = useState(false);
 
-  const unauthorizedTransfers = anomalies.unauthorizedTransfers || [];
-  const quotaDiscrepancies = anomalies.quotaDiscrepancies || [];
-  const discoveredDistribution = anomalies.discoveredDistribution || [];
+  const unauthorizedTransfers = anomalies?.unauthorizedTransfers || [];
+  const quotaDiscrepancies = anomalies?.quotaDiscrepancies || [];
+  const discoveredDistribution = anomalies?.discoveredDistribution || [];
 
   const handleApproveTransfer = async (serialNumber: string, targetHolderId: string) => {
     setResolvingSn(serialNumber);
@@ -34,6 +38,78 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
       setResolvingSn(null);
     }
   };
+
+  const getTransferItemId = (item: any) => item.serialNumber || `${item.masha}-${item.scannedHolderId}`;
+
+  const {
+    selectedCount,
+    totalPresentCount,
+    isAllSelected,
+    isIndeterminate,
+    selectedItems,
+    toggleRow,
+    toggleSelectAll,
+    selectAllPresent,
+    clearSelection,
+    isSelected,
+  } = useTableSelection({
+    items: unauthorizedTransfers,
+    getItemId: getTransferItemId,
+  });
+
+  const handleBulkApproveTransfer = async () => {
+    const approvable = selectedItems.filter((i) => Boolean(i.serialNumber));
+    if (approvable.length === 0) {
+      alert('אף אחד מהפריטים שנבחרו אינו בעל מספר סידורי הניתן להעברה אוטומטית.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `האם אתה בטוח שברצונך לאשר ולהעביר חתימה עבור ${approvable.length} פריטים שנבחרו?`
+      )
+    ) {
+      return;
+    }
+
+    setBulkApproving(true);
+    try {
+      for (const item of approvable) {
+        await axios.post(`${API_BASE_URL}/api/anomalies/approve-transfer`, {
+          serialNumber: item.serialNumber,
+          targetHolderId: item.scannedHolderId,
+          resolvedBy: 'משתמש מערכת',
+        });
+      }
+      clearSelection();
+      onRefresh();
+    } catch (err: any) {
+      console.error('Failed to bulk approve transfers:', err);
+      alert('שגיאה באישור העברות');
+    } finally {
+      setBulkApproving(false);
+    }
+  };
+
+  const handleExportSelectedTransfers = () => {
+    if (selectedItems.length === 0) return;
+    exportToExcel({
+      filename: `shelv_selected_anomalies_${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Selected Anomalies',
+      columns: [
+        { header: 'תיאור פריט', accessor: (item) => item.description || '' },
+        { header: 'מסח"א', accessor: (item) => item.masha },
+        { header: 'מספר סידורי (S/N)', accessor: (item) => item.serialNumber || '' },
+        { header: 'נמצא בחדר (סריקה)', accessor: (item) => item.scannedRoomName },
+        { header: 'בעל המצאי של החדר', accessor: (item) => item.scannedHolderName },
+        { header: 'חתימה משוערת', accessor: (item) => item.supposedHolderName || '' },
+        { header: 'נסרק ע"י', accessor: (item) => item.scannedBy },
+        { header: 'זמן סריקה', accessor: (item) => new Date(item.scannedAt).toLocaleString('he-IL') },
+      ],
+      data: selectedItems,
+    });
+  };
+
+  if (!anomalies) return null;
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-6 shadow-lg sm:shadow-xl max-w-full overflow-hidden">
@@ -94,6 +170,35 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
       {/* Tab 1: Unauthorized Items Found in a Room */}
       {activeTab === 'unauthorized' && (
         <div className="space-y-4">
+          {/* Bulk Actions Bar */}
+          <TableBulkActionsBar
+            selectedCount={selectedCount}
+            totalPresentCount={totalPresentCount}
+            itemLabel="חריגות"
+            onClearSelection={clearSelection}
+            onSelectAllPresent={selectAllPresent}
+            isAllSelected={isAllSelected}
+          >
+            <button
+              type="button"
+              onClick={handleExportSelectedTransfers}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 text-xs font-medium transition-all cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <span>ייצא לאקסל ({selectedCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBulkApproveTransfer}
+              disabled={bulkApproving}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>{bulkApproving ? 'מאשר ומעביר...' : `אשר והעבר חתימה ל-${selectedCount} פריטים`}</span>
+            </button>
+          </TableBulkActionsBar>
+
           {unauthorizedTransfers.length === 0 ? (
             <div className="text-center py-12 text-gray-500 text-sm">
               <Check className="w-12 h-12 text-emerald-400 mx-auto mb-2 opacity-80" />
@@ -104,6 +209,14 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
               <table className="w-full text-right text-sm min-w-[700px]">
                 <thead>
                   <tr className="border-b border-gray-800 text-gray-400 text-xs">
+                    <th className="pb-3 pr-2 w-10 text-center">
+                      <TableCheckbox
+                        checked={isAllSelected}
+                        indeterminate={isIndeterminate}
+                        onChange={toggleSelectAll}
+                        title="בחר / בטל בחירת כל החריגות בסינון"
+                      />
+                    </th>
                     <th className="pb-3 pr-2">תיאור ומסח\"א</th>
                     <th className="pb-3">מספר סידורי (S/N)</th>
                     <th className="pb-3">נמצא בחדר (סריקה)</th>
@@ -114,8 +227,24 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {unauthorizedTransfers.map((item, idx) => (
-                    <tr key={item.serialNumber || `${item.masha}-${idx}`} className="hover:bg-gray-800/30 transition-colors">
+                  {unauthorizedTransfers.map((item, idx) => {
+                    const itemId = getTransferItemId(item);
+                    const selected = isSelected(itemId);
+
+                    return (
+                      <tr
+                        key={item.serialNumber || `${item.masha}-${idx}`}
+                        className={`hover:bg-gray-800/30 transition-colors ${
+                          selected ? 'bg-emerald-950/25 border-r-2 border-r-emerald-500' : ''
+                        }`}
+                      >
+                        <td className="py-4 pr-2 text-center">
+                          <TableCheckbox
+                            checked={selected}
+                            onChange={() => toggleRow(itemId)}
+                            title={`בחר פריט ${item.serialNumber || item.masha}`}
+                          />
+                        </td>
                       <td className="py-4 pr-2">
                         <div className="flex items-center gap-2.5">
                           <CategoryLogo category={item.category} size="xs" />
@@ -162,7 +291,8 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
             </div>

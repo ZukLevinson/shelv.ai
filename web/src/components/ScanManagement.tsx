@@ -19,7 +19,9 @@ import {
   Tag,
   RotateCcw,
   UploadCloud,
-  Download
+  Download,
+  Camera,
+  ExternalLink
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import type { ScanObservation, ScanInvestigationData, Room, OnlineScannerInfo } from '../types';
@@ -72,11 +74,15 @@ export const ScanManagement: React.FC<Props> = ({
   // Scan Excel upload modal state
   const [isScanExcelModalOpen, setIsScanExcelModalOpen] = useState(false);
 
+  // Google Sheets sync & Image Preview state
+  const [sheetsStatus, setSheetsStatus] = useState<any | null>(null);
+  const [sheetsSyncing, setSheetsSyncing] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
   // Multi-select for filtered scans
   const {
     selectedIds,
     selectedCount,
-    presentSelectedCount,
     totalPresentCount,
     isAllSelected,
     isIndeterminate,
@@ -169,8 +175,36 @@ export const ScanManagement: React.FC<Props> = ({
     }
   };
 
+  const fetchSheetsStatus = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/sweep/sheets/status`);
+      setSheetsStatus(res.data);
+    } catch (err) {
+      console.warn('Failed to fetch sheets status:', err);
+    }
+  };
+
+  const handleSyncToSheets = async () => {
+    setSheetsSyncing(true);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/sweep/sheets/sync`);
+      if (res.data.success) {
+        alert(`סנכרון ל-Google Sheets הושלם בהצלחה! סונכרנו ${res.data.totalSynced} סריקות.`);
+        fetchSheetsStatus();
+      } else {
+        alert(`שגיאה בסנכרון ל-Google Sheets: ${res.data.error || 'נכשל'}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to sync to sheets:', err);
+      alert(`שגיאה בסנכרון ל-Google Sheets: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setSheetsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     fetchScanners();
+    fetchSheetsStatus();
   }, []);
 
   useEffect(() => {
@@ -408,6 +442,27 @@ export const ScanManagement: React.FC<Props> = ({
               <span>רענן נתונים</span>
             </button>
             <button
+              onClick={handleSyncToSheets}
+              disabled={sheetsSyncing}
+              className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/60 active:bg-emerald-800 border border-emerald-600/40 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              title="סנכרון מיידי של כל סריקות המלאי לקובץ Google Sheets"
+            >
+              <FileSpreadsheet className={`w-3.5 h-3.5 text-emerald-400 ${sheetsSyncing ? 'animate-spin' : ''}`} />
+              <span>{sheetsSyncing ? 'מסנכרן...' : 'סנכרן Google Sheets'}</span>
+            </button>
+            {sheetsStatus?.spreadsheetUrl && (
+              <a
+                href={sheetsStatus.spreadsheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 flex items-center justify-center gap-1.5 px-3 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-all"
+                title="פתח את גיליון הסריקות ב-Google Sheets"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline">פתח ב-Google Sheets</span>
+              </a>
+            )}
+            <button
               onClick={handleExportCSV}
               disabled={scans.length === 0}
               className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 rounded-xl transition-all shadow-sm disabled:opacity-50 cursor-pointer"
@@ -626,13 +681,14 @@ export const ScanManagement: React.FC<Props> = ({
                 <th className="py-3 px-3">איפה נסרק בפועל</th>
                 <th className="py-3 px-3">בעל מצאי רשמי (חתימה)</th>
                 <th className="py-3 px-3">סטטוס התאמה</th>
+                <th className="py-3 px-3 text-center">תמונות (S/N / מסח"א)</th>
                 <th className="py-3 px-4 text-center">פעולות תחקור</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/60">
               {scans.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                  <td colSpan={9} className="py-12 text-center text-gray-500">
                     {loading ? 'טוען סריקות...' : 'לא נמצאו סריקות התואמות את תנאי הסינון.'}
                   </td>
                 </tr>
@@ -792,6 +848,43 @@ export const ScanManagement: React.FC<Props> = ({
                             <span>פריט לא באקסל</span>
                           </span>
                         )}
+                      </td>
+
+                      {/* תמונות */}
+                      <td className="py-3.5 px-3 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {(scan.has_image_sn || scan.has_image) && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage({
+                                url: `${API_BASE_URL}/api/sweep/scans/${scan.id}/image/sn`,
+                                title: `מדבקת S/N (${scan.serial_number || 'פריט'})`
+                              })}
+                              className="px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all"
+                              title="צפה בתמונת מדבקת S/N"
+                            >
+                              <Camera className="w-3 h-3" />
+                              <span>S/N</span>
+                            </button>
+                          )}
+                          {scan.has_image_masha && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage({
+                                url: `${API_BASE_URL}/api/sweep/scans/${scan.id}/image/masha`,
+                                title: `מדבקת מסח"א (${scan.masha})`
+                              })}
+                              className="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all"
+                              title='צפה בתמונת מדבקת מסח"א'
+                            >
+                              <Camera className="w-3 h-3" />
+                              <span>מסח"א</span>
+                            </button>
+                          )}
+                          {!scan.has_image_sn && !scan.has_image_masha && !scan.has_image && (
+                            <span className="text-gray-600 text-xs">-</span>
+                          )}
+                        </div>
                       </td>
 
                       {/* פעולות */}
@@ -1059,6 +1152,57 @@ export const ScanManagement: React.FC<Props> = ({
             fetchScanners();
           }}
         />
+      )}
+
+      {/* Image Lightbox Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="bg-gray-900 border border-gray-800 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">{previewImage.title}</h3>
+              </div>
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="p-1 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex items-center justify-center bg-gray-950/80 min-h-[280px]">
+              <img
+                src={previewImage.url}
+                alt={previewImage.title}
+                className="max-h-[420px] w-auto max-w-full rounded-xl object-contain shadow-lg"
+              />
+            </div>
+            <div className="p-3 bg-gray-950 border-t border-gray-800 flex justify-between items-center">
+              <a
+                href={previewImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>פתח תמונה בגודל מלא</span>
+              </a>
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="px-4 py-1.5 text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-xl transition-all cursor-pointer"
+              >
+                סגור
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
