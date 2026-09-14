@@ -6,6 +6,7 @@ import { db } from '../db/database.js';
 import { getOnlineScanners, getOnlineScannersCount, registerOrTouchScanner, disconnectScanner } from '../sockets/socketServer.js';
 import { authenticateToken, requireRole } from '../auth/authMiddleware.js';
 import { parseScansExcel, parseScansPdf, parseScansFile, importScansToDatabase } from '../services/scanExcelImportService.js';
+import { getGoogleSheetsStatus, syncAllScansToGoogleSheet } from '../services/googleSheetsService.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -111,11 +112,24 @@ sweepRouter.get('/check-sn', (req, res) => {
 });
 
 sweepRouter.post('/scan', (req, res) => {
-  const { sweepId, roomId, serialNumber, masha, scannedBy, stickerOwnerText, productNameDetected } = req.body;
+  const {
+    sweepId,
+    roomId,
+    serialNumber,
+    masha,
+    scannedBy,
+    stickerOwnerText,
+    productNameDetected,
+    image,
+    imageSn,
+    imageMasha,
+  } = req.body;
 
   if (!roomId || !masha || !scannedBy) {
     return res.status(400).json({ error: 'roomId, masha, and scannedBy are required' });
   }
+
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
 
   try {
     const result = recordObservation({
@@ -125,7 +139,11 @@ sweepRouter.post('/scan', (req, res) => {
       serialNumber: serialNumber ? String(serialNumber).trim() : null,
       scannedBy,
       stickerOwnerText,
-      productNameDetected
+      productNameDetected,
+      image,
+      imageSn,
+      imageMasha,
+      baseUrl,
     });
     res.json(result);
   } catch (error: any) {
@@ -265,6 +283,9 @@ sweepRouter.get('/scans', (req, res) => {
         off_h.name as official_holder_name,
         COALESCE(m.description, i.description, o.product_name_detected, 'ציוד') as item_description,
         COALESCE(m.category, i.category, 'Regular Workstation') as category,
+        (o.image_sn IS NOT NULL AND o.image_sn != '') as has_image_sn,
+        (o.image_masha IS NOT NULL AND o.image_masha != '') as has_image_masha,
+        (o.image IS NOT NULL AND o.image != '') as has_image,
         CASE
           WHEN i.id IS NULL THEN 'unregistered'
           WHEN i.holder_id != r.holder_id THEN 'mismatch'
@@ -511,6 +532,59 @@ sweepRouter.delete('/scans/:id', async (req, res) => {
   }
 });
 
+// POST /api/sweep/scans/bulk-delete - Bulk delete or revert scan observations
+sweepRouter.post('/scans/bulk-delete', async (req, res) => {
+  const { ids, revertedBy } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids array is required' });
+  }
+  const user = revertedBy || (req as any).user?.name || 'משתמש מערכת';
+  try {
+    const { detectAnomalies } = await import('../services/anomalyService.js');
+    const { broadcast } = await import('../sockets/socketServer.js');
+    const { logAction } = await import('../services/actionService.js');
+
+    let deletedCount = 0;
+    const deleteTx = db.transaction((scanIds: string[]) => {
+      const getStmt = db.prepare('SELECT * FROM sweep_observations WHERE id = ?');
+      const delStmt = db.prepare('DELETE FROM sweep_observations WHERE id = ?');
+      const markRevertedStmt = db.prepare(`
+        UPDATE action_history
+        SET reverted_at = CURRENT_TIMESTAMP, reverted_by = ?
+        WHERE entity_type = 'scan' AND entity_id = ? AND action_type = 'scan_created' AND reverted_at IS NULL
+      `);
+
+      for (const id of scanIds) {
+        const existing = getStmt.get(id) as any;
+        if (existing) {
+          delStmt.run(id);
+          markRevertedStmt.run(user, id);
+          logAction({
+            actionType: 'scan_deleted',
+            description: `ביטול/מחיקת סריקה ${existing.serial_number ? 'S/N ' + existing.serial_number : 'מסח"א ' + existing.masha}`,
+            entityType: 'scan',
+            entityId: id,
+            performedBy: user,
+            stateBefore: existing
+          });
+          deletedCount++;
+        }
+      }
+    });
+
+    deleteTx(ids);
+
+    const anomalies = detectAnomalies();
+    broadcast('ANOMALIES_UPDATED', anomalies);
+    broadcast('SCANS_UPDATED', { bulkDeleted: true, count: deletedCount });
+
+    res.json({ success: true, message: `נמחקו ${deletedCount} סריקות בהצלחה`, deletedCount });
+  } catch (error: any) {
+    console.error('[Sweep API] Error bulk deleting scans:', error);
+    res.status(500).json({ error: error.message || 'Failed to bulk delete scans' });
+  }
+});
+
 // POST /api/sweep/scans/parse-excel - Parse and analyze historical scans from Google Forms Excel (.xlsx) or PDF (.pdf) exported from Google Drive
 sweepRouter.post('/scans/parse-excel', authenticateToken, requireRole(['manager']), upload.single('file'), async (req: any, res) => {
   if (!req.file) {
@@ -545,5 +619,110 @@ sweepRouter.post('/scans/import-excel', authenticateToken, requireRole(['manager
   } catch (error: any) {
     console.error('[Sweep API] Error importing scans from excel:', error);
     res.status(500).json({ error: error.message || 'שגיאה בעת שמירת הסריקות' });
+  }
+});
+
+function sendBase64Image(res: any, dataUriOrBase64: string | null) {
+  if (!dataUriOrBase64) {
+    return res.status(404).json({ error: 'תמונה לא נמצאה' });
+  }
+
+  let mimeType = 'image/jpeg';
+  let base64Data = dataUriOrBase64;
+
+  if (dataUriOrBase64.startsWith('data:')) {
+    const parts = dataUriOrBase64.split(',');
+    const meta = parts[0];
+    base64Data = parts[1] || '';
+    const match = meta.match(/data:([^;]+);/);
+    if (match) {
+      mimeType = match[1];
+    }
+  }
+
+  const imgBuffer = Buffer.from(base64Data, 'base64');
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(imgBuffer);
+}
+
+// GET /api/sweep/scans/:id/image - Serve stored scan image (S/N, Masha, or default)
+sweepRouter.get('/scans/:id/image', (req, res) => {
+  const { id } = req.params;
+  const type = req.query.type as string | undefined;
+  try {
+    const row = db.prepare('SELECT image, image_sn, image_masha FROM sweep_observations WHERE id = ?').get(id) as any;
+    if (!row) {
+      return res.status(404).json({ error: 'תצפית סריקה לא נמצאה' });
+    }
+
+    let imgData: string | null = null;
+    if (type === 'sn') {
+      imgData = row.image_sn || row.image;
+    } else if (type === 'masha') {
+      imgData = row.image_masha || row.image;
+    } else {
+      imgData = row.image_sn || row.image || row.image_masha;
+    }
+
+    if (!imgData) {
+      return res.status(404).json({ error: 'לא קיימת תמונה שמורה לסריקה זו' });
+    }
+
+    sendBase64Image(res, imgData);
+  } catch (error: any) {
+    console.error('[Sweep API] Error serving scan image:', error);
+    res.status(500).json({ error: error.message || 'שגיאה בשליפת תמונה' });
+  }
+});
+
+// GET /api/sweep/scans/:id/image/:type - Explicit sub-route for sn or masha image
+sweepRouter.get('/scans/:id/image/:type', (req, res) => {
+  const { id, type } = req.params;
+  try {
+    const row = db.prepare('SELECT image, image_sn, image_masha FROM sweep_observations WHERE id = ?').get(id) as any;
+    if (!row) {
+      return res.status(404).json({ error: 'תצפית סריקה לא נמצאה' });
+    }
+
+    let imgData: string | null = null;
+    if (type === 'sn') {
+      imgData = row.image_sn || row.image;
+    } else if (type === 'masha') {
+      imgData = row.image_masha || row.image;
+    } else {
+      imgData = row.image_sn || row.image || row.image_masha;
+    }
+
+    if (!imgData) {
+      return res.status(404).json({ error: 'לא קיימת תמונה שמורה לסריקה זו' });
+    }
+
+    sendBase64Image(res, imgData);
+  } catch (error: any) {
+    console.error('[Sweep API] Error serving typed scan image:', error);
+    res.status(500).json({ error: error.message || 'שגיאה בשליפת תמונה' });
+  }
+});
+
+// GET /api/sweep/sheets/status - Check Google Sheets connection and metadata
+sweepRouter.get('/sheets/status', async (_req, res) => {
+  try {
+    const status = await getGoogleSheetsStatus();
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'שגיאה בבדיקת חיבור ל-Google Sheets' });
+  }
+});
+
+// POST /api/sweep/sheets/sync - Synchronize all scans from database to Google Sheets
+sweepRouter.post('/sheets/sync', async (req, res) => {
+  try {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const result = await syncAllScansToGoogleSheet(baseUrl);
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Sweep API] Error syncing to Google Sheets:', error);
+    res.status(500).json({ error: error.message || 'שגיאה בסנכרון ל-Google Sheets' });
   }
 });

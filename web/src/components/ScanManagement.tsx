@@ -18,13 +18,18 @@ import {
   ShieldAlert,
   Tag,
   RotateCcw,
-  UploadCloud
+  UploadCloud,
+  Download
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import type { ScanObservation, ScanInvestigationData, Room, OnlineScannerInfo } from '../types';
 import { ScanExcelUploadModal } from './ScanExcelUploadModal';
 import { CategoryLogo } from './CategoryLogo';
 import { resolveCategory } from '../constants/categories';
+import { useTableSelection } from '../hooks/useTableSelection';
+import { TableCheckbox } from './ui/TableCheckbox';
+import { TableBulkActionsBar } from './ui/TableBulkActionsBar';
+import { exportToExcel } from '../utils/excelExportUtils';
 
 interface Props {
   rooms: Room[];
@@ -66,6 +71,71 @@ export const ScanManagement: React.FC<Props> = ({
 
   // Scan Excel upload modal state
   const [isScanExcelModalOpen, setIsScanExcelModalOpen] = useState(false);
+
+  // Multi-select for filtered scans
+  const {
+    selectedIds,
+    selectedCount,
+    presentSelectedCount,
+    totalPresentCount,
+    isAllSelected,
+    isIndeterminate,
+    selectedItems,
+    toggleRow,
+    toggleSelectAll,
+    selectAllPresent,
+    clearSelection,
+    isSelected,
+  } = useTableSelection<ScanObservation>({
+    items: scans,
+    getItemId: (s) => s.id,
+  });
+
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const handleBulkDeleteScans = async () => {
+    if (selectedCount === 0) return;
+    const confirmMessage = `האם אתה בטוח שברצונך למחוק ${selectedCount} סריקות שנבחרו? פעולה זו תעדכן את החריגות והדשבורד מיד.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setBulkDeleting(true);
+    try {
+      await axios.post(`${API_BASE_URL}/api/sweep/scans/bulk-delete`, {
+        ids: Array.from(selectedIds),
+      });
+      clearSelection();
+      fetchScans();
+      fetchScanners();
+    } catch (err: any) {
+      console.error('Failed to bulk delete scans:', err);
+      alert(err.response?.data?.error || 'שגיאה במחיקת הסריקות הנבחרות');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const handleExportSelectedScans = () => {
+    if (selectedItems.length === 0) return;
+    exportToExcel({
+      filename: `shelv_selected_scans_${new Date().toISOString().slice(0, 10)}`,
+      sheetName: 'Selected Scans',
+      columns: [
+        { header: 'זמן סריקה', accessor: (s) => new Date(s.scanned_at).toLocaleString('he-IL') },
+        { header: 'מי סרק', accessor: (s) => s.scanned_by },
+        { header: 'תיאור פריט', accessor: (s) => s.item_description || '' },
+        { header: 'קטגוריה', accessor: (s) => s.category || '' },
+        { header: 'מספר סידורי (S/N)', accessor: (s) => s.serial_number || '' },
+        { header: 'מסח"א', accessor: (s) => s.masha || '' },
+        { header: 'חדר שנסרק', accessor: (s) => `${s.scanned_room_name} (${s.scanned_room_code})` },
+        { header: 'בעל מצאי בחדר', accessor: (s) => s.scanned_holder_name || '' },
+        { header: 'בעל מצאי רשמי באקסל', accessor: (s) => s.official_holder_name || '' },
+        { header: 'חדר רשמי באקסל', accessor: (s) => s.official_room_name ? `${s.official_room_name} (${s.official_room_code})` : '' },
+        { header: 'סטטוס התאמה', accessor: (s) => s.scan_status === 'matched' ? 'תואם חתימה' : s.scan_status === 'mismatch' ? 'חריגת מיקום' : 'לא רשום באקסל' },
+        { header: 'מקור קובץ', accessor: (s) => s.import_filename || 'סריקה באפליקציה' },
+      ],
+      data: selectedItems,
+    });
+  };
 
   const fetchScanners = async () => {
     try {
@@ -508,12 +578,48 @@ export const ScanManagement: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      <TableBulkActionsBar
+        selectedCount={selectedCount}
+        totalPresentCount={totalPresentCount}
+        itemLabel="סריקות"
+        onClearSelection={clearSelection}
+        onSelectAllPresent={selectAllPresent}
+        isAllSelected={isAllSelected}
+      >
+        <button
+          type="button"
+          onClick={handleExportSelectedScans}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 hover:text-white border border-gray-700 text-xs font-medium transition-all cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5 text-emerald-400" />
+          <span>ייצא נבחרים לאקסל ({selectedCount})</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleBulkDeleteScans}
+          disabled={bulkDeleting}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>{bulkDeleting ? 'מוחק סריקות...' : `מחק ${selectedCount} סריקות`}</span>
+        </button>
+      </TableBulkActionsBar>
+
       {/* Scans Table */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl max-w-full">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-right text-xs min-w-[820px]">
             <thead>
               <tr className="bg-gray-950/60 border-b border-gray-800 text-gray-400 font-semibold">
+                <th className="py-3 px-3 w-10 text-center">
+                  <TableCheckbox
+                    checked={isAllSelected}
+                    indeterminate={isIndeterminate}
+                    onChange={toggleSelectAll}
+                    title="בחר / בטל בחירת כל הסריקות בסינון"
+                  />
+                </th>
                 <th className="py-3 px-4">מתי (זמן סריקה)</th>
                 <th className="py-3 px-3">מי סרק</th>
                 <th className="py-3 px-3">מה נסרק (S/N ומסח״א)</th>
@@ -526,7 +632,7 @@ export const ScanManagement: React.FC<Props> = ({
             <tbody className="divide-y divide-gray-800/60">
               {scans.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-500">
+                  <td colSpan={8} className="py-12 text-center text-gray-500">
                     {loading ? 'טוען סריקות...' : 'לא נמצאו סריקות התואמות את תנאי הסינון.'}
                   </td>
                 </tr>
@@ -534,14 +640,27 @@ export const ScanManagement: React.FC<Props> = ({
                 scans.map((scan) => {
                   const isMismatch = scan.scan_status === 'mismatch';
                   const dateObj = new Date(scan.scanned_at);
+                  const selected = isSelected(scan.id);
 
                   return (
                     <tr
                       key={scan.id}
                       className={`hover:bg-gray-800/40 transition-colors ${
-                        isMismatch ? 'bg-rose-950/10' : ''
+                        selected
+                          ? 'bg-emerald-950/30 border-r-2 border-r-emerald-500'
+                          : isMismatch
+                          ? 'bg-rose-950/10'
+                          : ''
                       }`}
                     >
+                      {/* תיבת בחירה */}
+                      <td className="py-3.5 px-3 text-center">
+                        <TableCheckbox
+                          checked={selected}
+                          onChange={() => toggleRow(scan.id)}
+                          title={`בחר סריקה ${scan.serial_number || scan.masha}`}
+                        />
+                      </td>
                       {/* מתי */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 text-white font-medium">

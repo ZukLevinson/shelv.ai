@@ -100,6 +100,9 @@ export function initDatabase() {
       product_name_detected TEXT,
       import_id TEXT,
       scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      image TEXT,
+      image_sn TEXT,
+      image_masha TEXT,
       FOREIGN KEY (sweep_id) REFERENCES sweep_sessions(id) ON DELETE SET NULL,
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
       FOREIGN KEY (import_id) REFERENCES excel_imports(id) ON DELETE CASCADE
@@ -221,14 +224,23 @@ export function initDatabase() {
     console.error('[DB] Migration error for import_id on official_inventory:', err);
   }
 
-  // Ensure import_id column exists on sweep_observations
+  // Ensure import_id and image columns exist on sweep_observations
   try {
     const sweepCols = db.prepare("PRAGMA table_info(sweep_observations)").all() as Array<{ name: string }>;
     if (!sweepCols.some(col => col.name === 'import_id')) {
       db.exec("ALTER TABLE sweep_observations ADD COLUMN import_id TEXT REFERENCES excel_imports(id) ON DELETE CASCADE");
     }
+    if (!sweepCols.some(col => col.name === 'image')) {
+      db.exec("ALTER TABLE sweep_observations ADD COLUMN image TEXT;");
+    }
+    if (!sweepCols.some(col => col.name === 'image_sn')) {
+      db.exec("ALTER TABLE sweep_observations ADD COLUMN image_sn TEXT;");
+    }
+    if (!sweepCols.some(col => col.name === 'image_masha')) {
+      db.exec("ALTER TABLE sweep_observations ADD COLUMN image_masha TEXT;");
+    }
   } catch (err) {
-    console.error('[DB] Migration error for import_id on sweep_observations:', err);
+    console.error('[DB] Migration error for sweep_observations columns:', err);
   }
 
   // Ensure import_id column exists on inventory_holders

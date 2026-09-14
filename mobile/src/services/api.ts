@@ -65,6 +65,9 @@ export async function submitScan(payload: {
   scannedBy: string;
   stickerOwnerText?: string;
   productNameDetected?: string;
+  image?: string | null;
+  imageSn?: string | null;
+  imageMasha?: string | null;
 }) {
   const res = await fetch(`${SERVER_URL}/api/sweep/scan`, {
     method: 'POST',
@@ -72,6 +75,13 @@ export async function submitScan(payload: {
     body: JSON.stringify(payload),
   });
   return res.json();
+}
+
+export function getScanImageUrl(observationId: string, type?: 'sn' | 'masha'): string {
+  if (type) {
+    return `${SERVER_URL}/api/sweep/scans/${observationId}/image/${type}`;
+  }
+  return `${SERVER_URL}/api/sweep/scans/${observationId}/image`;
 }
 
 export async function revertScan(observationId: string, revertedBy?: string) {

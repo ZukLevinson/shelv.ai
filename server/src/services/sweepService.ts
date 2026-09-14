@@ -4,6 +4,7 @@ import { detectAnomalies } from './anomalyService.js';
 import { logAction } from './actionService.js';
 import { alertOnMisplacedItemScan } from './emailAlertService.js';
 import { parseMashaString } from '../utils/mashaUtils.js';
+import { appendScanToGoogleSheet } from './googleSheetsService.js';
 
 export interface RecordScanInput {
   sweepId?: string;
@@ -13,6 +14,10 @@ export interface RecordScanInput {
   scannedBy: string;
   stickerOwnerText?: string;
   productNameDetected?: string;
+  image?: string | null;
+  imageSn?: string | null;
+  imageMasha?: string | null;
+  baseUrl?: string;
 }
 
 export function recordObservation(input: RecordScanInput) {
@@ -20,6 +25,10 @@ export function recordObservation(input: RecordScanInput) {
   if (!cleanMasha) {
     throw new Error('מסח"א הוא שדה חובה');
   }
+
+  const finalImageSn = input.imageSn || input.image || null;
+  const finalImageMasha = input.imageMasha || null;
+  const finalImageLegacy = input.image || input.imageSn || null;
 
   const cleanSN = input.serialNumber && input.serialNumber.trim() 
     ? input.serialNumber.trim().toUpperCase() 
@@ -37,9 +46,14 @@ export function recordObservation(input: RecordScanInput) {
   if (existingScan) {
     db.prepare(`
       UPDATE sweep_observations 
-      SET scanned_at = CURRENT_TIMESTAMP, scanned_by = ?, masha = ?
+      SET scanned_at = CURRENT_TIMESTAMP, 
+          scanned_by = ?, 
+          masha = ?,
+          image = COALESCE(?, image),
+          image_sn = COALESCE(?, image_sn),
+          image_masha = COALESCE(?, image_masha)
       WHERE id = ?
-    `).run(input.scannedBy, cleanMasha, existingScan.id);
+    `).run(input.scannedBy, cleanMasha, finalImageLegacy, finalImageSn, finalImageMasha, existingScan.id);
 
     const officialItem = db.prepare(`
       SELECT i.*, r.name as official_room_name, h.name as official_holder_name
@@ -91,8 +105,9 @@ export function recordObservation(input: RecordScanInput) {
   const observationId = 'obs-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
   db.prepare(`
     INSERT INTO sweep_observations (
-      id, sweep_id, room_id, masha, serial_number, scanned_by, sticker_owner_text, product_name_detected
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      id, sweep_id, room_id, masha, serial_number, scanned_by, sticker_owner_text, product_name_detected,
+      image, image_sn, image_masha
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     observationId,
     input.sweepId || null,
@@ -101,7 +116,10 @@ export function recordObservation(input: RecordScanInput) {
     cleanSN,
     input.scannedBy,
     input.stickerOwnerText || null,
-    input.productNameDetected || extractedDesc || null
+    input.productNameDetected || extractedDesc || null,
+    finalImageLegacy,
+    finalImageSn,
+    finalImageMasha
   );
 
   let officialItem: any = null;
@@ -156,10 +174,12 @@ export function recordObservation(input: RecordScanInput) {
     scannedRoom,
     officialItem: officialItem || null,
     scannedBy: input.scannedBy,
+    hasImageSn: Boolean(finalImageSn),
+    hasImageMasha: Boolean(finalImageMasha),
     timestamp: new Date().toISOString(),
   });
 
-  // Recalculate and broadcast anomalies asynchronously so the mobile app gets an instant response (<10ms)
+  // Recalculate and broadcast anomalies & sync to Google Sheets asynchronously
   setImmediate(async () => {
     try {
       const anomalies = detectAnomalies();
@@ -189,8 +209,32 @@ export function recordObservation(input: RecordScanInput) {
           scannedAt: new Date().toISOString(),
         });
       }
+
+      // Append scan observation to Google Sheets
+      const itemDesc = officialItem?.resolved_description || officialItem?.description || input.productNameDetected || extractedDesc || 'ציוד';
+      const scanStatusText = isMisplaced ? 'חריגת מיקום / חתימה' : (officialItem ? 'תואם חתימה' : 'לא רשום באקסל');
+
+      await appendScanToGoogleSheet({
+        observationId,
+        scannedAt: new Date().toISOString(),
+        masha: cleanMasha,
+        serialNumber: cleanSN,
+        description: itemDesc,
+        roomName: scannedRoom?.name || 'חדר',
+        roomCode: scannedRoom?.code || '',
+        roomHolderName: scannedRoom?.holder_name || '',
+        scannedBy: input.scannedBy,
+        scanStatus: scanStatusText,
+        officialRoomName: officialItem?.official_room_name || '',
+        officialHolderName: officialItem?.official_holder_name || '',
+        stickerOwnerText: input.stickerOwnerText || '',
+        hasImageSn: Boolean(finalImageSn),
+        imageSnUrl: finalImageSn && input.baseUrl ? `${input.baseUrl.replace(/\/$/, '')}/api/sweep/scans/${observationId}/image/sn` : undefined,
+        hasImageMasha: Boolean(finalImageMasha),
+        imageMashaUrl: finalImageMasha && input.baseUrl ? `${input.baseUrl.replace(/\/$/, '')}/api/sweep/scans/${observationId}/image/masha` : undefined,
+      });
     } catch (err) {
-      console.error('[Sweep] Error processing anomalies or alerts asynchronously:', err);
+      console.error('[Sweep] Error processing anomalies, alerts, or Google Sheets sync asynchronously:', err);
     }
   });
 
