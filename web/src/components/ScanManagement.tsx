@@ -16,6 +16,7 @@ import {
   RotateCw,
   Clock,
   ShieldAlert,
+  Tag,
   RotateCcw,
   UploadCloud
 } from 'lucide-react';

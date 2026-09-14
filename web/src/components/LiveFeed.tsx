@@ -12,11 +12,13 @@ import {
   Loader2 
 } from 'lucide-react';
 import { API_BASE_URL, WS_URL } from '../config';
+import { CategoryLogo } from './CategoryLogo';
 
 export interface ScanEvent {
   observationId: string;
   serialNumber?: string | null;
   masha?: string | null;
+  category?: string | null;
   scannedRoom: {
     id?: string;
     name: string;
@@ -73,6 +75,7 @@ const normalizeEvent = (ev: any): ScanEvent => {
     observationId: ev.observationId || ev.id || `temp-${Math.random()}`,
     serialNumber: ev.serialNumber ?? ev.serial_number ?? null,
     masha: ev.masha ?? null,
+    category: ev.category ?? ev.officialItem?.category ?? null,
     scannedRoom: ev.scannedRoom || {
       id: ev.scanned_room_id,
       name: ev.scanned_room_name || 'חדר לא ידוע',
@@ -344,6 +347,11 @@ export const LiveFeed: React.FC<LiveFeedProps> = ({
                   ) : (
                     <span title="סריקה תואמת"><CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" /></span>
                   )}
+
+                  <CategoryLogo
+                    category={ev.category || ev.officialItem?.description || ev.productNameDetected}
+                    size="xs"
+                  />
 
                   <div className="min-w-0">
                     <div className="font-semibold text-white truncate">
