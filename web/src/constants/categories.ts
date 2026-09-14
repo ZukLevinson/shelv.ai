@@ -25,6 +25,18 @@ export interface CategoryTheme {
   badgeBg: string;
 }
 
+/**
+ * Unified category theme across all categories (Shelv.ai brand emerald styling)
+ */
+export const UNIFIED_CATEGORY_THEME: CategoryTheme = {
+  textColor: 'text-emerald-400',
+  bgColor: 'bg-emerald-500/10',
+  borderColor: 'border-emerald-500/20',
+  gradientBg: 'from-emerald-500/15 to-emerald-600/5',
+  ringColor: 'ring-emerald-500/40',
+  badgeBg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+};
+
 export interface CategoryDefinition {
   id: string;
   labelHe: string;
@@ -43,14 +55,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Computer / PC / Workstation',
     shortLabelHe: 'מחשב',
     icon: Monitor,
-    theme: {
-      textColor: 'text-blue-400',
-      bgColor: 'bg-blue-500/10',
-      borderColor: 'border-blue-500/30',
-      gradientBg: 'from-blue-600/20 to-cyan-600/20',
-      ringColor: 'ring-blue-500/40',
-      badgeBg: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מחשב',
       'מחשב נייח',
@@ -81,14 +86,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Laptop / Notebook',
     shortLabelHe: 'מחשב נייד',
     icon: Laptop,
-    theme: {
-      textColor: 'text-purple-400',
-      bgColor: 'bg-purple-500/10',
-      borderColor: 'border-purple-500/30',
-      gradientBg: 'from-purple-600/20 to-indigo-600/20',
-      ringColor: 'ring-purple-500/40',
-      badgeBg: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מחשב נייד',
       'נייד',
@@ -111,14 +109,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Screen / Monitor',
     shortLabelHe: 'מסך',
     icon: Monitor,
-    theme: {
-      textColor: 'text-emerald-400',
-      bgColor: 'bg-emerald-500/10',
-      borderColor: 'border-emerald-500/30',
-      gradientBg: 'from-emerald-600/20 to-teal-600/20',
-      ringColor: 'ring-emerald-500/40',
-      badgeBg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מסך',
       'צג',
@@ -137,14 +128,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'TV / Display Screen',
     shortLabelHe: 'טלוויזיה',
     icon: Tv,
-    theme: {
-      textColor: 'text-amber-400',
-      bgColor: 'bg-amber-500/10',
-      borderColor: 'border-amber-500/30',
-      gradientBg: 'from-amber-600/20 to-orange-600/20',
-      ringColor: 'ring-amber-500/40',
-      badgeBg: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'טלוויזיה',
       'טלויזיה',
@@ -163,14 +147,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Printer / MFP',
     shortLabelHe: 'מדפסת',
     icon: Printer,
-    theme: {
-      textColor: 'text-yellow-400',
-      bgColor: 'bg-yellow-500/10',
-      borderColor: 'border-yellow-500/30',
-      gradientBg: 'from-yellow-600/20 to-amber-600/20',
-      ringColor: 'ring-yellow-500/40',
-      badgeBg: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מדפסת',
       'מדפסות',
@@ -192,14 +169,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Scanner / Fingerprint',
     shortLabelHe: 'סורק',
     icon: Fingerprint,
-    theme: {
-      textColor: 'text-rose-400',
-      bgColor: 'bg-rose-500/10',
-      borderColor: 'border-rose-500/30',
-      gradientBg: 'from-rose-600/20 to-pink-600/20',
-      ringColor: 'ring-rose-500/40',
-      badgeBg: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'סורק',
       'סורקים',
@@ -223,14 +193,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Network Switch / Router',
     shortLabelHe: 'מתג רשת',
     icon: Network,
-    theme: {
-      textColor: 'text-cyan-400',
-      bgColor: 'bg-cyan-500/10',
-      borderColor: 'border-cyan-500/30',
-      gradientBg: 'from-cyan-600/20 to-sky-600/20',
-      ringColor: 'ring-cyan-500/40',
-      badgeBg: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מתג',
       'סוויץ',
@@ -255,14 +218,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Server / Rack',
     shortLabelHe: 'שרת',
     icon: Server,
-    theme: {
-      textColor: 'text-red-400',
-      bgColor: 'bg-red-500/10',
-      borderColor: 'border-red-500/30',
-      gradientBg: 'from-red-600/20 to-rose-600/20',
-      ringColor: 'ring-red-500/40',
-      badgeBg: 'bg-red-500/15 text-red-300 border-red-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'שרת',
       'שרתים',
@@ -280,14 +236,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Phone / IP Phone',
     shortLabelHe: 'טלפון',
     icon: Smartphone,
-    theme: {
-      textColor: 'text-green-400',
-      bgColor: 'bg-green-500/10',
-      borderColor: 'border-green-500/30',
-      gradientBg: 'from-green-600/20 to-emerald-600/20',
-      ringColor: 'ring-green-500/40',
-      badgeBg: 'bg-green-500/15 text-green-300 border-green-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'טלפון',
       'טלפונים',
@@ -310,14 +259,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Tablet / iPad',
     shortLabelHe: 'טאבלט',
     icon: Tablet,
-    theme: {
-      textColor: 'text-fuchsia-400',
-      bgColor: 'bg-fuchsia-500/10',
-      borderColor: 'border-fuchsia-500/30',
-      gradientBg: 'from-fuchsia-600/20 to-purple-600/20',
-      ringColor: 'ring-fuchsia-500/40',
-      badgeBg: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'טאבלט',
       'טאבלטים',
@@ -335,14 +277,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Camera / Webcam',
     shortLabelHe: 'מצלמה',
     icon: Camera,
-    theme: {
-      textColor: 'text-indigo-400',
-      bgColor: 'bg-indigo-500/10',
-      borderColor: 'border-indigo-500/30',
-      gradientBg: 'from-indigo-600/20 to-blue-600/20',
-      ringColor: 'ring-indigo-500/40',
-      badgeBg: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מצלמה',
       'מצלמות',
@@ -359,14 +294,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Projector',
     shortLabelHe: 'מקרן',
     icon: Projector,
-    theme: {
-      textColor: 'text-lime-400',
-      bgColor: 'bg-lime-500/10',
-      borderColor: 'border-lime-500/30',
-      gradientBg: 'from-lime-600/20 to-green-600/20',
-      ringColor: 'ring-lime-500/40',
-      badgeBg: 'bg-lime-500/15 text-lime-300 border-lime-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'מקרן',
       'מקרנים',
@@ -381,14 +309,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'UPS / Power Supply',
     shortLabelHe: 'אל-פסק',
     icon: Zap,
-    theme: {
-      textColor: 'text-yellow-400',
-      bgColor: 'bg-yellow-500/10',
-      borderColor: 'border-yellow-500/30',
-      gradientBg: 'from-yellow-600/20 to-amber-600/20',
-      ringColor: 'ring-yellow-500/40',
-      badgeBg: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'אל-פסק',
       'אל פסק',
@@ -407,14 +328,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Peripherals (Keyboard / Mouse)',
     shortLabelHe: 'ציוד היקפי',
     icon: Keyboard,
-    theme: {
-      textColor: 'text-slate-300',
-      bgColor: 'bg-slate-500/10',
-      borderColor: 'border-slate-500/30',
-      gradientBg: 'from-slate-600/20 to-gray-600/20',
-      ringColor: 'ring-slate-500/40',
-      badgeBg: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'ציוד היקפי',
       'מקלדת',
@@ -437,14 +351,7 @@ export const CATEGORIES: CategoryDefinition[] = [
     labelEn: 'Other / General Equipment',
     shortLabelHe: 'ציוד כללי',
     icon: Box,
-    theme: {
-      textColor: 'text-gray-400',
-      bgColor: 'bg-gray-500/10',
-      borderColor: 'border-gray-500/30',
-      gradientBg: 'from-gray-600/20 to-zinc-600/20',
-      ringColor: 'ring-gray-500/40',
-      badgeBg: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
-    },
+    theme: UNIFIED_CATEGORY_THEME,
     aliases: [
       'אחר',
       'ציוד',

@@ -58,10 +58,6 @@ export const CategoryLogo: React.FC<CategoryLogoProps> = ({
       title={`${cat.labelHe} (${cat.labelEn})`}
     >
       <Icon className={`${cfg.icon} ${cat.theme.textColor} shrink-0 drop-shadow-sm`} />
-      {/* Subtle glowing dot accent */}
-      <span
-        className={`absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ${cat.theme.textColor.replace('text-', 'bg-')} opacity-60`}
-      />
     </div>
   );
 
