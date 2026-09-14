@@ -60,6 +60,25 @@ export function logAction(input: ActionLogInput): string {
 
   broadcast('ACTION_LOGGED', actionRecord);
 
+  // If action involves scan entity, append directly to Google Sheets Actions tab
+  const isScanAction = input.entityType === 'scan' ||
+    input.entityType === 'scan_batch' ||
+    ['scan_created', 'scan_deleted', 'transfer_approved', 'internal_move_confirmed', 'bulk_scans_imported', 'all_scans_cleared'].includes(input.actionType);
+
+  if (isScanAction) {
+    import('./googleSheetsService.js').then(({ appendActionToGoogleSheet }) => {
+      appendActionToGoogleSheet({
+        id,
+        actionType: input.actionType,
+        description: input.description,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        performedBy: input.performedBy,
+        performedAt: actionRecord.performedAt,
+      }).catch((e) => console.error('[GoogleSheets] Failed to log scan action to sheet:', e));
+    });
+  }
+
   return id;
 }
 
@@ -240,6 +259,19 @@ export function revertAction(actionId: string, revertedBy: string) {
       break;
     }
 
+    case 'bulk_scans_imported': {
+      // Revert bulk scan import: delete all observations created in this import
+      db.prepare('DELETE FROM sweep_observations WHERE import_id = ?').run(action.entity_id);
+      db.prepare('DELETE FROM excel_imports WHERE id = ?').run(action.entity_id);
+      const anomalies = detectAnomalies();
+      broadcast('ANOMALIES_UPDATED', anomalies);
+      broadcast('SCANS_UPDATED', { revertedImportId: action.entity_id });
+      import('./googleSheetsService.js').then(({ syncAllScansToGoogleSheet }) => {
+        syncAllScansToGoogleSheet().catch(() => {});
+      });
+      break;
+    }
+
     default:
       throw new Error(`סוג פעולה לא מוכר לביטול: ${action.action_type}`);
   }
@@ -250,6 +282,11 @@ export function revertAction(actionId: string, revertedBy: string) {
     SET reverted_at = CURRENT_TIMESTAMP, reverted_by = ?
     WHERE id = ?
   `).run(user, actionId);
+
+  // Update in Google Sheets Actions tab
+  import('./googleSheetsService.js').then(({ updateActionInGoogleSheet }) => {
+    updateActionInGoogleSheet(actionId, user).catch(() => {});
+  });
 
   broadcast('ACTION_REVERTED', {
     actionId,

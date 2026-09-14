@@ -5,6 +5,7 @@ import { detectAnomalies } from './anomalyService.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { logAction } from './actionService.js';
 import { scheduleDebouncedBackup } from './gcsStorageService.js';
+import { scheduleDebouncedSheetsSync } from './googleSheetsService.js';
 import { extractTableFromPdfWithGemini } from './geminiVisionService.js';
 import { parseMashaString, normalizeMashaCode } from '../utils/mashaUtils.js';
 
@@ -768,6 +769,7 @@ export function importScansToDatabase(
   });
 
   scheduleDebouncedBackup(1000);
+  scheduleDebouncedSheetsSync(500);
 
   return {
     success: true,

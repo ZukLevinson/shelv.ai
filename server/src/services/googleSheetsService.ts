@@ -23,6 +23,7 @@ export interface GoogleSheetScanData {
   imageSnUrl?: string;
   hasImageMasha?: boolean;
   imageMashaUrl?: string;
+  lastAction?: string;
 }
 
 export interface GoogleSheetsConfig {
@@ -54,11 +55,28 @@ export const HEADERS = [
   'בעל מצאי רשמי',
   'טקסט בעלים במדבקה',
   'תמונת מדבקת S/N',
-  'תמונת מדבקת מסח"א'
+  'תמונת מדבקת מסח"א',
+  'פעולה אחרונה'
+];
+
+export const ACTIONS_SHEET_TITLE = 'יומן פעולות סריקה';
+
+export const ACTION_HEADERS = [
+  'מזהה פעולה',
+  'תאריך ושעה',
+  'סוג פעולה',
+  'תיאור הפעולה',
+  'סוג ישות',
+  'מזהה ישות / סריקה',
+  'בוצע על ידי',
+  'סטטוס ביטול',
+  'בוטל על ידי',
+  'תאריך ביטול'
 ];
 
 let cachedSheetsClient: sheets_v4.Sheets | null = null;
 let lastHeaderCheckSpreadsheetId: string | null = null;
+let lastActionsHeaderCheckSpreadsheetId: string | null = null;
 let lastSyncTimestamp: string | null = null;
 
 export function getSpreadsheetId(): string {
@@ -119,14 +137,14 @@ async function ensureHeaders(client: sheets_v4.Sheets, spreadsheetId: string, sh
 
     const checkRes = await client.spreadsheets.values.get({
       spreadsheetId,
-      range: `'${targetTitle}'!A1:O1`,
+      range: `'${targetTitle}'!A1:P1`,
     });
 
     const rows = checkRes.data.values;
     if (!rows || rows.length === 0 || rows[0].length === 0) {
       await client.spreadsheets.values.update({
         spreadsheetId,
-        range: `'${targetTitle}'!A1:O1`,
+        range: `'${targetTitle}'!A1:P1`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [HEADERS],
@@ -140,6 +158,62 @@ async function ensureHeaders(client: sheets_v4.Sheets, spreadsheetId: string, sh
   } catch (err) {
     console.warn('[GoogleSheets] Note checking/creating headers:', err);
     return sheetTitle;
+  }
+}
+
+/**
+ * Ensures the 'יומן פעולות סריקה' (Scan Actions Log) tab and its header row exist.
+ */
+export async function ensureActionsSheet(client: sheets_v4.Sheets, spreadsheetId: string): Promise<string> {
+  if (lastActionsHeaderCheckSpreadsheetId === spreadsheetId) {
+    return ACTIONS_SHEET_TITLE;
+  }
+
+  try {
+    const meta = await client.spreadsheets.get({ spreadsheetId });
+    const exists = meta.data.sheets?.some((s) => s.properties?.title === ACTIONS_SHEET_TITLE);
+
+    if (!exists) {
+      await client.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: ACTIONS_SHEET_TITLE,
+                },
+              },
+            },
+          ],
+        },
+      });
+      console.log(`[GoogleSheets] Created actions sheet tab "${ACTIONS_SHEET_TITLE}"`);
+    }
+
+    const checkRes = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${ACTIONS_SHEET_TITLE}'!A1:J1`,
+    });
+
+    const rows = checkRes.data.values;
+    if (!rows || rows.length === 0 || rows[0].length === 0) {
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${ACTIONS_SHEET_TITLE}'!A1:J1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [ACTION_HEADERS],
+        },
+      });
+      console.log(`[GoogleSheets] Initialized headers in actions sheet "${ACTIONS_SHEET_TITLE}"`);
+    }
+
+    lastActionsHeaderCheckSpreadsheetId = spreadsheetId;
+    return ACTIONS_SHEET_TITLE;
+  } catch (err) {
+    console.warn('[GoogleSheets] Note checking/creating actions sheet:', err);
+    return ACTIONS_SHEET_TITLE;
   }
 }
 
@@ -236,12 +310,13 @@ export async function appendScanToGoogleSheet(scan: GoogleSheetScanData, baseUrl
       scan.stickerOwnerText || '',
       snCell,
       mashaCell,
+      scan.lastAction || 'סריקה פעילה',
     ];
 
     if (foundRowIndex > 0) {
       await client.spreadsheets.values.update({
         spreadsheetId,
-        range: `'${sheetTitle}'!A${foundRowIndex}:O${foundRowIndex}`,
+        range: `'${sheetTitle}'!A${foundRowIndex}:P${foundRowIndex}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [rowValues],
@@ -250,7 +325,7 @@ export async function appendScanToGoogleSheet(scan: GoogleSheetScanData, baseUrl
     } else {
       await client.spreadsheets.values.append({
         spreadsheetId,
-        range: `'${sheetTitle}'!A:O`,
+        range: `'${sheetTitle}'!A:P`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
@@ -306,7 +381,11 @@ export async function updateScanInGoogleSheet(observationId: string, baseUrl?: s
           WHEN i.id IS NULL THEN 'לא רשום באקסל'
           WHEN i.holder_id != r.holder_id THEN 'חריגת מיקום / חתימה'
           ELSE 'תואם חתימה'
-        END as scanStatus
+        END as scanStatus,
+        COALESCE(
+          (SELECT description FROM action_history WHERE entity_id = o.id ORDER BY performed_at DESC LIMIT 1),
+          'סריקה פעילה'
+        ) as lastAction
       FROM sweep_observations o
       JOIN rooms r ON o.room_id = r.id
       JOIN inventory_holders h ON r.holder_id = h.id
@@ -336,18 +415,9 @@ export async function updateScanInGoogleSheet(observationId: string, baseUrl?: s
     }
 
     if (!s) {
-      // The scan was deleted from database
-      if (foundRowIndex > 0) {
-        await client.spreadsheets.values.update({
-          spreadsheetId,
-          range: `'${sheetTitle}'!J${foundRowIndex}`,
-          valueInputOption: 'USER_ENTERED',
-          requestBody: {
-            values: [['נמחק (בוטל במערכת)']],
-          },
-        });
-        lastSyncTimestamp = new Date().toISOString();
-        return true;
+      // The scan was deleted from database: delete the row completely
+      if (foundRowIndex > 1) {
+        return deleteScanFromGoogleSheet(observationId);
       }
       return false;
     }
@@ -389,12 +459,13 @@ export async function updateScanInGoogleSheet(observationId: string, baseUrl?: s
       s.stickerOwnerText || '',
       snCell,
       mashaCell,
+      s.lastAction || 'סריקה פעילה',
     ];
 
     if (foundRowIndex > 0) {
       await client.spreadsheets.values.update({
         spreadsheetId,
-        range: `'${sheetTitle}'!A${foundRowIndex}:O${foundRowIndex}`,
+        range: `'${sheetTitle}'!A${foundRowIndex}:P${foundRowIndex}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [rowValues],
@@ -403,7 +474,7 @@ export async function updateScanInGoogleSheet(observationId: string, baseUrl?: s
     } else {
       await client.spreadsheets.values.append({
         spreadsheetId,
-        range: `'${sheetTitle}'!A:O`,
+        range: `'${sheetTitle}'!A:P`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
@@ -580,7 +651,7 @@ export async function clearAllScansInGoogleSheet(): Promise<boolean> {
     const sheetTitle = await ensureHeaders(client, spreadsheetId);
     await client.spreadsheets.values.clear({
       spreadsheetId,
-      range: `'${sheetTitle}'!A2:O`,
+      range: `'${sheetTitle}'!A2:P`,
     });
     lastSyncTimestamp = new Date().toISOString();
     return true;
@@ -640,7 +711,11 @@ export async function syncAllScansToGoogleSheet(baseUrl?: string): Promise<{
           WHEN i.id IS NULL THEN 'לא רשום באקסל'
           WHEN i.holder_id != r.holder_id THEN 'חריגת מיקום / חתימה'
           ELSE 'תואם חתימה'
-        END as scanStatus
+        END as scanStatus,
+        COALESCE(
+          (SELECT description FROM action_history WHERE entity_id = o.id ORDER BY performed_at DESC LIMIT 1),
+          'סריקה פעילה'
+        ) as lastAction
       FROM sweep_observations o
       JOIN rooms r ON o.room_id = r.id
       JOIN inventory_holders h ON r.holder_id = h.id
@@ -698,18 +773,19 @@ export async function syncAllScansToGoogleSheet(baseUrl?: string): Promise<{
         s.stickerOwnerText || '',
         snCell,
         mashaCell,
+        s.lastAction || 'סריקה פעילה',
       ]);
     }
 
     // Clear any existing scan data rows below the header to guarantee deleted rows are removed
     await client.spreadsheets.values.clear({
       spreadsheetId,
-      range: `'${sheetTitle}'!A2:O`,
+      range: `'${sheetTitle}'!A2:P`,
     });
 
     await client.spreadsheets.values.update({
       spreadsheetId,
-      range: `'${sheetTitle}'!A1:O${rows.length}`,
+      range: `'${sheetTitle}'!A1:P${rows.length}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rows,
@@ -718,6 +794,13 @@ export async function syncAllScansToGoogleSheet(baseUrl?: string): Promise<{
 
     lastSyncTimestamp = new Date().toISOString();
     lastHeaderCheckSpreadsheetId = spreadsheetId;
+
+    // Concurrently synchronize all scan-related actions to the actions tab
+    setImmediate(() => {
+      syncAllActionsToGoogleSheet().catch((e) =>
+        console.error('[GoogleSheets] Failed to sync scan actions during full sync:', e)
+      );
+    });
 
     return {
       success: true,
@@ -849,4 +932,189 @@ export async function getGoogleSheetsStatus(): Promise<GoogleSheetsConfig> {
     };
   }
 }
+
+/**
+ * Formats system action types into human-readable Hebrew terms for the spreadsheet.
+ */
+export function formatActionTypeHebrew(actionType: string): string {
+  switch (actionType) {
+    case 'scan_created':
+      return 'סריקת פריט';
+    case 'scan_deleted':
+      return 'ביטול / מחיקת סריקה';
+    case 'transfer_approved':
+      return 'אישור העברה';
+    case 'internal_move_confirmed':
+      return 'אישור הזזה פנימית';
+    case 'bulk_scans_imported':
+      return 'ייבוא סריקות מקובץ';
+    case 'all_scans_cleared':
+      return 'איפוס כל הסריקות';
+    default:
+      return actionType;
+  }
+}
+
+/**
+ * Formats an action record into a row array for the 'יומן פעולות סריקה' sheet.
+ */
+export function formatActionRow(action: {
+  id: string;
+  performed_at: string;
+  action_type: string;
+  description: string;
+  entity_type: string;
+  entity_id: string;
+  performed_by: string;
+  reverted_at?: string | null;
+  reverted_by?: string | null;
+}): any[] {
+  const isReverted = Boolean(action.reverted_at);
+  return [
+    action.id,
+    new Date(action.performed_at).toLocaleString('he-IL'),
+    formatActionTypeHebrew(action.action_type),
+    action.description || '',
+    action.entity_type || 'scan',
+    action.entity_id || '',
+    action.performed_by || '',
+    isReverted ? 'בוטל (Reverted)' : 'פעיל',
+    action.reverted_by || (isReverted ? 'משתמש' : '-'),
+    action.reverted_at ? new Date(action.reverted_at).toLocaleString('he-IL') : '-',
+  ];
+}
+
+/**
+ * Appends a scan-related action to the 'יומן פעולות סריקה' sheet in real-time.
+ */
+export async function appendActionToGoogleSheet(action: {
+  id: string;
+  actionType: string;
+  description: string;
+  entityType: string;
+  entityId: string;
+  performedBy: string;
+  performedAt?: string;
+  revertedAt?: string | null;
+  revertedBy?: string | null;
+}): Promise<boolean> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return false;
+
+  try {
+    const sheetTitle = await ensureActionsSheet(client, spreadsheetId);
+    const rowValues = formatActionRow({
+      id: action.id,
+      performed_at: action.performedAt || new Date().toISOString(),
+      action_type: action.actionType,
+      description: action.description,
+      entity_type: action.entityType,
+      entity_id: action.entityId,
+      performed_by: action.performedBy,
+      reverted_at: action.revertedAt,
+      reverted_by: action.revertedBy,
+    });
+
+    await client.spreadsheets.values.append({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A:J`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    return true;
+  } catch (err: any) {
+    console.error('[GoogleSheets] Error appending action to sheet:', err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Updates an existing action row in the 'יומן פעולות סריקה' sheet when it is reverted.
+ */
+export async function updateActionInGoogleSheet(actionId: string, revertedBy: string): Promise<boolean> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return false;
+
+  try {
+    const sheetTitle = await ensureActionsSheet(client, spreadsheetId);
+    const colARes = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A:A`,
+    });
+
+    const rows = colARes.data.values || [];
+    let foundRowIndex = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i]?.[0] === actionId) {
+        foundRowIndex = i + 1;
+        break;
+      }
+    }
+
+    if (foundRowIndex > 1) {
+      const nowStr = new Date().toLocaleString('he-IL');
+      await client.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${sheetTitle}'!H${foundRowIndex}:J${foundRowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [['בוטל (Reverted)', revertedBy, nowStr]],
+        },
+      });
+      return true;
+    }
+    return false;
+  } catch (err: any) {
+    console.error(`[GoogleSheets] Error updating action ${actionId} in sheet:`, err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Synchronizes all historical scan-related actions from the SQLite database to the 'יומן פעולות סריקה' sheet.
+ */
+export async function syncAllActionsToGoogleSheet(): Promise<number> {
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return 0;
+
+  try {
+    const sheetTitle = await ensureActionsSheet(client, spreadsheetId);
+    const actions = db.prepare(`
+      SELECT * FROM action_history
+      WHERE entity_type IN ('scan', 'scan_batch')
+         OR action_type IN ('scan_created', 'scan_deleted', 'transfer_approved', 'internal_move_confirmed', 'bulk_scans_imported', 'all_scans_cleared')
+      ORDER BY performed_at ASC
+    `).all() as any[];
+
+    const rows: any[][] = [ACTION_HEADERS];
+    for (const a of actions) {
+      rows.push(formatActionRow(a));
+    }
+
+    await client.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A2:J`,
+    });
+
+    await client.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A1:J${rows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: rows,
+      },
+    });
+
+    console.log(`[GoogleSheets] Synchronized ${actions.length} scan actions to "${sheetTitle}"`);
+    return actions.length;
+  } catch (err: any) {
+    console.error('[GoogleSheets] Error syncing actions to sheet:', err?.message || err);
+    return 0;
+  }
+}
+
 

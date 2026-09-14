@@ -88,9 +88,33 @@ status = queryScanStatus(obsId);
 assert.strictEqual(status, undefined, 'Expected scan observation to be completely removed upon cancellation');
 console.log('✓ Scan cancellation/deletion removal verified');
 
+// 5. Test Action History representation in Google Sheets
+const { ACTION_HEADERS, HEADERS: SHEET_HEADERS, formatActionTypeHebrew, formatActionRow } = await import('../src/services/googleSheetsService.js');
+assert.strictEqual(SHEET_HEADERS.length, 16, 'Expected HEADERS to contain 16 columns including lastAction');
+assert.strictEqual(SHEET_HEADERS[15], 'פעולה אחרונה', 'Expected 16th column to be פעולה אחרונה');
+assert.strictEqual(ACTION_HEADERS.length, 10, 'Expected ACTION_HEADERS to have 10 columns');
+assert.strictEqual(formatActionTypeHebrew('scan_created'), 'סריקת פריט');
+assert.strictEqual(formatActionTypeHebrew('scan_deleted'), 'ביטול / מחיקת סריקה');
+assert.strictEqual(formatActionTypeHebrew('transfer_approved'), 'אישור העברה');
+
+const sampleActionRow = formatActionRow({
+  id: 'act-sample-123',
+  performed_at: new Date().toISOString(),
+  action_type: 'scan_created',
+  description: 'סריקת פריט בדיקה',
+  entity_type: 'scan',
+  entity_id: 'obs-123',
+  performed_by: 'בודק מערכת',
+});
+assert.strictEqual(sampleActionRow.length, 10, 'Expected formatted action row to have 10 elements');
+assert.strictEqual(sampleActionRow[0], 'act-sample-123');
+assert.strictEqual(sampleActionRow[2], 'סריקת פריט');
+assert.strictEqual(sampleActionRow[7], 'פעיל');
+console.log('✓ Action history representation and formatting for Google Sheets verified');
+
 // Clean up remaining test records
 db.prepare('DELETE FROM official_inventory WHERE id = ?').run(officialItemId);
 db.prepare('DELETE FROM rooms WHERE id IN (?, ?)').run(roomA, roomB);
 db.prepare('DELETE FROM inventory_holders WHERE id IN (?, ?)').run(holderA, holderB);
 
-console.log('✨ All status change, deletion, and Google Sheets sync calculations verified successfully!');
+console.log('✨ All status change, deletion, action history, and Google Sheets sync calculations verified successfully!');
