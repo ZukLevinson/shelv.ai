@@ -86,7 +86,27 @@ export const ScanManagement: React.FC<Props> = ({
 
   // Google Sheets sync & Image Preview state
   const [sheetsStatus, setSheetsStatus] = useState<any | null>(null);
+  const [retryingSheets, setRetryingSheets] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  const handleRetrySheetsSync = async () => {
+    setRetryingSheets(true);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/sweep/sheets/sync`);
+      if (res.data.success) {
+        await fetchSheetsStatus();
+        alert('החיבור הצליח! כל הסריקות סונכרנו בהצלחה ל-Google Sheets.');
+      } else {
+        await fetchSheetsStatus();
+        alert(`שגיאת סנכרון: ${res.data.error || 'ההרשאה טרם עודכנה'}`);
+      }
+    } catch (err: any) {
+      await fetchSheetsStatus();
+      alert(`שגיאת חיבור: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setRetryingSheets(false);
+    }
+  };
 
   // Multi-select for filtered scans
   const {
@@ -433,16 +453,30 @@ export const ScanManagement: React.FC<Props> = ({
               <span>רענן נתונים</span>
             </button>
             {sheetsStatus?.spreadsheetUrl && (
-              <a
-                href={sheetsStatus.spreadsheetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-9 flex items-center justify-center gap-1.5 px-3 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-all"
-                title="פתח את גיליון הסריקות ב-Google Sheets"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden md:inline">פתח ב-Google Sheets</span>
-              </a>
+              <div className="flex items-center gap-1.5">
+                <a
+                  href={sheetsStatus.spreadsheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-9 flex items-center justify-center gap-1.5 px-3 text-xs font-medium text-gray-300 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl transition-all"
+                  title="פתח את גיליון הסריקות ב-Google Sheets"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden md:inline">פתח ב-Google Sheets</span>
+                </a>
+                {sheetsStatus.status === 'connected' && (
+                  <span className="hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" title="כל סריקה מסונכרנת אוטומטית לגליון">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    סנכרון פעיל
+                  </span>
+                )}
+                {sheetsStatus.status === 'error' && (
+                  <span className="hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400" title={sheetsStatus.errorMessage}>
+                    <AlertTriangle className="w-3 h-3 text-amber-400" />
+                    שגיאת הרשאה
+                  </span>
+                )}
+              </div>
             )}
             <button
               onClick={handleExportCSV}
@@ -465,6 +499,67 @@ export const ScanManagement: React.FC<Props> = ({
             )}
           </div>
         </div>
+
+        {sheetsStatus?.status === 'error' && (
+          <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl sm:rounded-2xl p-3 sm:p-4 text-xs text-amber-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-amber-300 text-sm">
+                  סנכרון Google Sheets ממתין להרשאות כתיבה
+                </p>
+                <p className="text-gray-300 text-xs leading-relaxed">
+                  Google Sheets דוחה את בקשות הכתיבה של השרת עקב היעדר הרשאת עריכה (Editor) לקובץ.
+                  {sheetsStatus.serviceAccountEmail && (
+                    <>
+                      {' '}כתובת חשבון השרת (GCP Service Account) היא:{' '}
+                      <code className="bg-black/60 px-1.5 py-0.5 rounded text-amber-300 select-all font-mono border border-amber-500/20">
+                        {sheetsStatus.serviceAccountEmail}
+                      </code>
+                    </>
+                  )}
+                </p>
+                <p className="text-gray-300 text-xs">
+                  <strong>איך לפתור זאת:</strong> פתח את קובץ ה-Google Sheet, לחץ על <strong>שתף (Share)</strong> ושנה את <em>גישה כללית (General access)</em> ל-<strong>"כל מי שיש לו את הקישור יכול לערוך" (Anyone with the link can edit)</strong>, או שתף עם כתובת המייל הנ״ל כ-<strong>עורך (Editor)</strong>.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-stretch md:self-auto justify-end shrink-0">
+              {sheetsStatus.serviceAccountEmail && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(sheetsStatus.serviceAccountEmail);
+                    alert('כתובת המייל הועתקה ללוח!');
+                  }}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-lg text-xs font-semibold transition-all border border-amber-500/30 cursor-pointer"
+                >
+                  העתק מייל
+                </button>
+              )}
+              {sheetsStatus.spreadsheetUrl && (
+                <a
+                  href={sheetsStatus.spreadsheetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded-lg text-xs font-semibold transition-all border border-emerald-500/30 flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  פתח גליון
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handleRetrySheetsSync}
+                disabled={retryingSheets}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${retryingSheets ? 'animate-spin' : ''}`} />
+                <span>בדוק וסנכרן כעת</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Filters Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">

@@ -1,5 +1,6 @@
 import { sheets, sheets_v4 } from '@googleapis/sheets';
 import { GoogleAuth, JWT } from 'google-auth-library';
+import * as gcpMetadata from 'gcp-metadata';
 import { db } from '../db/database.js';
 
 export const DEFAULT_SPREADSHEET_ID = '110ZY-5XFP1fD55O3qu38RDDx4hZ8szPrMjWlRHMs-qg';
@@ -646,13 +647,69 @@ export async function syncAllScansToGoogleSheet(baseUrl?: string): Promise<{
   }
 }
 
+let cachedRuntimeEmail: string | null = null;
+
+/**
+ * Discovers the active service account email from environment variables,
+ * the official GCP metadata server, or Application Default Credentials.
+ */
+export async function getEffectiveServiceAccountEmail(): Promise<string | null> {
+  if (cachedRuntimeEmail) {
+    return cachedRuntimeEmail;
+  }
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim()) {
+    cachedRuntimeEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL.trim();
+    return cachedRuntimeEmail;
+  }
+
+  // 1. Check official GCP Metadata Server (Cloud Run / GCE)
+  try {
+    const isAvail = await gcpMetadata.isAvailable();
+    if (isAvail) {
+      const email = await gcpMetadata.instance('service-accounts/default/email');
+      if (email && typeof email === 'string') {
+        cachedRuntimeEmail = email.trim();
+        return cachedRuntimeEmail;
+      }
+    }
+  } catch {}
+
+  // 2. Direct fetch fallback for Cloud Run container environment
+  try {
+    const res = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email', {
+      headers: { 'Metadata-Flavor': 'Google' },
+      signal: AbortSignal.timeout(1500),
+    });
+    if (res.ok) {
+      const email = (await res.text()).trim();
+      if (email) {
+        cachedRuntimeEmail = email;
+        return cachedRuntimeEmail;
+      }
+    }
+  } catch {}
+
+  // 3. Check GoogleAuth credentials
+  try {
+    const auth = new GoogleAuth({ scopes: SCOPES });
+    const creds = await auth.getCredentials();
+    if (creds && creds.client_email) {
+      cachedRuntimeEmail = creds.client_email;
+      return cachedRuntimeEmail;
+    }
+  } catch {}
+
+  return null;
+}
+
 /**
  * Returns current Google Sheets connection status and configuration metadata.
  */
 export async function getGoogleSheetsStatus(): Promise<GoogleSheetsConfig> {
   const spreadsheetId = getSpreadsheetId();
   const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
-  const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() || null;
+  const detectedEmail = await getEffectiveServiceAccountEmail();
+  const serviceAccountEmail = detectedEmail || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() || null;
   const hasPrivateKey = Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim());
 
   const { client, error } = getSheetsClient();
@@ -684,15 +741,24 @@ export async function getGoogleSheetsStatus(): Promise<GoogleSheetsConfig> {
       lastSyncedAt: lastSyncTimestamp,
     };
   } catch (err: any) {
+    let errorMsg = err?.message || 'Failed to connect to Google Spreadsheet';
+    const isPermissionDenied = errorMsg.includes('The caller does not have permission') || err?.code === 403;
+    if (isPermissionDenied) {
+      errorMsg = serviceAccountEmail
+        ? `אין הרשאת גישה לקובץ ה-Google Sheet. יש לשתף את הקובץ עם "${serviceAccountEmail}" כ-Editor (עורך), או להגדיר שיתוף קישור: "כל מי שיש לו את הקישור יכול לערוך".`
+        : `אין הרשאת גישה לקובץ ה-Google Sheet. יש להגדיר שיתוף קישור: "כל מי שיש לו את הקישור יכול לערוך" או לשתף עם חשבון השירות.`;
+    }
+
     return {
       spreadsheetId,
       serviceAccountEmail,
       hasPrivateKey,
       isConfigured: Boolean(serviceAccountEmail),
       status: 'error',
-      errorMessage: err?.message || 'Failed to connect to Google Spreadsheet',
+      errorMessage: errorMsg,
       spreadsheetUrl,
       lastSyncedAt: lastSyncTimestamp,
     };
   }
 }
+
