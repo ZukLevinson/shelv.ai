@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { parseMashaString } from '../utils/mashaUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -335,6 +336,37 @@ export function initDatabase() {
     }
   } catch (err) {
     console.error('[DB] Migration error cleaning up Dev user names:', err);
+  }
+
+  // Ensure any legacy Masha values stored as "<code > - <description>" (e.g. from Google Forms) are normalized to clean catalog code
+  try {
+    const rawObs = db.prepare("SELECT id, masha, product_name_detected FROM sweep_observations WHERE masha LIKE '% - %' OR masha LIKE '% – %' OR masha LIKE '% : %'").all() as any[];
+    if (rawObs.length > 0) {
+      const updateObs = db.prepare("UPDATE sweep_observations SET masha = ?, product_name_detected = COALESCE(product_name_detected, ?) WHERE id = ?");
+      const tx = db.transaction(() => {
+        for (const obs of rawObs) {
+          const parsed = parseMashaString(obs.masha);
+          updateObs.run(parsed.masha, parsed.description || null, obs.id);
+        }
+      });
+      tx();
+      console.log(`[DB Migration] Cleaned up ${rawObs.length} sweep_observations with compound Masha strings`);
+    }
+
+    const rawOfficial = db.prepare("SELECT id, masha, description FROM official_inventory WHERE masha LIKE '% - %' OR masha LIKE '% – %' OR masha LIKE '% : %'").all() as any[];
+    if (rawOfficial.length > 0) {
+      const updateOff = db.prepare("UPDATE official_inventory SET masha = ?, description = CASE WHEN description = '' OR description = 'ציוד' THEN ? ELSE description END WHERE id = ?");
+      const tx = db.transaction(() => {
+        for (const off of rawOfficial) {
+          const parsed = parseMashaString(off.masha);
+          updateOff.run(parsed.masha, parsed.description || 'ציוד', off.id);
+        }
+      });
+      tx();
+      console.log(`[DB Migration] Cleaned up ${rawOfficial.length} official_inventory items with compound Masha strings`);
+    }
+  } catch (err) {
+    console.error('[DB] Migration error normalizing compound Masha strings:', err);
   }
 }
 

@@ -6,6 +6,7 @@ import { broadcast } from '../sockets/socketServer.js';
 import { logAction } from './actionService.js';
 import { scheduleDebouncedBackup } from './gcsStorageService.js';
 import { extractTableFromPdfWithGemini } from './geminiVisionService.js';
+import { parseMashaString, normalizeMashaCode } from '../utils/mashaUtils.js';
 
 export interface ParsedScanRow {
   rowIdx: number;
@@ -280,7 +281,7 @@ export function processRawScanRows(
 
     const rawTs = row.timestamp;
     const rawRoom = String(row.room || '').trim();
-    const rawMasha = String(row.masha || '').trim();
+    const { masha: cleanMasha, description: extractedDesc } = parseMashaString(row.masha);
     const rawSn = row.serialNumber;
 
     const timestamp = parseScanTimestamp(rawTs);
@@ -303,7 +304,7 @@ export function processRawScanRows(
     let hasError = false;
     let errorMessage: string | undefined;
 
-    if (!rawMasha) {
+    if (!cleanMasha) {
       hasError = true;
       errorMessage = 'חסר מספר מסח"א';
       errors.push(`שורה ${rowIdx}: חסר מספר מסח"א`);
@@ -321,13 +322,13 @@ export function processRawScanRows(
     if (!hasError) {
       if (serialNumber) {
         // Check Masha + S/N duplication
-        const mashaSnKey = `${rawMasha}::${serialNumber}`;
+        const mashaSnKey = `${cleanMasha}::${serialNumber}`;
         const existingMashaSn = seenMashaSnMap.get(mashaSnKey);
 
         if (existingMashaSn) {
           isDuplicate = true;
           duplicateOfRow = existingMashaSn.rowIdx;
-          duplicateReason = `כפילות במסח"א ${rawMasha} עם מספר סיריאלי ${serialNumber} (זהה לשורה ${existingMashaSn.rowIdx})`;
+          duplicateReason = `כפילות במסח"א ${cleanMasha} עם מספר סיריאלי ${serialNumber} (זהה לשורה ${existingMashaSn.rowIdx})`;
         } else {
           // Also check global S/N duplication
           const existingSn = seenSnMap.get(serialNumber);
@@ -336,13 +337,13 @@ export function processRawScanRows(
             duplicateOfRow = existingSn.rowIdx;
             duplicateReason = `מספר סיריאלי ${serialNumber} נסרק כבר בשורה ${existingSn.rowIdx} (מסח"א ${existingSn.masha})`;
           } else {
-            seenMashaSnMap.set(mashaSnKey, { rowIdx, masha: rawMasha, sn: serialNumber });
-            seenSnMap.set(serialNumber, { rowIdx, masha: rawMasha, sn: serialNumber });
+            seenMashaSnMap.set(mashaSnKey, { rowIdx, masha: cleanMasha, sn: serialNumber });
+            seenSnMap.set(serialNumber, { rowIdx, masha: cleanMasha, sn: serialNumber });
           }
         }
       } else {
         // Empty S/N: check if exact duplicate Google Form submission (same room + masha + timestamp)
-        const emptyKey = `${matchedRoom?.id}::${rawMasha}::${timestamp}`;
+        const emptyKey = `${matchedRoom?.id}::${cleanMasha}::${timestamp}`;
         const existingEmpty = seenEmptySnMap.get(emptyKey);
         if (existingEmpty) {
           isDuplicate = true;
@@ -356,7 +357,7 @@ export function processRawScanRows(
       if (isDuplicate && duplicateReason) {
         duplicates.push({
           rowIdx,
-          masha: rawMasha,
+          masha: cleanMasha,
           serialNumber,
           duplicateOfRow: duplicateOfRow!,
           reason: duplicateReason
@@ -374,11 +375,11 @@ export function processRawScanRows(
       roomId: matchedRoom ? matchedRoom.id : null,
       roomCode: matchedRoom ? matchedRoom.code : null,
       roomName: matchedRoom ? matchedRoom.name : null,
-      masha: rawMasha,
+      masha: cleanMasha,
       rawSerialNumber: String(rawSn !== undefined && rawSn !== null ? rawSn : ''),
       serialNumber,
       isIrrelevantSN: isIrrelevant,
-      snNote: note,
+      snNote: note || (extractedDesc ? `תיאור: ${extractedDesc}` : null),
       isDuplicate,
       duplicateOfRow,
       duplicateReason,
@@ -700,8 +701,10 @@ export function importScansToDatabase(
 
   const upsertMasha = db.prepare(`
     INSERT INTO masha_registry (masha, category, description, updated_at)
-    VALUES (?, 'Regular Workstation', 'ציוד', CURRENT_TIMESTAMP)
-    ON CONFLICT(masha) DO NOTHING
+    VALUES (?, 'Regular Workstation', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(masha) DO UPDATE SET
+      description = CASE WHEN excluded.description != '' AND excluded.description != 'ציוד' THEN excluded.description ELSE masha_registry.description END,
+      updated_at = CURRENT_TIMESTAMP
   `);
 
   const batchSessionId = 'sweep-excel-' + Date.now();
@@ -711,18 +714,19 @@ export function importScansToDatabase(
     for (let i = 0; i < eligibleRows.length; i++) {
       const row = eligibleRows[i];
       const obsId = `obs-xl-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
+      const { masha: cleanMasha, description: extractedDesc } = parseMashaString(row.masha);
 
-      upsertMasha.run(row.masha);
+      upsertMasha.run(cleanMasha, extractedDesc || 'ציוד');
 
       insertObservation.run(
         obsId,
         null, // historical scans do not belong to an active live sweep session
         row.roomId,
-        row.masha,
+        cleanMasha,
         row.serialNumber, // null if empty or cleaned Hebrew text
         scannedBy,
         row.snNote ? `הערת שטח מקורית: ${row.snNote}` : null,
-        null, // product_name_detected
+        extractedDesc || null, // product_name_detected
         row.timestamp
       );
 

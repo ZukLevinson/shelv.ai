@@ -3,6 +3,7 @@ import { broadcast } from '../sockets/socketServer.js';
 import { detectAnomalies } from './anomalyService.js';
 import { logAction } from './actionService.js';
 import { alertOnMisplacedItemScan } from './emailAlertService.js';
+import { parseMashaString } from '../utils/mashaUtils.js';
 
 export interface RecordScanInput {
   sweepId?: string;
@@ -15,7 +16,7 @@ export interface RecordScanInput {
 }
 
 export function recordObservation(input: RecordScanInput) {
-  const cleanMasha = (input.masha || '').trim();
+  const { masha: cleanMasha, description: extractedDesc } = parseMashaString(input.masha, input.productNameDetected);
   if (!cleanMasha) {
     throw new Error('מסח"א הוא שדה חובה');
   }
@@ -100,7 +101,7 @@ export function recordObservation(input: RecordScanInput) {
     cleanSN,
     input.scannedBy,
     input.stickerOwnerText || null,
-    input.productNameDetected || null
+    input.productNameDetected || extractedDesc || null
   );
 
   let officialItem: any = null;

@@ -1,5 +1,6 @@
 import xlsx from 'xlsx';
 import { db, syncPendingHoldersCoupling } from '../db/database.js';
+import { parseMashaString, normalizeMashaCode, cleanSerialNumber } from '../utils/mashaUtils.js';
 
 export interface ImportResult {
   importId: string;
@@ -19,11 +20,26 @@ export interface ExcelImportRecord {
   active_items_count: number;
 }
 
+function normalizeCategory(rawCat: any): string {
+  const cat = String(rawCat || '').trim();
+  const lower = cat.toLowerCase();
+  if (lower.includes('מחשב') || lower === 'pc' || lower.includes('workstation')) {
+    return 'Regular Workstation';
+  }
+  if (lower.includes('מסך') || lower.includes('screen') || lower.includes('monitor')) {
+    return 'Screen';
+  }
+  if (lower.includes('סוויץ') || lower.includes('switch') || lower.includes('מתג') || lower.includes('kvm') || lower.includes('ממתג')) {
+    return 'Network Switch';
+  }
+  if (lower.includes('מדפסת') || lower.includes('printer')) {
+    return 'Printer';
+  }
+  return cat || 'Regular Workstation';
+}
+
 export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilename: string = 'inventory.xlsx'): ImportResult {
   const workbook = xlsx.read(buffer, { type: 'buffer' });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rows = xlsx.utils.sheet_to_json<any>(worksheet);
 
   let insertedCount = 0;
   let updatedCount = 0;
@@ -47,6 +63,7 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
   const updateHolderPN = db.prepare('UPDATE inventory_holders SET personal_number = ? WHERE id = ?');
   
   const findRoomForHolder = db.prepare('SELECT id FROM rooms WHERE holder_id = ? LIMIT 1');
+  const findRoomByCode = db.prepare('SELECT id, holder_id FROM rooms WHERE code = ? LIMIT 1');
 
   const findItemBySN = db.prepare('SELECT id FROM official_inventory WHERE serial_number = ?');
   const insertItem = db.prepare(`
@@ -58,6 +75,11 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
     SET masha = ?, description = ?, category = ?, room_id = ?, holder_id = ?, import_id = ?, updated_at = CURRENT_TIMESTAMP
     WHERE serial_number = ?
   `);
+  const updateItemSN = db.prepare(`
+    UPDATE official_inventory
+    SET serial_number = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
 
   const upsertMasha = db.prepare(`
     INSERT INTO masha_registry (masha, category, description, updated_at)
@@ -68,15 +90,183 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
       updated_at = CURRENT_TIMESTAMP
   `);
 
+  const resolveHolder = (holderName: string, personalNumber?: string) => {
+    let holderRecord = findHolderByName.get(holderName) as any;
+    let holderId: string;
+    if (holderRecord) {
+      holderId = holderRecord.id;
+      if (personalNumber && !holderRecord.personal_number) {
+        updateHolderPN.run(personalNumber, holderId);
+      }
+    } else {
+      holderId = 'holder-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      insertHolder.run(holderId, holderName, personalNumber || null);
+    }
+    const holderRoom = findRoomForHolder.get(holderId) as any;
+    return { holderId, roomId: holderRoom?.id || null };
+  };
+
+  // 1. Sheet discovery: analyze all sheets to find matrix sheets, flat sheets, and individual portfolio sheets
+  let matrixSheetName: string | null = null;
+  let flatSheetName: string | null = null;
+  const individualSheets: Array<{ sheetName: string; holderName: string; headerRowIdx: number }> = [];
+
+  for (const sName of workbook.SheetNames) {
+    const normSheet = sName.trim().toLowerCase();
+    // Skip sheets that are clearly Google Forms scans/surveys
+    if (normSheet.includes('form responses') || normSheet.includes('תגובות לטופס')) {
+      continue;
+    }
+
+    const ws = workbook.Sheets[sName];
+    const rawRows = xlsx.utils.sheet_to_json<any[]>(ws, { header: 1 });
+    if (!rawRows || rawRows.length === 0) continue;
+
+    let headerRowIdx = 0;
+    for (let r = 0; r < Math.min(5, rawRows.length); r++) {
+      const row = rawRows[r];
+      if (row && row.some((c: any) => typeof c === 'string' && (c.includes('מק"ט') || c.includes('מקט') || c.includes('מסח"א') || c.includes('בעל מצאי')))) {
+        headerRowIdx = r;
+        break;
+      }
+    }
+
+    const headers = rawRows[headerRowIdx] || [];
+    const matrixCols = headers.filter((k: any) => typeof k === 'string' && (/^כמות\s+(?:בתיק|אצל|של)\s+/i.test(k) || /^תיק\s+/i.test(k)));
+    const flatHolderCol = headers.find((k: any) => typeof k === 'string' && (k.includes('בעל מצאי') || k.includes('שם מחזיק') || k.includes('מחזיק') || k.includes('אחראי') || k.includes('Inventory Holder')));
+
+    if (matrixCols.length > 0) {
+      matrixSheetName = sName;
+    } else if (flatHolderCol) {
+      flatSheetName = sName;
+    } else {
+      const indMatch = sName.match(/^תיק\s*(?:\d+)?\s*[-–]\s*(.+)$/i);
+      if (indMatch) {
+        individualSheets.push({ sheetName: sName, holderName: indMatch[1].trim(), headerRowIdx });
+      }
+    }
+  }
+
+  // 2. Execute import transaction
   const runTransaction = db.transaction(() => {
+    // Case A: Matrix sheet detected (e.g. 'תיק אחוד')
+    if (matrixSheetName) {
+      const ws = workbook.Sheets[matrixSheetName];
+      const rows = xlsx.utils.sheet_to_json<Record<string, any>>(ws);
+      insertImportRecord.run(importId, originalFilename, rows.length, 0, 0);
+
+      const firstRow = rows[0] || {};
+      const holderCols = Object.keys(firstRow).filter(k => /^כמות\s+(?:בתיק|אצל|של)\s+/i.test(k) || /^תיק\s+/i.test(k));
+
+      // Track unassigned NULL-SN item IDs: Map<"holderId::cleanMasha", string[]>
+      const unassignedItemIds = new Map<string, string[]>();
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rawMasha = row['מק"ט'] || row['מקט'] || row['מסח"א'] || row['Catalog #'] || row['Catalog'] || row['קוד פריט'];
+        const rawDesc = row['תיאור מוצר'] || row['חמנייה פורחת'] || row['תיאור'] || row['Description'] || row['Product'];
+        const { masha, description } = parseMashaString(rawMasha, rawDesc);
+        const category = normalizeCategory(row['סוג'] || row['קטגוריה'] || row['Category']);
+
+        if (!masha) continue;
+
+        try {
+          upsertMasha.run(masha, category, description);
+        } catch {}
+
+        for (const col of holderCols) {
+          const holderName = col.replace(/^כמות\s+(?:בתיק|אצל|של)\s+/i, '').replace(/^תיק\s+/i, '').trim();
+          const qty = parseInt(row[col], 10) || 0;
+          if (qty <= 0) continue;
+
+          const { holderId, roomId } = resolveHolder(holderName);
+          const key = `${holderId}::${masha}`;
+          if (!unassignedItemIds.has(key)) {
+            unassignedItemIds.set(key, []);
+          }
+
+          for (let q = 0; q < qty; q++) {
+            const itemId = `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}-${q}`;
+            insertItem.run(itemId, masha, null, description || 'ציוד', category, roomId, holderId, importId);
+            unassignedItemIds.get(key)!.push(itemId);
+            insertedCount++;
+          }
+        }
+      }
+
+      // Enrich with individual portfolio sheets (e.g. 'תיק 39 - צוק')
+      for (const ind of individualSheets) {
+        const ws = workbook.Sheets[ind.sheetName];
+        const raw = xlsx.utils.sheet_to_json<any[]>(ws, { header: 1 });
+        const headers = raw[ind.headerRowIdx] || [];
+        const mashaColIdx = headers.findIndex((h: any) => typeof h === 'string' && (h.includes('מק"ט') || h.includes('מקט') || h.includes('מסח"א')));
+        const snColIdx = headers.findIndex((h: any) => typeof h === 'string' && (h.includes('מזהה ייחודי') || h.includes('סידורי') || h.includes('סריאלי') || h.includes('s/n')));
+        const roomColIdx = headers.findIndex((h: any) => typeof h === 'string' && (h.includes('חדר') || h.includes('room')));
+
+        if (mashaColIdx === -1 || snColIdx === -1) continue;
+
+        const { holderId, roomId: defaultRoomId } = resolveHolder(ind.holderName);
+
+        for (let r = ind.headerRowIdx + 1; r < raw.length; r++) {
+          const row = raw[r];
+          if (!row || row.length === 0) continue;
+          const cleanMasha = normalizeMashaCode(row[mashaColIdx]);
+          const rawSn = row[snColIdx];
+          const { serialNumber: sn } = cleanSerialNumber(rawSn);
+
+          if (!cleanMasha || !sn) continue;
+
+          let itemRoomId = defaultRoomId;
+          if (roomColIdx !== -1 && row[roomColIdx]) {
+            const roomCode = String(row[roomColIdx]).trim();
+            const rRec = findRoomByCode.get(roomCode) as any;
+            if (rRec?.id) {
+              itemRoomId = rRec.id;
+            }
+          }
+
+          // Check if this SN already exists anywhere in official_inventory to avoid UNIQUE constraint violation
+          const existingItemWithSn = findItemBySN.get(sn) as any;
+          if (existingItemWithSn) {
+            updateItem.run(cleanMasha, 'ציוד', 'Regular Workstation', itemRoomId, holderId, importId, sn);
+            updatedCount++;
+            continue;
+          }
+
+          const key = `${holderId}::${cleanMasha}`;
+          const availableIds = unassignedItemIds.get(key);
+          if (availableIds && availableIds.length > 0) {
+            const itemId = availableIds.shift()!;
+            updateItemSN.run(sn, itemId);
+            updatedCount++;
+          } else {
+            const itemId = `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+            insertItem.run(itemId, cleanMasha, sn, 'ציוד', 'Regular Workstation', itemRoomId, holderId, importId);
+            insertedCount++;
+          }
+        }
+      }
+
+      updateImportRecord.run(insertedCount, updatedCount, importId);
+      return;
+    }
+
+    // Case B: Flat sheet or fallback to sheet 0
+    const targetSheetName = flatSheetName || (workbook.SheetNames.length > 0 ? workbook.SheetNames[0] : null);
+    if (!targetSheetName) {
+      throw new Error('הקובץ אינו מכיל גליונות נתונים');
+    }
+
+    const worksheet = workbook.Sheets[targetSheetName];
+    const rows = xlsx.utils.sheet_to_json<any>(worksheet);
+
     insertImportRecord.run(importId, originalFilename, rows.length, 0, 0);
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowIdx = i + 2;
 
-      const masha = String(
-        row['Masha'] ||
+      const rawMasha = row['Masha'] ||
         row['מסח"א'] ||
         row['Catalog #'] ||
         row['Catalog'] ||
@@ -85,10 +275,20 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
         row['מספר קטלוגי'] ||
         row['קוד פריט'] ||
         row['סוג חומר'] ||
-        ''
-      ).trim();
+        '';
 
-      const rawSn = String(
+      const rawDesc = row['Description'] ||
+        row['תיאור'] ||
+        row['Product'] ||
+        row['שם פריט'] ||
+        row['תיאור פריט'] ||
+        row['תיאור מסח"א'] ||
+        row['שם מוצר'] ||
+        'ציוד';
+
+      const { masha, description } = parseMashaString(rawMasha, rawDesc);
+
+      const { serialNumber: sn } = cleanSerialNumber(
         row['Serial Number'] ||
         row['Serial No'] ||
         row['Serial No.'] ||
@@ -102,31 +302,16 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
         row['סריאלי'] ||
         row['Serial'] ||
         row['מספר מכשיר'] ||
+        row['מזהה ייחודי'] ||
         ''
-      ).trim().toUpperCase();
-      const sn = rawSn !== '' ? rawSn : null;
+      );
 
-      const description = String(
-        row['Description'] ||
-        row['תיאור'] ||
-        row['Product'] ||
-        row['שם פריט'] ||
-        row['תיאור פריט'] ||
-        row['תיאור מסח"א'] ||
-        row['שם מוצר'] ||
-        'ציוד'
-      ).trim();
-
-      let category = String(
+      const category = normalizeCategory(
         row['Category'] ||
         row['קטגוריה'] ||
         row['סוג'] ||
-        row['סוג פריט'] ||
-        'Regular Workstation'
-      ).trim();
-      if (category.toLowerCase() === 'pc') {
-        category = 'Regular Workstation';
-      }
+        row['סוג פריט']
+      );
 
       const holderName = String(
         row['Inventory Holder'] ||
@@ -174,22 +359,7 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
         // Ignore non-fatal registry error
       }
 
-      // Resolve or auto-register inventory holder
-      let holderRecord = findHolderByName.get(holderName) as any;
-      let holderId: string;
-      if (holderRecord) {
-        holderId = holderRecord.id;
-        if (personalNumber && !holderRecord.personal_number) {
-          updateHolderPN.run(personalNumber, holderId);
-        }
-      } else {
-        holderId = 'holder-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-        insertHolder.run(holderId, holderName, personalNumber || null);
-      }
-
-      // Associate with holder's room if configured in the system, otherwise null
-      const holderRoom = findRoomForHolder.get(holderId) as any;
-      const roomId = holderRoom?.id || null;
+      const { holderId, roomId } = resolveHolder(holderName, personalNumber);
 
       if (sn) {
         // Explicit Serial Number provided in Excel
@@ -203,7 +373,7 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
           insertedCount++;
         }
       } else {
-        // No explicit S/N provided -> insert signature items with NULL serial_number (NO synthetic S/N)
+        // No explicit S/N provided -> insert signature items with NULL serial_number
         for (let q = 0; q < quantity; q++) {
           const itemId = 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6) + '-' + q;
           insertItem.run(itemId, masha, null, description, category, roomId, holderId, importId);

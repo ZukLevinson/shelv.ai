@@ -176,10 +176,10 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 <AlertCircle className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div className="space-y-1 leading-relaxed">
                   <div>
-                    <strong>עמודות חובה:</strong> Catalog # / מסח"א (או מק"ט), בעל מצאי (או שם מחזיק / חותם).
+                    <strong>פורמטים נתמכים:</strong> טבלת חתימות רגילה (עמודות: מסח"א / מק"ט, בעל מצאי, כמות) או <strong>מטריצת תיק אחוד</strong> (עמודות כמו: <code>כמות בתיק [שם]</code>).
                   </div>
                   <div>
-                    <strong>עמודות אופציונליות:</strong> כמות (Quantity), מספר אישי (מ"א), תיאור, קטגוריה, Serial Number (S/N).
+                    <strong>זיהוי גליונות חכם:</strong> המערכת מזהה אוטומטית את גליון החתימות ("תיק אחוד") וגליונות תיק אישיים גם בקבצים מרובי גליונות.
                   </div>
                   <div className="text-[11px] text-emerald-200/80 pt-0.5">
                     💡 <strong>שים לב:</strong> אין צורך במספרים סידוריים (S/N) באקסל. פריטים ללא S/N נרשמים כמכסת חתימות רשמית, וה-S/N המקורי ייקלט ישירות בסריקות הפיזיות בשטח.

@@ -1,4 +1,5 @@
 import { db } from '../db/database.js';
+import { normalizeMashaCode } from '../utils/mashaUtils.js';
 
 export interface AnomalyReport {
   unauthorizedTransfers: Array<{
@@ -151,17 +152,30 @@ export function detectAnomalies(targetHolderId?: string): AnomalyReport {
   // Map of masha -> list of holderNames signed on this masha
   const mashaHoldersMap = new Map<string, string[]>();
   for (const item of officialItems) {
+    const cleanItemMasha = normalizeMashaCode(item.masha);
     if (!holderSignedMashas.has(item.holder_id)) {
       holderSignedMashas.set(item.holder_id, new Set());
     }
-    holderSignedMashas.get(item.holder_id)!.add(item.masha);
+    if (cleanItemMasha) holderSignedMashas.get(item.holder_id)!.add(cleanItemMasha);
+    if (item.masha) holderSignedMashas.get(item.holder_id)!.add(item.masha);
 
-    if (!mashaHoldersMap.has(item.masha)) {
-      mashaHoldersMap.set(item.masha, []);
+    if (cleanItemMasha) {
+      if (!mashaHoldersMap.has(cleanItemMasha)) {
+        mashaHoldersMap.set(cleanItemMasha, []);
+      }
+      const list = mashaHoldersMap.get(cleanItemMasha)!;
+      if (!list.includes(item.official_holder_name)) {
+        list.push(item.official_holder_name);
+      }
     }
-    const list = mashaHoldersMap.get(item.masha)!;
-    if (!list.includes(item.official_holder_name)) {
-      list.push(item.official_holder_name);
+    if (item.masha && item.masha !== cleanItemMasha) {
+      if (!mashaHoldersMap.has(item.masha)) {
+        mashaHoldersMap.set(item.masha, []);
+      }
+      const rawList = mashaHoldersMap.get(item.masha)!;
+      if (!rawList.includes(item.official_holder_name)) {
+        rawList.push(item.official_holder_name);
+      }
     }
   }
 
@@ -243,24 +257,30 @@ export function detectAnomalies(targetHolderId?: string): AnomalyReport {
     }
 
     const effectiveMasha = scan.masha || '';
+    const cleanMasha = normalizeMashaCode(effectiveMasha);
     const roomHolderSignedMashas = holderSignedMashas.get(scan.scanned_room_holder_id);
 
     // If the room's holder is signed on this Masha in Excel, this physical item matches
     // their signature quota! It is NOT unauthorized.
-    if (effectiveMasha && roomHolderSignedMashas && roomHolderSignedMashas.has(effectiveMasha)) {
+    if (roomHolderSignedMashas && (
+      (cleanMasha && roomHolderSignedMashas.has(cleanMasha)) ||
+      (effectiveMasha && roomHolderSignedMashas.has(effectiveMasha))
+    )) {
       continue;
     }
 
     // Otherwise, the room's holder does NOT hold a signature for this Masha
-    const mashaInfo = resolveMashaInfo(effectiveMasha, scan.product_name_detected);
-    const orgHoldersForMasha = effectiveMasha ? (mashaHoldersMap.get(effectiveMasha) || []) : [];
+    const mashaInfo = resolveMashaInfo(cleanMasha || effectiveMasha, scan.product_name_detected);
+    const orgHoldersForMasha = cleanMasha
+      ? (mashaHoldersMap.get(cleanMasha) || mashaHoldersMap.get(effectiveMasha) || [])
+      : (effectiveMasha ? (mashaHoldersMap.get(effectiveMasha) || []) : []);
     const supposedHolderDisplay = orgHoldersForMasha.length > 0
       ? `חתימה רשומה אצל: ${orgHoldersForMasha.join(', ')}`
       : 'לא רשום באקסל החתימות';
 
     unauthorizedTransfers.push({
       serialNumber: scan.serial_number || null,
-      masha: effectiveMasha,
+      masha: cleanMasha || effectiveMasha,
       description: mashaInfo.description,
       category: mashaInfo.category,
       scannedRoomId: scan.room_id,
@@ -294,7 +314,8 @@ export function detectAnomalies(targetHolderId?: string): AnomalyReport {
       ? String(scan.serial_number).toUpperCase().trim()
       : null;
     const official = snKey ? officialItemMap.get(snKey) : null;
-    const masha = scan.masha || (official ? official.masha : '') || 'ללא מסח"א';
+    const rawMasha = scan.masha || (official ? official.masha : '') || 'ללא מסח"א';
+    const masha = normalizeMashaCode(rawMasha) || rawMasha;
     const mashaInfo = resolveMashaInfo(masha, official?.description || scan.product_name_detected);
 
     const key = `${scan.room_id}::${masha}`;
@@ -332,8 +353,9 @@ export function detectAnomalies(targetHolderId?: string): AnomalyReport {
   }>();
 
   for (const item of officialItems) {
-    const key = `${item.official_holder_id}::${item.masha}`;
-    const mashaInfo = resolveMashaInfo(item.masha, item.description, item.category);
+    const cleanMasha = normalizeMashaCode(item.masha) || item.masha;
+    const key = `${item.official_holder_id}::${cleanMasha}`;
+    const mashaInfo = resolveMashaInfo(cleanMasha, item.description, item.category);
     const existing = quotaExpectedMap.get(key);
     if (existing) {
       existing.expectedQuantity += 1;
@@ -341,7 +363,7 @@ export function detectAnomalies(targetHolderId?: string): AnomalyReport {
       quotaExpectedMap.set(key, {
         holderId: item.official_holder_id,
         holderName: item.official_holder_name,
-        masha: item.masha,
+        masha: cleanMasha,
         description: mashaInfo.description,
         category: mashaInfo.category,
         expectedQuantity: 1,
@@ -355,9 +377,10 @@ export function detectAnomalies(targetHolderId?: string): AnomalyReport {
       ? String(scan.serial_number).toUpperCase().trim()
       : null;
     const official = snKey ? officialItemMap.get(snKey) : null;
-    const masha = scan.masha || (official ? official.masha : '') || '';
-    if (masha) {
-      const key = `${scan.scanned_room_holder_id}::${masha}`;
+    const rawMasha = scan.masha || (official ? official.masha : '') || '';
+    const cleanMasha = normalizeMashaCode(rawMasha);
+    if (cleanMasha) {
+      const key = `${scan.scanned_room_holder_id}::${cleanMasha}`;
       quotaDiscoveredCountMap.set(key, (quotaDiscoveredCountMap.get(key) || 0) + 1);
     }
   }
