@@ -1,8 +1,13 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { recordObservation, startSweepSession, completeSweepSession } from '../services/sweepService.js';
 import { analyzeFrameWithGemini, qualifyFrameWithGemini } from '../services/geminiVisionService.js';
 import { db } from '../db/database.js';
 import { getOnlineScanners, getOnlineScannersCount, registerOrTouchScanner, disconnectScanner } from '../sockets/socketServer.js';
+import { authenticateToken, requireRole } from '../auth/authMiddleware.js';
+import { parseScansExcel, importScansToDatabase } from '../services/scanExcelImportService.js';
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 export const sweepRouter = Router();
 
@@ -444,3 +449,40 @@ sweepRouter.delete('/scans/:id', async (req, res) => {
     res.status(500).json({ error: error.message || 'Failed to delete scan' });
   }
 });
+
+// POST /api/sweep/scans/parse-excel - Parse and analyze historical scans from Google Forms Excel sheet "Form Responses 1"
+sweepRouter.post('/scans/parse-excel', authenticateToken, requireRole(['manager']), upload.single('file'), (req: any, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'לא נבחר קובץ אקסל' });
+  }
+
+  try {
+    const filename = req.file.originalname
+      ? Buffer.from(req.file.originalname, 'latin1').toString('utf8')
+      : 'scans.xlsx';
+
+    const result = parseScansExcel(req.file.buffer, filename);
+    res.json({ success: true, filename, ...result });
+  } catch (error: any) {
+    console.error('[Sweep API] Error parsing scans excel:', error);
+    res.status(500).json({ error: error.message || 'שגיאה בפענוח קובץ האקסל' });
+  }
+});
+
+// POST /api/sweep/scans/import-excel - Commit confirmed scans into sweep_observations
+sweepRouter.post('/scans/import-excel', authenticateToken, requireRole(['manager']), (req: any, res) => {
+  const { rows, scannedBy, originalFilename } = req.body;
+
+  if (!rows || !Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'לא סופקו שורות סריקה לייבוא' });
+  }
+
+  try {
+    const userScannedBy = scannedBy || req.user?.name || 'ייבוא אקסל (Google Forms)';
+    const result = importScansToDatabase(rows, userScannedBy, originalFilename || 'scans.xlsx');
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Sweep API] Error importing scans from excel:', error);
+    res.status(500).json({ error: error.message || 'שגיאה בעת שמירת הסריקות' });
+  }
+});

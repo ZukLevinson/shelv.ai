@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Tag, X, Save } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import { CategoryPicker } from './CategoryPicker';
 
 interface Props {
   isOpen: boolean;
@@ -45,7 +46,7 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <Tag className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -58,25 +59,10 @@ export const MashaEditModal: React.FC<Props> = ({ isOpen, onClose, mashaItem, on
 
         <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1">
-              סוג פריט:
+            <label className="block text-xs font-medium text-gray-400 mb-2">
+              סוג פריט ולוגו מסח"א:
             </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="Regular Workstation">תחנת עבודה רגילה (Regular Workstation)</option>
-              <option value="Tower PC">מחשב נייח Tower (Tower PC)</option>
-              <option value="Mini Workstation">תחנת עבודה זעירה / Mini (Mini Workstation)</option>
-              <option value="Laptop">מחשב נייד (Laptop)</option>
-              <option value="Screen">מסך (Screen)</option>
-              <option value="Switch">מתג תצוגה / רשת (Switch)</option>
-              <option value="Printer">מדפסת (Printer)</option>
-              <option value="TV">טלוויזיה / מסך תצוגה (TV)</option>
-              <option value="Scanner">סורק טביעת אצבע (Fingerprint Scanner)</option>
-              <option value="Other">אחר (Other)</option>
-            </select>
+            <CategoryPicker value={category} onChange={setCategory} />
           </div>
 
           <div>

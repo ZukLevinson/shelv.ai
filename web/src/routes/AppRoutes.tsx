@@ -66,6 +66,7 @@ export function AppRoutes({
             rooms={displayRooms}
             onlineScannersCount={onlineScannersCount}
             onlineScanners={onlineScanners}
+            isManager={Boolean(user?.is_manager || user?.role === 'manager')}
           />
         }
       />

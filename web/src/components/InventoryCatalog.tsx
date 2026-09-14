@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import type { OfficialItem } from '../types';
-import { Search, Database, Monitor, Laptop, Printer, Tv, Fingerprint, Box, FileSpreadsheet } from 'lucide-react';
+import { Search, Database, FileSpreadsheet } from 'lucide-react';
+import { CategoryLogo } from './CategoryLogo';
+import { CATEGORIES, resolveCategory, matchesCategorySearch } from '../constants/categories';
 
 interface Props {
   items: OfficialItem[];
@@ -23,31 +25,20 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
     const matchesSearch =
       (item.serial_number && item.serial_number.toLowerCase().includes(search.toLowerCase())) ||
       (item.masha && item.masha.includes(search)) ||
+      matchesCategorySearch(item.category, search) ||
       (item.description || '').toLowerCase().includes(search.toLowerCase()) ||
       (item.holder_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (item.room_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (item.import_filename || '').toLowerCase().includes(search.toLowerCase());
 
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesCategory =
+      selectedCategory === 'all' ||
+      resolveCategory(item.category).id === selectedCategory;
+
     const matchesExcel = selectedExcel === 'all' || (item.import_filename || 'unknown') === selectedExcel;
 
     return matchesSearch && matchesCategory && matchesExcel;
   });
-
-  const getCategoryIcon = (category: string) => {
-    switch ((category || '').toLowerCase()) {
-      case 'tower pc':
-      case 'mini workstation':
-      case 'regular workstation':
-      case 'pc':
-        return <Monitor className="w-4 h-4 text-blue-400" />;
-      case 'laptop': return <Laptop className="w-4 h-4 text-purple-400" />;
-      case 'printer': return <Printer className="w-4 h-4 text-amber-400" />;
-      case 'screen': case 'tv': return <Tv className="w-4 h-4 text-emerald-400" />;
-      case 'scanner': return <Fingerprint className="w-4 h-4 text-rose-400" />;
-      default: return <Box className="w-4 h-4 text-gray-400" />;
-    }
-  };
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-xl max-w-full overflow-hidden">
@@ -75,15 +66,11 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
             className="bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-emerald-500 w-full sm:w-auto"
           >
             <option value="all">כל הקטגוריות</option>
-            <option value="Regular Workstation">תחנות עבודה רגילות</option>
-            <option value="Tower PC">מחשבי Tower</option>
-            <option value="Mini Workstation">תחנות עבודה זעירות (Mini)</option>
-            <option value="Laptop">מחשבים ניידים</option>
-            <option value="Screen">מסכים</option>
-            <option value="Switch">מתגים</option>
-            <option value="Printer">מדפסות</option>
-            <option value="TV">טלוויזיות</option>
-            <option value="Scanner">סורקי טביעת אצבע</option>
+            {CATEGORIES.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.labelHe}
+              </option>
+            ))}
           </select>
 
           {uniqueExcelFiles.length > 0 && (
@@ -126,13 +113,20 @@ export const InventoryCatalog: React.FC<Props> = ({ items }) => {
               {filtered.map((item, idx) => (
                 <tr key={item.serial_number || `${item.masha}-${idx}`} className="hover:bg-gray-800/30 transition-colors">
                   <td className="py-3 pr-2">
-                    <div className="p-2 rounded-lg bg-gray-800/50 inline-block">
-                      {getCategoryIcon(item.category)}
-                    </div>
+                    <CategoryLogo category={item.category} size="sm" />
                   </td>
                   <td className="py-3">
                     <div className="font-semibold text-white">{item.description}</div>
-                    <div className="text-xs text-gray-500">{item.category}</div>
+                    <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                      <span className="text-emerald-400 font-medium">
+                        {resolveCategory(item.category).shortLabelHe}
+                      </span>
+                      {item.category && item.category !== resolveCategory(item.category).shortLabelHe && (
+                        <span className="text-gray-500 font-mono text-[10px]">
+                          ({item.category})
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 font-mono text-xs text-emerald-400 font-bold">
                     {item.masha}

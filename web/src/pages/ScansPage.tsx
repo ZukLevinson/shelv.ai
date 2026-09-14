@@ -6,18 +6,21 @@ interface ScansPageProps {
   rooms: Room[];
   onlineScannersCount: number;
   onlineScanners: OnlineScannerInfo[];
+  isManager?: boolean;
 }
 
 export const ScansPage: React.FC<ScansPageProps> = ({
   rooms,
   onlineScannersCount,
   onlineScanners,
+  isManager = false,
 }) => {
   return (
     <ScanManagement
       rooms={rooms}
       onlineScannersCount={onlineScannersCount}
       onlineScanners={onlineScanners}
+      isManager={isManager}
     />
   );
 };

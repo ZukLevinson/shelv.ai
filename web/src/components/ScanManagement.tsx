@@ -16,28 +16,27 @@ import {
   RotateCw,
   Clock,
   ShieldAlert,
-  Tag,
-  Monitor,
-  Laptop,
-  Printer,
-  Tv,
-  Fingerprint,
-  Box,
-  RotateCcw
+  RotateCcw,
+  UploadCloud
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import type { ScanObservation, ScanInvestigationData, Room, OnlineScannerInfo } from '../types';
+import { ScanExcelUploadModal } from './ScanExcelUploadModal';
+import { CategoryLogo } from './CategoryLogo';
+import { resolveCategory } from '../constants/categories';
 
 interface Props {
   rooms: Room[];
   onlineScannersCount?: number;
   onlineScanners?: OnlineScannerInfo[];
+  isManager?: boolean;
 }
 
 export const ScanManagement: React.FC<Props> = ({
   rooms,
   onlineScannersCount = 0,
   onlineScanners = [],
+  isManager = false,
 }) => {
   const [scans, setScans] = useState<ScanObservation[]>([]);
   const [scanners, setScanners] = useState<string[]>([]);
@@ -62,6 +61,9 @@ export const ScanManagement: React.FC<Props> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Revert resolution state
   const [revertingResolutionId, setRevertingResolutionId] = useState<string | null>(null);
+
+  // Scan Excel upload modal state
+  const [isScanExcelModalOpen, setIsScanExcelModalOpen] = useState(false);
 
   const fetchScanners = async () => {
     try {
@@ -235,17 +237,6 @@ export const ScanManagement: React.FC<Props> = ({
     return { uniqueItems, uniqueScanners, mismatches, unregistered };
   }, [scans]);
 
-  const getCategoryIcon = (category: string) => {
-    switch ((category || '').toLowerCase()) {
-      case 'pc': return <Monitor className="w-4 h-4 text-blue-400" />;
-      case 'laptop': return <Laptop className="w-4 h-4 text-purple-400" />;
-      case 'printer': return <Printer className="w-4 h-4 text-amber-400" />;
-      case 'screen': case 'tv': return <Tv className="w-4 h-4 text-emerald-400" />;
-      case 'scanner': return <Fingerprint className="w-4 h-4 text-rose-400" />;
-      default: return <Box className="w-4 h-4 text-gray-400" />;
-    }
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Top Header & Metrics */}
@@ -301,6 +292,16 @@ export const ScanManagement: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {isManager && (
+              <button
+                onClick={() => setIsScanExcelModalOpen(true)}
+                className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl transition-all shadow-md shadow-emerald-950/40 cursor-pointer"
+                title="ייבוא סריקות היסטוריות מקובץ אקסל (Google Forms)"
+              >
+                <UploadCloud className="w-3.5 h-3.5 text-white" />
+                <span>ייבוא סריקות מאקסל</span>
+              </button>
+            )}
             <button
               onClick={() => fetchScans()}
               disabled={loading}
@@ -529,13 +530,21 @@ export const ScanManagement: React.FC<Props> = ({
 
                       {/* מה נסרק */}
                       <td className="py-3.5 px-3">
-                        <div className="flex items-start gap-2">
-                          <div className="p-1.5 rounded-lg bg-gray-800/80 mt-0.5 flex-shrink-0">
-                            {getCategoryIcon(scan.category)}
-                          </div>
+                        <div className="flex items-start gap-2.5">
+                          <CategoryLogo category={scan.category} size="xs" />
                           <div>
                             <div className="font-semibold text-white">
                               {scan.item_description}
+                            </div>
+                            <div className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1.5">
+                              <span className="text-emerald-400 font-medium">
+                                {resolveCategory(scan.category).shortLabelHe}
+                              </span>
+                              {scan.category && scan.category !== resolveCategory(scan.category).shortLabelHe && (
+                                <span className="text-gray-500 font-mono text-[10px]">
+                                  ({scan.category})
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 font-mono text-[11px]">
                               {scan.serial_number ? (
@@ -717,7 +726,17 @@ export const ScanManagement: React.FC<Props> = ({
                     </div>
 
                     {investigationData?.officialItem ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                        <div>
+                          <div className="text-gray-500 text-[11px]">סוג ולוגו:</div>
+                          <div className="mt-1">
+                            <CategoryLogo
+                              category={investigationData.officialItem.category || investigationData.officialItem.masha_category}
+                              size="xs"
+                              showLabel={true}
+                            />
+                          </div>
+                        </div>
                         <div>
                           <div className="text-gray-500 text-[11px]">תיאור ומפרט:</div>
                           <div className="font-semibold text-white mt-0.5">
@@ -865,6 +884,18 @@ export const ScanManagement: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Scan Excel Upload Modal */}
+      {isManager && (
+        <ScanExcelUploadModal
+          isOpen={isScanExcelModalOpen}
+          onClose={() => setIsScanExcelModalOpen(false)}
+          onSuccess={() => {
+            fetchScans();
+            fetchScanners();
+          }}
+        />
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { db, syncPendingHoldersCoupling } from '../db/database.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { authenticateToken, requireRole, optionalToken } from '../auth/authMiddleware.js';
 import { logAction } from '../services/actionService.js';
+import { detectAnomalies } from '../services/anomalyService.js';
 
 export const inventoryRouter = Router();
 
@@ -10,11 +11,44 @@ inventoryRouter.get('/rooms', (req, res) => {
   const rooms = db.prepare(`
     SELECT r.*, h.name as holder_name, h.personal_number as holder_personal_number, h.phone as holder_phone,
            (SELECT COUNT(*) FROM official_inventory i WHERE i.room_id = r.id) as total_items,
-           (SELECT COUNT(DISTINCT o.serial_number) FROM sweep_observations o WHERE o.room_id = r.id) as swept_items
+           (SELECT COUNT(DISTINCT o.serial_number) FROM sweep_observations o WHERE o.room_id = r.id) as swept_items,
+           (SELECT COUNT(*) FROM sweep_observations o WHERE o.room_id = r.id) as scans_count
     FROM rooms r
     JOIN inventory_holders h ON r.holder_id = h.id
     ORDER BY r.name ASC
-  `).all();
+  `).all() as any[];
+
+  try {
+    const anomalyReport = detectAnomalies();
+    const flagsByRoom = new Map<string, number>();
+
+    for (const item of anomalyReport.unauthorizedTransfers || []) {
+      if (item.scannedRoomId) {
+        flagsByRoom.set(item.scannedRoomId, (flagsByRoom.get(item.scannedRoomId) || 0) + 1);
+      }
+    }
+    for (const item of anomalyReport.missingItems || []) {
+      if (item.officialRoomId) {
+        flagsByRoom.set(item.officialRoomId, (flagsByRoom.get(item.officialRoomId) || 0) + 1);
+      }
+    }
+    for (const item of anomalyReport.internalMoves || []) {
+      if (item.scannedRoomId) {
+        flagsByRoom.set(item.scannedRoomId, (flagsByRoom.get(item.scannedRoomId) || 0) + 1);
+      }
+    }
+
+    for (const r of rooms) {
+      r.flags_count = flagsByRoom.get(r.id) || 0;
+      r.scans_count = r.scans_count ?? r.swept_items ?? 0;
+    }
+  } catch (err) {
+    for (const r of rooms) {
+      r.flags_count = 0;
+      r.scans_count = r.swept_items ?? 0;
+    }
+  }
+
   res.json(rooms);
 });
 
@@ -74,7 +108,7 @@ inventoryRouter.post('/rooms', async (req, res) => {
 
   const createdRoom = db.prepare(`
     SELECT r.*, h.name as holder_name, h.email as holder_email,
-           0 as total_items, 0 as swept_items
+           0 as total_items, 0 as swept_items, 0 as scans_count, 0 as flags_count
     FROM rooms r
     JOIN inventory_holders h ON r.holder_id = h.id
     WHERE r.id = ?
@@ -144,7 +178,8 @@ inventoryRouter.put('/rooms/:id', authenticateToken, requireRole(['manager']), a
   const updatedRoom = db.prepare(`
     SELECT r.*, h.name as holder_name, h.email as holder_email,
            (SELECT COUNT(*) FROM official_inventory i WHERE i.room_id = r.id) as total_items,
-           (SELECT COUNT(DISTINCT o.serial_number) FROM sweep_observations o WHERE o.room_id = r.id) as swept_items
+           (SELECT COUNT(DISTINCT o.serial_number) FROM sweep_observations o WHERE o.room_id = r.id) as swept_items,
+           (SELECT COUNT(*) FROM sweep_observations o WHERE o.room_id = r.id) as scans_count
       FROM rooms r
       JOIN inventory_holders h ON r.holder_id = h.id
       WHERE r.id = ?
@@ -507,7 +542,7 @@ inventoryRouter.get('/masha-registry', (req, res) => {
   }
 });
 
-inventoryRouter.post('/masha-registry/update', async (req, res) => {
+inventoryRouter.post('/masha-registry/update', optionalToken, async (req, res) => {
   const { masha, category, description } = req.body;
   if (!masha) {
     return res.status(400).json({ error: 'masha is required' });
@@ -540,6 +575,8 @@ inventoryRouter.post('/masha-registry/update', async (req, res) => {
     }
 
     const { logAction } = await import('../services/actionService.js');
+    const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+
     const actionId = logAction({
       actionType: 'masha_updated',
       description: `עדכון הגדרות מסח"א ${cleanMasha}`,
@@ -551,9 +588,116 @@ inventoryRouter.post('/masha-registry/update', async (req, res) => {
     });
 
     broadcast('MASHA_UPDATED', { masha: cleanMasha, category: cleanCategory, description: cleanDesc });
+    scheduleDebouncedBackup(1000);
+
     res.json({ success: true, masha: cleanMasha, actionId });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to update masha' });
+  }
+});
+
+inventoryRouter.post(['/masha-registry', '/masha-registry/create'], optionalToken, async (req, res) => {
+  const { masha, category, description } = req.body;
+  const cleanMasha = String(masha || '').trim();
+
+  if (!cleanMasha) {
+    return res.status(400).json({ error: 'מספר מסח"א הוא שדה חובה' });
+  }
+
+  // Check if masha already exists in masha_registry or official_inventory
+  const existing = db.prepare(`
+    SELECT 1 FROM masha_registry WHERE masha = ?
+    UNION
+    SELECT 1 FROM official_inventory WHERE masha = ?
+    UNION
+    SELECT 1 FROM sweep_observations WHERE masha = ?
+    LIMIT 1
+  `).get(cleanMasha, cleanMasha, cleanMasha);
+
+  if (existing) {
+    return res.status(400).json({ error: `מסח"א "${cleanMasha}" כבר קיים במערכת` });
+  }
+
+  const cleanCategory = (category || 'Regular Workstation').trim();
+  const cleanDesc = (description || '').trim();
+
+  try {
+    db.prepare(`
+      INSERT INTO masha_registry (masha, category, description, created_at, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(cleanMasha, cleanCategory, cleanDesc);
+
+    const { logAction } = await import('../services/actionService.js');
+    const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+
+    const actionId = logAction({
+      actionType: 'masha_created',
+      description: `יצירת מסח"א חדש "${cleanMasha}"`,
+      entityType: 'masha',
+      entityId: cleanMasha,
+      performedBy: (req as any).user?.name || 'משתמש מערכת',
+      stateAfter: { masha: cleanMasha, category: cleanCategory, description: cleanDesc }
+    });
+
+    broadcast('MASHA_UPDATED', { masha: cleanMasha, category: cleanCategory, description: cleanDesc, action: 'created' });
+    scheduleDebouncedBackup(1000);
+
+    res.status(201).json({
+      success: true,
+      masha: cleanMasha,
+      category: cleanCategory,
+      description: cleanDesc,
+      actionId
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to create masha' });
+  }
+});
+
+inventoryRouter.delete('/masha-registry/:masha', optionalToken, async (req, res) => {
+  const { masha } = req.params;
+  const cleanMasha = String(masha || '').trim();
+
+  if (!cleanMasha) {
+    return res.status(400).json({ error: 'מספר מסח"א לא תקין' });
+  }
+
+  const existing = db.prepare('SELECT * FROM masha_registry WHERE masha = ?').get(cleanMasha) as any;
+  if (!existing) {
+    return res.status(404).json({ error: `מסח"א "${cleanMasha}" לא נמצא` });
+  }
+
+  // Check if masha is referenced in official inventory or sweep observations
+  const officialCount = db.prepare('SELECT COUNT(*) as count FROM official_inventory WHERE masha = ?').get(cleanMasha) as { count: number };
+  const scanCount = db.prepare('SELECT COUNT(*) as count FROM sweep_observations WHERE masha = ?').get(cleanMasha) as { count: number };
+
+  if (officialCount.count > 0 || scanCount.count > 0) {
+    return res.status(400).json({
+      error: `לא ניתן למחוק את מסח"א "${cleanMasha}". מקושרים אליו ${officialCount.count} פריטים חתומים ו-${scanCount.count} סריקות פיזיות.`
+    });
+  }
+
+  try {
+    db.prepare('DELETE FROM masha_registry WHERE masha = ?').run(cleanMasha);
+
+    const { logAction } = await import('../services/actionService.js');
+    const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+
+    const actionId = logAction({
+      actionType: 'masha_deleted',
+      description: `מחיקת מסח"א "${cleanMasha}"`,
+      entityType: 'masha',
+      entityId: cleanMasha,
+      performedBy: (req as any).user?.name || 'משתמש מערכת',
+      stateBefore: existing
+    });
+
+    broadcast('MASHA_UPDATED', { masha: cleanMasha, action: 'deleted' });
+    scheduleDebouncedBackup(1000);
+
+    res.json({ success: true, message: `מסח"א "${cleanMasha}" נמחק בהצלחה`, actionId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to delete masha' });
   }
 });
 

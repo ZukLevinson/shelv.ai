@@ -213,6 +213,22 @@ export function revertAction(actionId: string, revertedBy: string) {
       break;
     }
 
+    case 'masha_created': {
+      db.prepare('DELETE FROM masha_registry WHERE masha = ?').run(action.entity_id);
+      broadcast('MASHA_UPDATED', { masha: action.entity_id, action: 'deleted' });
+      break;
+    }
+
+    case 'masha_deleted': {
+      if (!stateBefore) throw new Error('לא נמצא מידע קודם לשחזור המסח"א');
+      db.prepare(`
+        INSERT INTO masha_registry (masha, category, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(stateBefore.masha, stateBefore.category, stateBefore.description, stateBefore.created_at || new Date().toISOString());
+      broadcast('MASHA_UPDATED', { masha: stateBefore.masha, category: stateBefore.category, description: stateBefore.description, action: 'created' });
+      break;
+    }
+
     default:
       throw new Error(`סוג פעולה לא מוכר לביטול: ${action.action_type}`);
   }

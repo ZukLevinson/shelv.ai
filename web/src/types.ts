@@ -6,6 +6,8 @@ export interface Room {
   holder_name: string;
   total_items?: number;
   swept_items: number;
+  scans_count?: number;
+  flags_count?: number;
 }
 
 export type UserRole = 'manager' | 'inventory_owner' | 'scanner';
@@ -106,6 +108,30 @@ export interface AnomalyReport {
     masha: string;
     description: string;
     count: number;
+  }>;
+  internalMoves?: Array<{
+    serialNumber?: string | null;
+    masha?: string;
+    description?: string;
+    category?: string;
+    officialRoomId?: string;
+    officialRoomName?: string;
+    scannedRoomId?: string;
+    scannedRoomName?: string;
+    holderId?: string;
+    holderName?: string;
+    scannedBy?: string;
+    scannedAt?: string;
+  }>;
+  missingItems?: Array<{
+    serialNumber?: string | null;
+    masha?: string;
+    description?: string;
+    category?: string;
+    officialRoomId?: string;
+    officialRoomName?: string;
+    officialHolderId?: string;
+    officialHolderName?: string;
   }>;
   stats: {
     totalExpectedItems: number;

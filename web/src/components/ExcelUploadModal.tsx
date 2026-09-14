@@ -216,6 +216,11 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 </a>
               </div>
 
+              <div className="flex items-center justify-between text-xs text-blue-300 bg-blue-500/10 px-4 py-2.5 rounded-lg border border-blue-500/20">
+                <span>רוצה לייבא סריקות היסטוריות של חדרים מ-Google Forms?</span>
+                <span className="text-blue-400 font-semibold">עבור לעמוד "סריקות" ולחץ על "ייבוא סריקות מאקסל"</span>
+              </div>
+
               {result && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
