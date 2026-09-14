@@ -15,6 +15,7 @@ import {
   Tag
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   isOpen: boolean;
@@ -73,6 +74,9 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
   onSuccess,
   currentUserName = 'ייבוא היסטורי Google Forms'
 }) => {
+  const { token, user } = useAuth();
+  const effectiveToken = token || (typeof window !== 'undefined' ? localStorage.getItem('shelv_token') : null);
+
   const [step, setStep] = useState<'upload' | 'preview' | 'success'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -83,7 +87,7 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
   // Preview filtering states
   const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'duplicates' | 'errors'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [scannedBy, setScannedBy] = useState(currentUserName);
+  const [scannedBy, setScannedBy] = useState(user?.name || currentUserName);
   const [insertedCount, setInsertedCount] = useState(0);
 
   const handleReset = () => {
@@ -120,11 +124,14 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
     const formData = new FormData();
     formData.append('file', file);
 
+    const headers: Record<string, string> = {};
+    if (effectiveToken) {
+      headers['Authorization'] = `Bearer ${effectiveToken}`;
+    }
+
     try {
       const res = await axios.post(`${API_BASE_URL}/api/sweep/scans/parse-excel`, formData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-        }
+        headers
       });
       setParseResult(res.data);
       setStep('preview');
@@ -147,18 +154,21 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
     setSaving(true);
     setError(null);
 
+    const headers: Record<string, string> = {};
+    if (effectiveToken) {
+      headers['Authorization'] = `Bearer ${effectiveToken}`;
+    }
+
     try {
       const res = await axios.post(
         `${API_BASE_URL}/api/sweep/scans/import-excel`,
         {
           rows: rowsToImport,
-          scannedBy: scannedBy.trim() || currentUserName,
+          scannedBy: scannedBy.trim() || user?.name || currentUserName,
           originalFilename: parseResult.filename
         },
         {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-          }
+          headers
         }
       );
 
