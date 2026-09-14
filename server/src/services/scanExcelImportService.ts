@@ -1,9 +1,11 @@
 import xlsx from 'xlsx';
+import { PDFParse } from 'pdf-parse';
 import { db } from '../db/database.js';
 import { detectAnomalies } from './anomalyService.js';
 import { broadcast } from '../sockets/socketServer.js';
 import { logAction } from './actionService.js';
 import { scheduleDebouncedBackup } from './gcsStorageService.js';
+import { extractTableFromPdfWithGemini } from './geminiVisionService.js';
 
 export interface ParsedScanRow {
   rowIdx: number;
@@ -27,6 +29,7 @@ export interface ParsedScanRow {
 }
 
 export interface ParseExcelScansResult {
+  filename: string;
   sheetName: string;
   totalRows: number;
   validRowsCount: number;
@@ -53,6 +56,13 @@ export interface RoomRecord {
   name: string;
   code: string;
   holder_id: string;
+}
+
+export interface RawScanRowInput {
+  timestamp: any;
+  room: any;
+  masha: any;
+  serialNumber: any;
 }
 
 /**
@@ -155,7 +165,7 @@ export function resolveRoom(rawRoom: string, existingRooms: RoomRecord[]): RoomR
 }
 
 /**
- * Parses timestamp from Google Form / Excel into standard ISO string
+ * Parses timestamp from Google Form / Excel / PDF into standard ISO string
  */
 export function parseScanTimestamp(rawVal: any): string {
   if (!rawVal) {
@@ -217,62 +227,28 @@ export function parseScanTimestamp(rawVal: any): string {
 }
 
 /**
- * Parses Google Form Responses Excel sheet "Form Responses 1"
+ * Common normalization, duplicate detection, and verification pipeline for extracted scan rows
  */
-export function parseScansExcel(buffer: Buffer, originalFilename: string = 'scans.xlsx'): ParseExcelScansResult {
-  const workbook = xlsx.read(buffer, { type: 'buffer', cellDates: true });
-
-  // 1. Locate worksheet: prioritized "Form Responses 1", then case-insensitive search, then first sheet
-  let selectedSheetName = workbook.SheetNames.find(s => s.trim().toLowerCase() === 'form responses 1');
-  if (!selectedSheetName) {
-    selectedSheetName = workbook.SheetNames.find(s => 
-      s.trim().toLowerCase().includes('form responses') || 
-      s.trim().includes('תגובות לטופס')
-    );
-  }
-  if (!selectedSheetName) {
-    selectedSheetName = workbook.SheetNames[0];
-  }
-
-  const worksheet = workbook.Sheets[selectedSheetName];
-  if (!worksheet) {
-    throw new Error(`גליון העבודה "${selectedSheetName}" ריק או אינו תקין`);
-  }
-
-  // Convert to JSON objects with header row
-  const rawRows = xlsx.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+export function processRawScanRows(
+  rawRows: RawScanRowInput[],
+  sheetName: string,
+  filename: string
+): ParseExcelScansResult {
   if (rawRows.length === 0) {
     return {
-      sheetName: selectedSheetName,
+      filename,
+      sheetName,
       totalRows: 0,
       validRowsCount: 0,
       duplicatesCount: 0,
       emptySnCount: 0,
       errorsCount: 0,
-      errors: ['הגליון שנבחר ריק משורות נתונים'],
+      errors: ['הקובץ אינו מכיל שורות נתונים'],
       duplicates: [],
       irrelevantSnRows: [],
       rows: []
     };
   }
-
-  // Identify column names by analyzing headers
-  const sampleHeaders = Object.keys(rawRows[0] || {});
-  
-  const findColumn = (keywords: string[]): string | null => {
-    for (const h of sampleHeaders) {
-      const norm = h.trim().toLowerCase();
-      if (keywords.some(k => norm === k.toLowerCase() || norm.includes(k.toLowerCase()))) {
-        return h;
-      }
-    }
-    return null;
-  };
-
-  const timestampCol = findColumn(['timestamp', 'חותמת זמן', 'זמן', 'תאריך', 'date', 'time']) || sampleHeaders[0];
-  const roomCol = findColumn(['חדר', 'שם חדר', 'מיקום', 'room', 'room id', 'room name', 'קוד חדר']) || sampleHeaders[1];
-  const mashaCol = findColumn(['מסח"א', 'מסחא', 'מסח\"א', 'masha', 'מק"ט', 'מקט', 'catalog #', 'catalog', 'מספר קטלוגי', 'סוג חומר']) || sampleHeaders[2];
-  const snCol = findColumn(['מספר סיריאלי', 'מספר סידורי', 'סריאלי', 'סיריאלי', 'מס"ד', 'מס\'ד', 's/n', 'sn', 'serial number', 'serial', 'מספר מכשיר']) || sampleHeaders[3];
 
   // Fetch all existing rooms from DB
   const existingRooms = db.prepare('SELECT id, name, code, holder_id FROM rooms').all() as RoomRecord[];
@@ -300,12 +276,12 @@ export function parseScansExcel(buffer: Buffer, originalFilename: string = 'scan
 
   for (let i = 0; i < rawRows.length; i++) {
     const row = rawRows[i];
-    const rowIdx = i + 2; // Excel 1-based index (header is row 1)
+    const rowIdx = i + 2; // 1-based index (header is row 1)
 
-    const rawTs = row[timestampCol];
-    const rawRoom = String(row[roomCol] || '').trim();
-    const rawMasha = String(row[mashaCol] || '').trim();
-    const rawSn = row[snCol];
+    const rawTs = row.timestamp;
+    const rawRoom = String(row.room || '').trim();
+    const rawMasha = String(row.masha || '').trim();
+    const rawSn = row.serialNumber;
 
     const timestamp = parseScanTimestamp(rawTs);
 
@@ -415,7 +391,8 @@ export function parseScansExcel(buffer: Buffer, originalFilename: string = 'scan
   const validRowsCount = parsedRows.filter(r => r.willImport).length;
 
   return {
-    sheetName: selectedSheetName,
+    filename,
+    sheetName,
     totalRows: parsedRows.length,
     validRowsCount,
     duplicatesCount: duplicates.length,
@@ -426,6 +403,276 @@ export function parseScansExcel(buffer: Buffer, originalFilename: string = 'scan
     irrelevantSnRows,
     rows: parsedRows
   };
+}
+
+/**
+ * Parses Google Form Responses Excel sheet "Form Responses 1"
+ */
+export function parseScansExcel(buffer: Buffer, originalFilename: string = 'scans.xlsx'): ParseExcelScansResult {
+  const workbook = xlsx.read(buffer, { type: 'buffer', cellDates: true });
+
+  // 1. Locate worksheet: prioritized "Form Responses 1", then case-insensitive search, then first sheet
+  let selectedSheetName = workbook.SheetNames.find(s => s.trim().toLowerCase() === 'form responses 1');
+  if (!selectedSheetName) {
+    selectedSheetName = workbook.SheetNames.find(s => 
+      s.trim().toLowerCase().includes('form responses') || 
+      s.trim().includes('תגובות לטופס')
+    );
+  }
+  if (!selectedSheetName) {
+    selectedSheetName = workbook.SheetNames[0];
+  }
+
+  const worksheet = workbook.Sheets[selectedSheetName];
+  if (!worksheet) {
+    throw new Error(`גליון העבודה "${selectedSheetName}" ריק או אינו תקין`);
+  }
+
+  // Convert to JSON objects with header row
+  const rawRows = xlsx.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+  if (rawRows.length === 0) {
+    return {
+      filename: originalFilename,
+      sheetName: selectedSheetName,
+      totalRows: 0,
+      validRowsCount: 0,
+      duplicatesCount: 0,
+      emptySnCount: 0,
+      errorsCount: 0,
+      errors: ['הגליון שנבחר ריק משורות נתונים'],
+      duplicates: [],
+      irrelevantSnRows: [],
+      rows: []
+    };
+  }
+
+  // Identify column names by analyzing headers
+  const sampleHeaders = Object.keys(rawRows[0] || {});
+  
+  const findColumn = (keywords: string[]): string | null => {
+    for (const h of sampleHeaders) {
+      const norm = h.trim().toLowerCase();
+      if (keywords.some(k => norm === k.toLowerCase() || norm.includes(k.toLowerCase()))) {
+        return h;
+      }
+    }
+    return null;
+  };
+
+  const timestampCol = findColumn(['timestamp', 'חותמת זמן', 'זמן', 'תאריך', 'date', 'time']) || sampleHeaders[0];
+  const roomCol = findColumn(['חדר', 'שם חדר', 'מיקום', 'room', 'room id', 'room name', 'קוד חדר']) || sampleHeaders[1];
+  const mashaCol = findColumn(['מסח"א', 'מסחא', 'מסח\"א', 'masha', 'מק"ט', 'מקט', 'catalog #', 'catalog', 'מספר קטלוגי', 'סוג חומר']) || sampleHeaders[2];
+  const snCol = findColumn(['מספר סיריאלי', 'מספר סידורי', 'סריאלי', 'סיריאלי', 'מס"ד', 'מס\'ד', 's/n', 'sn', 'serial number', 'serial', 'מספר מכשיר']) || sampleHeaders[3];
+
+  const standardInputs: RawScanRowInput[] = rawRows.map(row => ({
+    timestamp: row[timestampCol],
+    room: row[roomCol],
+    masha: row[mashaCol],
+    serialNumber: row[snCol]
+  }));
+
+  return processRawScanRows(standardInputs, selectedSheetName, originalFilename);
+}
+
+/**
+ * Extracts raw table rows from a PDF using local PDF text parser (pdf-parse)
+ */
+export async function extractRawRowsFromPdfLocal(buffer: Buffer): Promise<RawScanRowInput[]> {
+  const parser = new PDFParse({ data: buffer });
+  const textRes = await parser.getText();
+  await parser.destroy();
+
+  const fullText = textRes.text || '';
+  const lines = fullText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  const rawRows: RawScanRowInput[] = [];
+  const tsRegex = /(\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}(?:\s+\d{1,2}:\d{1,2}(?::\d{1,2})?)?)/;
+
+  // Query known room codes and mashas to accurately identify tokens
+  const knownRoomCodes = new Set<string>();
+  const knownRoomIds = new Set<string>();
+  const registeredMashas = new Set<string>();
+  try {
+    const rooms = db.prepare('SELECT id, code FROM rooms').all() as any[];
+    rooms.forEach(r => {
+      if (r.code) knownRoomCodes.add(String(r.code).toLowerCase());
+      if (r.id) knownRoomIds.add(String(r.id).toLowerCase());
+    });
+    const reg = db.prepare('SELECT masha FROM masha_registry').all() as any[];
+    reg.forEach(r => registeredMashas.add(String(r.masha).toUpperCase()));
+    const inv = db.prepare('SELECT DISTINCT masha FROM official_inventory').all() as any[];
+    inv.forEach(r => registeredMashas.add(String(r.masha).toUpperCase()));
+  } catch {
+    // ignore if DB is uninitialized
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Skip headers and page numbers
+    if (
+      line.startsWith('--') ||
+      line.includes('Timestamp') ||
+      line.includes('חותמת זמן') ||
+      line.includes('Form Responses 1')
+    ) {
+      continue;
+    }
+
+    if (tsRegex.test(line)) {
+      // Split line by tab or multiple spaces
+      const parts = line.split(/\t+|\s{2,}/).map(s => s.trim()).filter(Boolean);
+
+      // Check RTL layout
+      if (parts.length >= 3) {
+        if (!tsRegex.test(parts[0]) && tsRegex.test(parts[parts.length - 1])) {
+          parts.reverse();
+        }
+        rawRows.push({
+          timestamp: parts[0] || '',
+          room: parts[1] || '',
+          masha: parts[2] || '',
+          serialNumber: parts.slice(3).join(' ') || '',
+        });
+      } else {
+        // Handle single-line with spaces, or multi-line cell format
+        const tsMatch = line.match(tsRegex);
+        const timestamp = tsMatch ? tsMatch[1] : line;
+        let restOfLine = line.replace(tsRegex, '').trim();
+
+        // Check if line was RTL (timestamp was at the end of line)
+        const isRtl = !line.trim().startsWith(timestamp) && line.trim().endsWith(timestamp);
+        let words = restOfLine.split(/\s+/).filter(Boolean);
+        if (isRtl) {
+          words.reverse();
+        }
+
+        if (words.length >= 2) {
+          // Find Masha token index:
+          // 1. Exact match in registered mashas
+          let mashaIdx = -1;
+          for (let w = 1; w < words.length; w++) {
+            if (registeredMashas.has(words[w].toUpperCase())) {
+              mashaIdx = w;
+              break;
+            }
+          }
+
+          // 2. Explicit MASHA / catalog prefix
+          if (mashaIdx === -1) {
+            for (let w = 1; w < words.length; w++) {
+              if (/^(?:MASHA|מסחא)[-_]?/i.test(words[w])) {
+                mashaIdx = w;
+                break;
+              }
+            }
+          }
+
+          // 3. Numeric or catalog-style token with digits that isn't a known room code
+          if (mashaIdx === -1) {
+            for (let w = 1; w < words.length; w++) {
+              const word = words[w];
+              const isRoomCode = knownRoomCodes.has(word.toLowerCase()) || knownRoomIds.has(word.toLowerCase());
+              if (!isRoomCode && (/\d{4,}/.test(word) || /^[A-Za-z0-9\-_]{3,}$/.test(word) && /\d/.test(word))) {
+                mashaIdx = w;
+                break;
+              }
+            }
+          }
+
+          // Fallback if not matched
+          if (mashaIdx === -1) {
+            mashaIdx = words.length > 2 ? words.length - 2 : 1;
+          }
+
+          const room = words.slice(0, mashaIdx).join(' ');
+          const masha = words[mashaIdx] || '';
+          const serialNumber = words.slice(mashaIdx + 1).join(' ');
+
+          rawRows.push({
+            timestamp,
+            room,
+            masha,
+            serialNumber,
+          });
+        } else {
+          // Multi-line cell format: timestamp is line i, subsequent lines are room, masha, sn
+          const gatheredTokens: string[] = [];
+          if (restOfLine) gatheredTokens.push(restOfLine);
+
+          while (
+            i + 1 < lines.length &&
+            !tsRegex.test(lines[i + 1]) &&
+            gatheredTokens.length < 3 &&
+            !lines[i + 1].startsWith('--')
+          ) {
+            i++;
+            gatheredTokens.push(lines[i]);
+          }
+
+          if (gatheredTokens.length >= 2) {
+            rawRows.push({
+              timestamp,
+              room: gatheredTokens[0] || '',
+              masha: gatheredTokens[1] || '',
+              serialNumber: gatheredTokens[2] || '',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return rawRows;
+}
+
+/**
+ * Parses PDF scan export from Google Drive (mobile export)
+ * Uses Gemini Multimodal Vertex AI if available, with robust local fallback.
+ */
+export async function parseScansPdf(buffer: Buffer, originalFilename: string = 'scans.pdf'): Promise<ParseExcelScansResult> {
+  let rawRows: RawScanRowInput[] = [];
+
+  // 1. Attempt Gemini Multimodal Extraction
+  try {
+    const geminiRows = await extractTableFromPdfWithGemini(buffer);
+    if (Array.isArray(geminiRows) && geminiRows.length > 0) {
+      rawRows = geminiRows.map(r => ({
+        timestamp: r.timestamp || '',
+        room: r.room || '',
+        masha: r.masha || '',
+        serialNumber: r.serialNumber || ''
+      }));
+    }
+  } catch (err) {
+    console.warn('[PDF Import] Gemini extraction bypassed:', err);
+  }
+
+  // 2. Local PDF text extraction fallback
+  if (rawRows.length === 0) {
+    try {
+      rawRows = await extractRawRowsFromPdfLocal(buffer);
+    } catch (err: any) {
+      console.error('[PDF Import] Local PDF extraction error:', err);
+      throw new Error(`שגיאה בפענוח קובץ ה-PDF: ${err.message || 'קובץ אינו קריא'}`);
+    }
+  }
+
+  return processRawScanRows(rawRows, 'PDF Export (Google Drive)', originalFilename);
+}
+
+/**
+ * Universal scan file parser handling Excel (.xlsx, .xls, .csv) and PDF (.pdf)
+ */
+export async function parseScansFile(buffer: Buffer, filename: string): Promise<ParseExcelScansResult> {
+  const lower = filename.toLowerCase();
+  const isPdf = lower.endsWith('.pdf') || (buffer.length >= 4 && buffer.subarray(0, 4).toString() === '%PDF');
+
+  if (isPdf) {
+    return parseScansPdf(buffer, filename);
+  }
+
+  return parseScansExcel(buffer, filename);
 }
 
 /**
@@ -494,7 +741,7 @@ export function importScansToDatabase(
   // Log action in audit history
   logAction({
     actionType: 'bulk_scans_imported',
-    description: `ייבוא ${insertedCount} סריקות היסטוריות מקובץ אקסל "${originalFilename}"`,
+    description: `ייבוא ${insertedCount} סריקות היסטוריות מקובץ "${originalFilename}"`,
     entityType: 'scan_batch',
     entityId: batchSessionId,
     performedBy: scannedBy,

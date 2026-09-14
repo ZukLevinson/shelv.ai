@@ -114,7 +114,7 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
 
   const handleParseFile = async () => {
     if (!file) {
-      setError('נא לבחור קובץ אקסל להעלאה');
+      setError('נא לבחור קובץ אקסל או PDF להעלאה');
       return;
     }
 
@@ -136,8 +136,8 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
       setParseResult(res.data);
       setStep('preview');
     } catch (err: any) {
-      console.error('Failed to parse scans excel:', err);
-      setError(err.response?.data?.error || 'שגיאה בפענוח קובץ האקסל');
+      console.error('Failed to parse scans file:', err);
+      setError(err.response?.data?.error || 'שגיאה בפענוח קובץ הסריקות (אקסל או PDF)');
     } finally {
       setAnalyzing(false);
     }
@@ -225,10 +225,10 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 className="font-bold text-base sm:text-lg text-white">
-                ייבוא סריקות מאקסל (Google Forms)
+                ייבוא סריקות מאקסל או PDF (Google Forms / Drive)
               </h3>
               <p className="text-[11px] sm:text-xs text-gray-400">
-                טעינת סריקות היסטוריות מגליון "Form Responses 1", זיהוי חדרים וסינון כפילויות
+                טעינת סריקות היסטוריות מקובץ אקסל ("Form Responses 1") או יצוא PDF מ-Google Drive בנייד, זיהוי חדרים וסינון כפילויות
               </p>
             </div>
           </div>
@@ -253,8 +253,8 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
           {step === 'upload' && (
             <div className="space-y-4 max-w-2xl mx-auto py-2">
               <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
-                באפשרותך להעלות קובץ אקסל שמקורו ב-<strong>Google Forms</strong> המכיל תגובות של סריקות שבוצעו לפני הקמת המערכת.
-                המערכת סורקת באופן מיוחד את הגליון <strong>"Form Responses 1"</strong> ומבצעת התאמות חכמות:
+                באפשרותך להעלות קובץ אקסל שמקורו ב-<strong>Google Forms</strong> או קובץ <strong>PDF</strong> שיוצא מ-<strong>Google Drive בנייד</strong>, המכיל תגובות של סריקות שבוצעו לפני הקמת המערכת.
+                המערכת סורקת את הנתונים ומבצעת התאמות חכמות:
               </p>
 
               {/* Instructions Cards */}
@@ -295,7 +295,7 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
                 <input
                   type="file"
                   id="scan-excel-file"
-                  accept=".xlsx,.xls,.csv"
+                  accept=".xlsx,.xls,.csv,.pdf"
                   onChange={handleFileChange}
                   className="hidden"
                 />
@@ -305,10 +305,10 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
                   </div>
                   <div className="space-y-1">
                     <span className="text-sm font-semibold text-gray-200 block">
-                      {file ? file.name : 'לחץ לבחירת קובץ אקסל או גרור לכאן'}
+                      {file ? file.name : 'לחץ לבחירת קובץ אקסל/PDF או גרור לכאן'}
                     </span>
                     <span className="text-xs text-gray-500 block">
-                      תומך בקבצי XLSX, XLS או CSV של תגובות Google Forms
+                      תומך בקבצי Excel (XLSX, XLS, CSV) וקבצי PDF שיוצאו מ-Google Drive בנייד
                     </span>
                   </div>
                 </label>

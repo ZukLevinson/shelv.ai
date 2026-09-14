@@ -297,10 +297,10 @@ export const ScanManagement: React.FC<Props> = ({
               <button
                 onClick={() => setIsScanExcelModalOpen(true)}
                 className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl transition-all shadow-md shadow-emerald-950/40 cursor-pointer"
-                title="ייבוא סריקות היסטוריות מקובץ אקסל (Google Forms)"
+                title="ייבוא סריקות היסטוריות מקובץ אקסל או PDF (Google Forms / Drive)"
               >
                 <UploadCloud className="w-3.5 h-3.5 text-white" />
-                <span>ייבוא סריקות מאקסל</span>
+                <span>ייבוא מאקסל / PDF</span>
               </button>
             )}
             <button

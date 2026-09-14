@@ -5,7 +5,7 @@ import { analyzeFrameWithGemini, qualifyFrameWithGemini } from '../services/gemi
 import { db } from '../db/database.js';
 import { getOnlineScanners, getOnlineScannersCount, registerOrTouchScanner, disconnectScanner } from '../sockets/socketServer.js';
 import { authenticateToken, requireRole } from '../auth/authMiddleware.js';
-import { parseScansExcel, importScansToDatabase } from '../services/scanExcelImportService.js';
+import { parseScansExcel, parseScansPdf, parseScansFile, importScansToDatabase } from '../services/scanExcelImportService.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -450,10 +450,10 @@ sweepRouter.delete('/scans/:id', async (req, res) => {
   }
 });
 
-// POST /api/sweep/scans/parse-excel - Parse and analyze historical scans from Google Forms Excel sheet "Form Responses 1"
-sweepRouter.post('/scans/parse-excel', authenticateToken, requireRole(['manager']), upload.single('file'), (req: any, res) => {
+// POST /api/sweep/scans/parse-excel - Parse and analyze historical scans from Google Forms Excel (.xlsx) or PDF (.pdf) exported from Google Drive
+sweepRouter.post('/scans/parse-excel', authenticateToken, requireRole(['manager']), upload.single('file'), async (req: any, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'לא נבחר קובץ אקסל' });
+    return res.status(400).json({ error: 'לא נבחר קובץ אקסל או PDF' });
   }
 
   try {
@@ -461,11 +461,11 @@ sweepRouter.post('/scans/parse-excel', authenticateToken, requireRole(['manager'
       ? Buffer.from(req.file.originalname, 'latin1').toString('utf8')
       : 'scans.xlsx';
 
-    const result = parseScansExcel(req.file.buffer, filename);
-    res.json({ success: true, filename, ...result });
+    const result = await parseScansFile(req.file.buffer, filename);
+    res.json({ success: true, ...result });
   } catch (error: any) {
-    console.error('[Sweep API] Error parsing scans excel:', error);
-    res.status(500).json({ error: error.message || 'שגיאה בפענוח קובץ האקסל' });
+    console.error('[Sweep API] Error parsing scans file (Excel/PDF):', error);
+    res.status(500).json({ error: error.message || 'שגיאה בפענוח קובץ הסריקות (Excel/PDF)' });
   }
 });
 

@@ -281,3 +281,74 @@ If no label/masha/serial is clearly visible or decipherable in this frame, retur
     };
   }
 }
+
+/**
+ * Uses Gemini Multimodal Vertex AI to extract scan tables from a PDF exported from Google Drive
+ */
+export async function extractTableFromPdfWithGemini(
+  pdfBuffer: Buffer
+): Promise<Array<{ timestamp?: string; room?: string; masha?: string; serialNumber?: string }>> {
+  try {
+    const vertex = new VertexAI({ project: PROJECT_ID, location: LOCATION });
+    const model = vertex.getGenerativeModel({
+      model: process.env.VERTEX_MODEL || 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+      } as any,
+    });
+
+    const prompt = `
+Task: Extract tabular scan records from this PDF document (exported from Google Drive / Google Sheets).
+The table contains columns representing:
+1. Timestamp (חותמת זמן / תאריך ושעה)
+2. Room (חדר - contains room identifier, code or name along with descriptive text)
+3. Masha (מסח"א / מק"ט / Catalog #)
+4. Serial Number (מספר סיריאלי / S/N / הערת שטח)
+
+Extract every data row from the table into a JSON array of objects.
+Do not skip any rows.
+Each object must have exactly these keys:
+- "timestamp": string (the timestamp cell text)
+- "room": string (the room cell text)
+- "masha": string (the masha / catalog # cell text)
+- "serialNumber": string (the serial number or note text)
+
+Return JSON ONLY in this format:
+{
+  "rows": [
+    { "timestamp": "...", "room": "...", "masha": "...", "serialNumber": "..." }
+  ]
+}
+`;
+
+    const response = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: pdfBuffer.toString('base64'),
+                mimeType: 'application/pdf',
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+    });
+
+    const text = response.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return [];
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed.rows) ? parsed.rows : Array.isArray(parsed) ? parsed : [];
+  } catch (err: any) {
+    console.warn('[Gemini PDF Extract] Could not extract with Gemini:', err.message);
+    return [];
+  }
+}
+

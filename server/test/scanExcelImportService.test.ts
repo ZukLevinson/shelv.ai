@@ -228,4 +228,85 @@ assert.ok(noteObs, 'Should find observation with preserved Hebrew note');
 assert.strictEqual(noteObs.serial_number, null, 'S/N should be null for irrelevant Hebrew note');
 
 console.log('✓ importScansToDatabase tests passed completely!');
-console.log('--- All Verification Tests Passed Successfully! ---');
+
+// 6. Test parseScansFile with PDF buffer
+console.log('6. Testing parseScansFile with PDF buffer...');
+import { parseScansFile } from '../src/services/scanExcelImportService.js';
+
+function createSimplePdf(textLines: string[]): Buffer {
+  const contentStream = [
+    'BT',
+    '/F1 12 Tf',
+    '72 712 Td',
+    '14 TL',
+    ...textLines.map(line => `(${line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')}) '`),
+    'ET'
+  ].join('\n');
+
+  const streamLen = Buffer.byteLength(contentStream);
+
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n',
+    `4 0 obj\n<< /Length ${streamLen} >>\nstream\n${contentStream}\nendstream\nendobj\n`,
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n'
+  ];
+
+  let body = '%PDF-1.4\n';
+  const xrefOffsets = [0];
+
+  for (let i = 0; i < objects.length; i++) {
+    xrefOffsets.push(Buffer.byteLength(body));
+    body += objects[i];
+  }
+
+  const startxref = Buffer.byteLength(body);
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+
+  for (let i = 1; i <= objects.length; i++) {
+    body += String(xrefOffsets[i]).padStart(10, '0') + ' 00000 n \n';
+  }
+
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF\n`;
+
+  return Buffer.from(body, 'latin1');
+}
+
+const pdfLines = [
+  '12/03/2024 10:15:00   A101 - Room Alpha   MASHA-100   SN-ALPHA-01',
+  '12/03/2024 10:16:00   A101 - Room Alpha   MASHA-100   NO-SN',
+  '12/03/2024 10:17:00   B202   MASHA-200   SN-BETA-02',
+  '12/03/2024 10:18:00   B202   MASHA-200   SN-BETA-02'
+];
+
+const pdfBuffer = createSimplePdf(pdfLines);
+
+(async () => {
+  const pdfResult = await parseScansFile(pdfBuffer, 'scans_mobile_export.pdf');
+  console.log('PDF Result Summary:', {
+    sheetName: pdfResult.sheetName,
+    totalRows: pdfResult.totalRows,
+    validRowsCount: pdfResult.validRowsCount,
+    duplicatesCount: pdfResult.duplicatesCount,
+    emptySnCount: pdfResult.emptySnCount,
+  });
+
+  assert.strictEqual(pdfResult.totalRows, 4, 'Should parse 4 rows from PDF');
+  assert.strictEqual(pdfResult.duplicatesCount, 1, 'Should detect duplicate row in PDF');
+  assert.strictEqual(pdfResult.validRowsCount, 3, 'Should have 3 valid rows from PDF');
+  assert.strictEqual(pdfResult.emptySnCount, 1, 'Should detect 1 empty S/N from placeholder note in PDF');
+
+  // Verify row 2 placeholder note
+  assert.strictEqual(pdfResult.rows[1].serialNumber, null);
+  assert.strictEqual(pdfResult.rows[1].isIrrelevantSN, true);
+  assert.strictEqual(pdfResult.rows[1].snNote, 'NO-SN');
+
+  console.log('✓ parseScansFile with PDF tests passed completely!');
+  console.log('--- All Verification Tests (Excel + PDF) Passed Successfully! ---');
+
+  // Cleanup test DB
+  db.prepare("DELETE FROM sweep_observations WHERE scanned_by = 'טסטר אוטומטי'").run();
+  db.prepare("DELETE FROM rooms WHERE id IN ('room-alpha', 'room-beta')").run();
+  db.prepare("DELETE FROM inventory_holders WHERE id = 'test-holder'").run();
+})();
