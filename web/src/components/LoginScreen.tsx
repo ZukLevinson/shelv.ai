@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { VersionBadge } from './VersionBadge';
 import { ShieldCheck, Smartphone, AlertCircle, Scan, ArrowLeft, UserCheck } from 'lucide-react';
 
 declare global {
@@ -74,7 +73,6 @@ export const LoginScreen: React.FC = () => {
         <div className="text-center space-y-3">
           <div className="flex items-center justify-center gap-2">
             <span className="text-xl sm:text-2xl font-black tracking-tight text-white">shelv.ai</span>
-            <VersionBadge variant="compact" />
           </div>
           <div>
             <h1 className="text-base sm:text-lg font-bold text-emerald-400">

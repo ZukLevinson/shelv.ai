@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { Edit2, LogOut } from 'lucide-react';
 import type { User } from '../../types';
 import type { PageMeta } from '../../types/navigation';
-import { VersionBadge } from '../VersionBadge';
 
 export interface TopBarProps {
   pageMeta: PageMeta;
@@ -42,7 +41,6 @@ export function TopBar({
             <span className="px-1.5 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               Live Anomaly Engine
             </span>
-            <VersionBadge variant="compact" />
           </div>
           <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 line-clamp-1">
             {pageMeta.description}
