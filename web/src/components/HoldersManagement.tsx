@@ -10,7 +10,6 @@ import {
   Package, 
   CheckCircle2, 
   AlertCircle, 
-  X, 
   Check, 
   UserCheck,
   IdCard,
@@ -24,6 +23,7 @@ import { useTableSelection } from '../hooks/useTableSelection';
 import { TableCheckbox } from './ui/TableCheckbox';
 import { TableBulkActionsBar } from './ui/TableBulkActionsBar';
 import { exportToExcel } from '../utils/excelExportUtils';
+import { Modal, Button, Input } from './ui';
 
 interface Props {
   holders: InventoryHolder[];
@@ -543,148 +543,139 @@ export const HoldersManagement: React.FC<Props> = ({
       )}
 
       {/* Add / Edit Holder Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-400" />
-                <span>{editingHolder ? 'עריכת פרטי בעל מצאי' : 'הוספת בעל מצאי חדש'}</span>
-              </h3>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {formError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveHolder} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-gray-300 font-medium mb-1.5">
-                  שם מלא <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="לדוגמה: ישראל ישראלי"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 font-medium mb-1.5 flex items-center justify-between">
-                  <span>מספר אישי (מ"א)</span>
-                  <span className="text-[10px] text-gray-500">למשל: 8888888</span>
-                </label>
-                <input
-                  type="text"
-                  maxLength={10}
-                  placeholder="8888888"
-                  value={formPersonalNumber}
-                  onChange={(e) => setFormPersonalNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-white placeholder-gray-500 font-mono tracking-wider focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 font-medium mb-1.5">
-                  טלפון / נייד
-                </label>
-                <input
-                  type="text"
-                  placeholder="050-1234567"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  disabled={formLoading}
-                  className="px-4 py-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
-                >
-                  ביטול
-                </button>
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="px-5 py-2 text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>{editingHolder ? 'שמור שינויים' : 'הוסף בעל מצאי'}</span>
-                </button>
-              </div>
-            </form>
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        size="md"
+        title={editingHolder ? 'עריכת פרטי בעל מצאי' : 'הוספת בעל מצאי חדש'}
+        icon={<UserCheck className="w-5 h-5 text-emerald-400" />}
+      >
+        {formError && (
+          <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{formError}</span>
           </div>
-        </div>
-      )}
+        )}
+
+        <form onSubmit={handleSaveHolder} className="space-y-4 text-xs">
+          <div>
+            <label className="block text-gray-300 font-medium mb-1.5">
+              שם מלא <span className="text-rose-400">*</span>
+            </label>
+            <Input
+              type="text"
+              required
+              placeholder="לדוגמה: ישראל ישראלי"
+              value={formName}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-300 font-medium mb-1.5 flex items-center justify-between">
+              <span>מספר אישי (מ"א)</span>
+              <span className="text-[10px] text-gray-500">למשל: 8888888</span>
+            </label>
+            <Input
+              type="text"
+              maxLength={10}
+              placeholder="8888888"
+              value={formPersonalNumber}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormPersonalNumber(e.target.value.replace(/[^0-9]/g, ''))}
+              className="font-mono tracking-wider"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-300 font-medium mb-1.5">
+              טלפון / נייד
+            </label>
+            <Input
+              type="text"
+              placeholder="050-1234567"
+              value={formPhone}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormPhone(e.target.value)}
+            />
+          </div>
+
+          <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsAddModalOpen(false)}
+              disabled={formLoading}
+            >
+              ביטול
+            </Button>
+            <Button
+              type="submit"
+              variant="default"
+              size="sm"
+              disabled={formLoading}
+              loading={formLoading}
+            >
+              <Check className="w-4 h-4" />
+              <span>{editingHolder ? 'שמור שינויים' : 'הוסף בעל מצאי'}</span>
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {deletingHolder && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-400">
-              <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold text-white">אישור מחיקת בעל מצאי</h3>
-            </div>
-
-            <p className="text-xs text-gray-300 leading-relaxed">
-              האם אתה בטוח שברצונך למחוק את בעל המצאי <strong className="text-white">"{deletingHolder.name}"</strong>?
-            </p>
-
-            {(deletingHolder.rooms?.length > 0 || (deletingHolder.total_signed_items || 0) > 0) && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong>שים לב:</strong> משויכים לבעל מצאי זה {deletingHolder.rooms?.length || 0} חדרים ו-
-                  {deletingHolder.total_signed_items || 0} פריטים חתומים. המערכת תחסום מחיקה זו עד להעברתם.
-                </div>
-              </div>
-            )}
-
-            {formError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-gray-800">
-              <button
-                type="button"
-                onClick={() => setDeletingHolder(null)}
-                disabled={formLoading}
-                className="px-4 py-2 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-colors cursor-pointer"
-              >
-                ביטול
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={formLoading}
-                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer"
-              >
-                {formLoading ? 'מוחק...' : 'מחק לצמיתות'}
-              </button>
-            </div>
+      <Modal
+        isOpen={Boolean(deletingHolder)}
+        onClose={() => setDeletingHolder(null)}
+        size="md"
+        title="אישור מחיקת בעל מצאי"
+        icon={<Trash2 className="w-5 h-5 text-rose-400" />}
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDeletingHolder(null)}
+              disabled={formLoading}
+            >
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={formLoading}
+              loading={formLoading}
+            >
+              מחק לצמיתות
+            </Button>
           </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-gray-300 leading-relaxed">
+            האם אתה בטוח שברצונך למחוק את בעל המצאי <strong className="text-white">"{deletingHolder?.name}"</strong>?
+          </p>
+
+          {deletingHolder && ((deletingHolder.rooms?.length || 0) > 0 || (deletingHolder.total_signed_items || 0) > 0) && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong>שים לב:</strong> משויכים לבעל מצאי זה {deletingHolder.rooms?.length || 0} חדרים ו-
+                {deletingHolder.total_signed_items || 0} פריטים חתומים. המערכת תחסום מחיקה זו עד להעברתם.
+              </div>
+            </div>
+          )}
+
+          {formError && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>{formError}</span>
+            </div>
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

@@ -19,16 +19,6 @@ import {
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
 import type { ExcelImportRecord } from '../types';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogBody,
-  DialogFooter,
-  Button,
-} from './ui';
 
 interface Props {
   isOpen: boolean;

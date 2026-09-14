@@ -11,7 +11,6 @@ import {
   Trash2,
   History,
   FileSpreadsheet,
-  X,
   ArrowRightLeft,
   RotateCw,
   Clock,
@@ -28,6 +27,17 @@ import type { ScanObservation, ScanInvestigationData, Room, OnlineScannerInfo } 
 import { ScanExcelUploadModal } from './ScanExcelUploadModal';
 import { CategoryLogo } from './CategoryLogo';
 import { resolveCategory } from '../constants/categories';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+  Button,
+  Modal,
+} from './ui';
 import { useTableSelection } from '../hooks/useTableSelection';
 import { TableCheckbox } from './ui/TableCheckbox';
 import { TableBulkActionsBar } from './ui/TableBulkActionsBar';
@@ -917,48 +927,41 @@ export const ScanManagement: React.FC<Props> = ({
       </div>
 
       {/* Item Drilldown Investigation Modal */}
-      {investigatingSN && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-gray-900 border border-gray-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between bg-gray-950/40">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">
-                  <History className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base sm:text-lg text-white">תחקור פריט מלאי</h3>
-                  <div className="text-xs text-gray-400">
-                    {investigationData?.officialItem?.serial_number ? (
-                      <>
-                        מספר סידורי: <span className="font-mono text-emerald-400 font-bold">S/N {investigationData.officialItem.serial_number}</span>
-                        {investigationData.officialItem.masha && (
-                          <span className="mr-2 text-gray-400">| מסח"א: <span className="font-mono text-gray-300">{investigationData.officialItem.masha}</span></span>
-                        )}
-                      </>
-                    ) : investigatingIsMasha || (investigationData && !investigationData.officialItem?.serial_number) ? (
-                      <>
-                        <span className="text-gray-400 italic">ללא S/N</span>
-                        <span className="mr-2 text-gray-400">| מסח"א: <span className="font-mono text-emerald-400 font-bold">{investigationData?.officialItem?.masha || investigatingSN}</span></span>
-                      </>
-                    ) : (
-                      <>
-                        מספר סידורי: <span className="font-mono text-emerald-400 font-bold">S/N {investigatingSN}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
+      <Dialog open={Boolean(investigatingSN)} onOpenChange={(open) => !open && closeInvestigation()}>
+        <DialogContent size="3xl" className="p-0">
+          {/* Modal Header */}
+          <DialogHeader className="p-4 sm:p-5 border-b border-gray-800 bg-gray-950/40">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">
+                <History className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <button
-                onClick={closeInvestigation}
-                className="p-1.5 sm:p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div>
+                <DialogTitle className="font-bold text-base sm:text-lg text-white">תחקור פריט מלאי</DialogTitle>
+                <DialogDescription className="text-xs text-gray-400">
+                  {investigationData?.officialItem?.serial_number ? (
+                    <>
+                      מספר סידורי: <span className="font-mono text-emerald-400 font-bold">S/N {investigationData.officialItem.serial_number}</span>
+                      {investigationData.officialItem.masha && (
+                        <span className="mr-2 text-gray-400">| מסח"א: <span className="font-mono text-gray-300">{investigationData.officialItem.masha}</span></span>
+                      )}
+                    </>
+                  ) : investigatingIsMasha || (investigationData && !investigationData.officialItem?.serial_number) ? (
+                    <>
+                      <span className="text-gray-400 italic">ללא S/N</span>
+                      <span className="mr-2 text-gray-400">| מסח"א: <span className="font-mono text-emerald-400 font-bold">{investigationData?.officialItem?.masha || investigatingSN}</span></span>
+                    </>
+                  ) : (
+                    <>
+                      מספר סידורי: <span className="font-mono text-emerald-400 font-bold">S/N {investigatingSN}</span>
+                    </>
+                  )}
+                </DialogDescription>
+              </div>
             </div>
+          </DialogHeader>
 
-            {/* Modal Content */}
-            <div className="p-3.5 sm:p-6 overflow-y-auto space-y-5 sm:space-y-6">
+          {/* Modal Content */}
+          <DialogBody className="p-3.5 sm:p-6 space-y-5 sm:space-y-6">
               {investigationLoading ? (
                 <div className="py-16 text-center text-gray-400 flex flex-col items-center gap-3">
                   <RotateCw className="w-6 h-6 animate-spin text-emerald-400" />
@@ -1127,20 +1130,21 @@ export const ScanManagement: React.FC<Props> = ({
                   )}
                 </>
               )}
-            </div>
+            </DialogBody>
 
-            {/* Modal Footer */}
-            <div className="p-4 bg-gray-950 border-t border-gray-800 flex justify-end">
-              <button
-                onClick={closeInvestigation}
-                className="px-4 py-2 text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-xl transition-all"
-              >
-                סגור תחקור
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          {/* Modal Footer */}
+          <DialogFooter className="p-4 bg-gray-950">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={closeInvestigation}
+            >
+              סגור תחקור
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Scan Excel Upload Modal */}
       {isManager && (
@@ -1155,36 +1159,16 @@ export const ScanManagement: React.FC<Props> = ({
       )}
 
       {/* Image Lightbox Modal */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div
-            className="bg-gray-900 border border-gray-800 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-scale-up"
-            onClick={(e) => e.stopPropagation()}
-            dir="rtl"
-          >
-            <div className="flex items-center justify-between p-4 border-b border-gray-800">
-              <div className="flex items-center gap-2">
-                <Camera className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white">{previewImage.title}</h3>
-              </div>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-1 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 flex items-center justify-center bg-gray-950/80 min-h-[280px]">
-              <img
-                src={previewImage.url}
-                alt={previewImage.title}
-                className="max-h-[420px] w-auto max-w-full rounded-xl object-contain shadow-lg"
-              />
-            </div>
-            <div className="p-3 bg-gray-950 border-t border-gray-800 flex justify-between items-center">
+      <Modal
+        isOpen={Boolean(previewImage)}
+        onClose={() => setPreviewImage(null)}
+        size="lg"
+        title={previewImage?.title}
+        icon={<Camera className="w-4 h-4 text-emerald-400" />}
+        bodyClassName="p-4 flex items-center justify-center bg-gray-950/80 min-h-[280px]"
+        footer={
+          previewImage && (
+            <div className="flex justify-between items-center w-full">
               <a
                 href={previewImage.url}
                 target="_blank"
@@ -1194,16 +1178,26 @@ export const ScanManagement: React.FC<Props> = ({
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>פתח תמונה בגודל מלא</span>
               </a>
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => setPreviewImage(null)}
-                className="px-4 py-1.5 text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-xl transition-all cursor-pointer"
               >
                 סגור
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
+          )
+        }
+      >
+        {previewImage && (
+          <img
+            src={previewImage.url}
+            alt={previewImage.title}
+            className="max-h-[420px] w-auto max-w-full rounded-xl object-contain shadow-lg"
+          />
+        )}
+      </Modal>
     </div>
   );
 };
