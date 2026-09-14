@@ -3,6 +3,7 @@ import type { AnomalyReport } from '../types';
 import { AlertTriangle, HelpCircle, Check, MapPin, UserCheck, ShieldAlert, BarChart3 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import { CategoryLogo } from './CategoryLogo';
 
 interface Props {
   anomalies: AnomalyReport | null;
@@ -116,8 +117,13 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                   {unauthorizedTransfers.map((item, idx) => (
                     <tr key={item.serialNumber || `${item.masha}-${idx}`} className="hover:bg-gray-800/30 transition-colors">
                       <td className="py-4 pr-2">
-                        <div className="font-semibold text-white">{item.description}</div>
-                        <div className="text-xs font-mono text-emerald-400">מסח\"א: {item.masha}</div>
+                        <div className="flex items-center gap-2.5">
+                          <CategoryLogo category={item.category} size="xs" />
+                          <div>
+                            <div className="font-semibold text-white">{item.description}</div>
+                            <div className="text-xs font-mono text-emerald-400">מסח\"א: {item.masha}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-4 font-mono text-xs text-gray-300">
                         {item.serialNumber || <span className="text-gray-500 italic">ללא S/N</span>}
@@ -191,8 +197,13 @@ export const AnomaliesCenter: React.FC<Props> = ({ anomalies, onRefresh }) => {
                         {d.holderName}
                       </td>
                       <td className="py-3.5">
-                        <div className="font-medium text-gray-200">{d.description}</div>
-                        <div className="text-xs font-mono text-emerald-400">מסח\"א: {d.masha}</div>
+                        <div className="flex items-center gap-2.5">
+                          <CategoryLogo category={d.category} size="xs" />
+                          <div>
+                            <div className="font-medium text-gray-200">{d.description}</div>
+                            <div className="text-xs font-mono text-emerald-400">מסח\"א: {d.masha}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-3.5 text-xs text-gray-300 font-semibold">
                         {d.expectedQuantity} יח'
