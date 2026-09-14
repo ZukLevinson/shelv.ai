@@ -86,7 +86,6 @@ export const ScanManagement: React.FC<Props> = ({
 
   // Google Sheets sync & Image Preview state
   const [sheetsStatus, setSheetsStatus] = useState<any | null>(null);
-  const [sheetsSyncing, setSheetsSyncing] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
   // Multi-select for filtered scans
@@ -191,24 +190,6 @@ export const ScanManagement: React.FC<Props> = ({
       setSheetsStatus(res.data);
     } catch (err) {
       console.warn('Failed to fetch sheets status:', err);
-    }
-  };
-
-  const handleSyncToSheets = async () => {
-    setSheetsSyncing(true);
-    try {
-      const res = await axios.post(`${API_BASE_URL}/api/sweep/sheets/sync`);
-      if (res.data.success) {
-        alert(`סנכרון ל-Google Sheets הושלם בהצלחה! סונכרנו ${res.data.totalSynced} סריקות.`);
-        fetchSheetsStatus();
-      } else {
-        alert(`שגיאה בסנכרון ל-Google Sheets: ${res.data.error || 'נכשל'}`);
-      }
-    } catch (err: any) {
-      console.error('Failed to sync to sheets:', err);
-      alert(`שגיאה בסנכרון ל-Google Sheets: ${err.response?.data?.error || err.message}`);
-    } finally {
-      setSheetsSyncing(false);
     }
   };
 
@@ -450,15 +431,6 @@ export const ScanManagement: React.FC<Props> = ({
             >
               <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>רענן נתונים</span>
-            </button>
-            <button
-              onClick={handleSyncToSheets}
-              disabled={sheetsSyncing}
-              className="h-9 flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 text-xs font-semibold text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/60 active:bg-emerald-800 border border-emerald-600/40 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
-              title="סנכרון מיידי של כל סריקות המלאי לקובץ Google Sheets"
-            >
-              <FileSpreadsheet className={`w-3.5 h-3.5 text-emerald-400 ${sheetsSyncing ? 'animate-spin' : ''}`} />
-              <span>{sheetsSyncing ? 'מסנכרן...' : 'סנכרן Google Sheets'}</span>
             </button>
             {sheetsStatus?.spreadsheetUrl && (
               <a

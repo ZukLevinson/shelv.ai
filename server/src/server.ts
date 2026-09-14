@@ -42,6 +42,7 @@ import { generateExportWorkbookBuffer } from './services/excelExportService.js';
 import { detectAnomalies } from './services/anomalyService.js';
 
 import { restoreDatabaseFromGCS, initGcsSync, scheduleDebouncedBackup } from './services/gcsStorageService.js';
+import { scheduleDebouncedSheetsSync } from './services/googleSheetsService.js';
 import { SERVER_VERSION, BRANCH_NAME, COMMIT_SHA, getVersionPayload } from './version.js';
 
 const app = express();
@@ -54,12 +55,25 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Debounced backup middleware for all state-changing operations (POST, PUT, DELETE, PATCH)
+// Debounced backup and Google Sheets auto-sync middleware for all state-changing operations (POST, PUT, DELETE, PATCH)
 app.use((req, res, next) => {
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const baseUrl = req.protocol + '://' + req.get('host');
     res.on('finish', () => {
       if (res.statusCode >= 200 && res.statusCode < 300) {
         scheduleDebouncedBackup();
+
+        // Automatically sync Google Sheets on any inventory, sweep, anomaly, action, or baseline CRUD
+        const url = req.originalUrl || req.url || '';
+        if (
+          url.startsWith('/api/sweep') ||
+          url.startsWith('/api/inventory') ||
+          url.startsWith('/api/anomalies') ||
+          url.startsWith('/api/actions') ||
+          url.startsWith('/api/upload-excel')
+        ) {
+          scheduleDebouncedSheetsSync(2500, baseUrl);
+        }
       }
     });
   }

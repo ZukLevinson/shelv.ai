@@ -143,6 +143,7 @@ async function ensureHeaders(client: sheets_v4.Sheets, spreadsheetId: string, sh
 }
 
 let cachedBaseUrl: string | null = null;
+let debouncedSyncTimeout: NodeJS.Timeout | null = null;
 
 export function setCachedBaseUrl(url?: string | null) {
   if (url && typeof url === 'string') {
@@ -152,6 +153,26 @@ export function setCachedBaseUrl(url?: string | null) {
 
 export function getCachedBaseUrl(): string | null {
   return cachedBaseUrl;
+}
+
+/**
+ * Schedules a debounced full sync to Google Sheets after state mutations (CRUD).
+ * If multiple operations happen in rapid succession, only one sync request is sent.
+ */
+export function scheduleDebouncedSheetsSync(delayMs = 2500, baseUrl?: string) {
+  if (baseUrl) {
+    setCachedBaseUrl(baseUrl);
+  }
+  if (debouncedSyncTimeout) {
+    clearTimeout(debouncedSyncTimeout);
+  }
+  debouncedSyncTimeout = setTimeout(() => {
+    debouncedSyncTimeout = null;
+    const effectiveBaseUrl = baseUrl || getCachedBaseUrl() || undefined;
+    syncAllScansToGoogleSheet(effectiveBaseUrl).catch((err) => {
+      console.error('[GoogleSheets] Error in debounced automatic sync:', err?.message || err);
+    });
+  }, delayMs);
 }
 
 /**
