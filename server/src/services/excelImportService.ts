@@ -13,6 +13,7 @@ export interface ImportResult {
 export interface ExcelImportRecord {
   id: string;
   filename: string;
+  import_type: 'signatures' | 'scans';
   uploaded_at: string;
   total_rows: number;
   inserted_count: number;
@@ -48,8 +49,8 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
   const importId = 'import-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
 
   const insertImportRecord = db.prepare(`
-    INSERT INTO excel_imports (id, filename, uploaded_at, total_rows, inserted_count, updated_count)
-    VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+    INSERT INTO excel_imports (id, filename, import_type, uploaded_at, total_rows, inserted_count, updated_count)
+    VALUES (?, ?, 'signatures', CURRENT_TIMESTAMP, ?, ?, ?)
   `);
 
   const updateImportRecord = db.prepare(`
@@ -59,7 +60,7 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
   `);
 
   const findHolderByName = db.prepare('SELECT id, name, personal_number FROM inventory_holders WHERE name = ? COLLATE NOCASE');
-  const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name, personal_number) VALUES (?, ?, ?)');
+  const insertHolder = db.prepare('INSERT INTO inventory_holders (id, name, personal_number, import_id) VALUES (?, ?, ?, ?)');
   const updateHolderPN = db.prepare('UPDATE inventory_holders SET personal_number = ? WHERE id = ?');
   
   const findRoomForHolder = db.prepare('SELECT id FROM rooms WHERE holder_id = ? LIMIT 1');
@@ -100,7 +101,7 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
       }
     } else {
       holderId = 'holder-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-      insertHolder.run(holderId, holderName, personalNumber || null);
+      insertHolder.run(holderId, holderName, personalNumber || null, importId);
     }
     const holderRoom = findRoomForHolder.get(holderId) as any;
     return { holderId, roomId: holderRoom?.id || null };
@@ -397,13 +398,22 @@ export function importOfficialInventoryFromExcel(buffer: Buffer, originalFilenam
   return { importId, filename: originalFilename, insertedCount, updatedCount, errors };
 }
 
-export function getExcelImports(): ExcelImportRecord[] {
-  return db.prepare(`
+export function getExcelImports(type?: string): ExcelImportRecord[] {
+  let query = `
     SELECT e.*,
-           (SELECT COUNT(*) FROM official_inventory o WHERE o.import_id = e.id) as active_items_count
+           CASE 
+             WHEN e.import_type = 'scans' THEN (SELECT COUNT(*) FROM sweep_observations s WHERE s.import_id = e.id)
+             ELSE (SELECT COUNT(*) FROM official_inventory o WHERE o.import_id = e.id)
+           END as active_items_count
     FROM excel_imports e
-    ORDER BY e.uploaded_at DESC
-  `).all() as ExcelImportRecord[];
+  `;
+  const params: any[] = [];
+  if (type) {
+    query += ` WHERE e.import_type = ?`;
+    params.push(type);
+  }
+  query += ` ORDER BY e.uploaded_at DESC`;
+  return db.prepare(query).all(...params) as ExcelImportRecord[];
 }
 
 export function deleteExcelImport(importId: string) {
@@ -412,14 +422,47 @@ export function deleteExcelImport(importId: string) {
     throw new Error('רשומת אקסל לא נמצאה');
   }
 
-  const deleteItems = db.prepare('DELETE FROM official_inventory WHERE import_id = ?');
-  const deleteImport = db.prepare('DELETE FROM excel_imports WHERE id = ?');
-
   let deletedItemsCount = 0;
+  let deletedHoldersCount = 0;
+
   const runTransaction = db.transaction(() => {
-    const itemsRes = deleteItems.run(importId);
-    deletedItemsCount = itemsRes.changes;
-    deleteImport.run(importId);
+    if (existing.import_type === 'scans') {
+      const scansRes = db.prepare('DELETE FROM sweep_observations WHERE import_id = ?').run(importId);
+      deletedItemsCount = scansRes.changes;
+    } else {
+      // 1. Delete official inventory items for this import
+      const itemsRes = db.prepare('DELETE FROM official_inventory WHERE import_id = ?').run(importId);
+      deletedItemsCount = itemsRes.changes;
+
+      // 2. Clean up any holders created specifically by this import that now have no remaining items, no rooms, no scans, and no coupled user
+      const importHolders = db.prepare('SELECT id, name FROM inventory_holders WHERE import_id = ?').all(importId) as Array<{ id: string; name: string }>;
+      
+      const checkItems = db.prepare('SELECT COUNT(*) as c FROM official_inventory WHERE holder_id = ?');
+      const checkRooms = db.prepare('SELECT COUNT(*) as c FROM rooms WHERE holder_id = ?');
+      const checkUsers = db.prepare('SELECT COUNT(*) as c FROM users WHERE holder_id = ?');
+      const checkScans = db.prepare(`
+        SELECT COUNT(*) as c 
+        FROM sweep_observations o 
+        JOIN rooms r ON o.room_id = r.id 
+        WHERE r.holder_id = ?
+      `);
+      const deleteHolder = db.prepare('DELETE FROM inventory_holders WHERE id = ?');
+
+      for (const h of importHolders) {
+        const itemsCount = (checkItems.get(h.id) as any).c;
+        const roomsCount = (checkRooms.get(h.id) as any).c;
+        const usersCount = (checkUsers.get(h.id) as any).c;
+        const scansCount = (checkScans.get(h.id) as any).c;
+
+        if (itemsCount === 0 && roomsCount === 0 && usersCount === 0 && scansCount === 0) {
+          deleteHolder.run(h.id);
+          deletedHoldersCount++;
+        }
+      }
+    }
+
+    // Delete the import record itself
+    db.prepare('DELETE FROM excel_imports WHERE id = ?').run(importId);
   });
 
   runTransaction();
@@ -428,19 +471,44 @@ export function deleteExcelImport(importId: string) {
     success: true,
     deletedImportId: importId,
     filename: existing.filename,
-    deletedItemsCount
+    importType: existing.import_type || 'signatures',
+    deletedItemsCount,
+    deletedHoldersCount
   };
 }
 
 export function resetAllOfficialInventory() {
   let deletedItemsCount = 0;
   let deletedImportsCount = 0;
+  let deletedHoldersCount = 0;
 
   const runTransaction = db.transaction(() => {
     const itemsRes = db.prepare('DELETE FROM official_inventory').run();
     deletedItemsCount = itemsRes.changes;
-    const importsRes = db.prepare('DELETE FROM excel_imports').run();
+    const importsRes = db.prepare("DELETE FROM excel_imports WHERE import_type = 'signatures'").run();
     deletedImportsCount = importsRes.changes;
+
+    // Clean up holders that now have no items, no rooms, no users, and no scans
+    const holders = db.prepare('SELECT id FROM inventory_holders').all() as Array<{ id: string }>;
+    const checkRooms = db.prepare('SELECT COUNT(*) as c FROM rooms WHERE holder_id = ?');
+    const checkUsers = db.prepare('SELECT COUNT(*) as c FROM users WHERE holder_id = ?');
+    const checkScans = db.prepare(`
+      SELECT COUNT(*) as c 
+      FROM sweep_observations o 
+      JOIN rooms r ON o.room_id = r.id 
+      WHERE r.holder_id = ?
+    `);
+    const deleteHolder = db.prepare('DELETE FROM inventory_holders WHERE id = ?');
+
+    for (const h of holders) {
+      const roomsCount = (checkRooms.get(h.id) as any).c;
+      const usersCount = (checkUsers.get(h.id) as any).c;
+      const scansCount = (checkScans.get(h.id) as any).c;
+      if (roomsCount === 0 && usersCount === 0 && scansCount === 0) {
+        deleteHolder.run(h.id);
+        deletedHoldersCount++;
+      }
+    }
   });
 
   runTransaction();
@@ -448,7 +516,8 @@ export function resetAllOfficialInventory() {
   return {
     success: true,
     deletedItemsCount,
-    deletedImportsCount
+    deletedImportsCount,
+    deletedHoldersCount
   };
 }
 

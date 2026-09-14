@@ -183,7 +183,8 @@ export const ScanManagement: React.FC<Props> = ({
       'בעל מצאי החדר',
       'חדר רשמי באקסל',
       'בעל מצאי רשמי',
-      'סטטוס התאמה'
+      'סטטוס התאמה',
+      'קובץ מקור'
     ];
 
     const rows = scans.map((s) => [
@@ -197,7 +198,8 @@ export const ScanManagement: React.FC<Props> = ({
       `"${s.scanned_holder_name}"`,
       `"${s.official_room_name ? `${s.official_room_name} (${s.official_room_code})` : 'לא קיים באקסל'}"`,
       `"${s.official_holder_name || 'לא ידוע'}"`,
-      `"${s.scan_status === 'matched' ? 'תואם חתימה' : s.scan_status === 'mismatch' ? 'חריגת מיקום / חתימה' : 'לא רשום באקסל'}"`
+      `"${s.scan_status === 'matched' ? 'תואם חתימה' : s.scan_status === 'mismatch' ? 'חריגת מיקום / חתימה' : 'לא רשום באקסל'}"`,
+      `"${s.import_filename || 'סריקה באפליקציה'}"`
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -525,6 +527,12 @@ export const ScanManagement: React.FC<Props> = ({
                         {scan.sweep_id && (
                           <div className="text-[10px] text-gray-500 font-mono mt-0.5">
                             סשן: {scan.sweep_id.slice(-8)}
+                          </div>
+                        )}
+                        {scan.import_filename && (
+                          <div className="flex items-center gap-1 text-[10px] text-blue-400 font-medium mt-1" title={`יובא מקובץ אקסל/PDF: ${scan.import_filename}`}>
+                            <FileSpreadsheet className="w-3 h-3 text-blue-400 shrink-0" />
+                            <span className="truncate max-w-[130px]">{scan.import_filename}</span>
                           </div>
                         )}
                       </td>

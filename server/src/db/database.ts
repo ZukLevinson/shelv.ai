@@ -49,7 +49,9 @@ export function initDatabase() {
       personal_number TEXT,
       email TEXT,
       phone TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      import_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (import_id) REFERENCES excel_imports(id) ON DELETE SET NULL
     );
 
     CREATE TABLE IF NOT EXISTS rooms (
@@ -69,10 +71,12 @@ export function initDatabase() {
       category TEXT NOT NULL,
       room_id TEXT,
       holder_id TEXT NOT NULL,
+      import_id TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-      FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE CASCADE
+      FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE CASCADE,
+      FOREIGN KEY (import_id) REFERENCES excel_imports(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS sweep_sessions (
@@ -94,9 +98,11 @@ export function initDatabase() {
       scanned_by TEXT NOT NULL,
       sticker_owner_text TEXT,
       product_name_detected TEXT,
+      import_id TEXT,
       scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (sweep_id) REFERENCES sweep_sessions(id) ON DELETE SET NULL,
-      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+      FOREIGN KEY (import_id) REFERENCES excel_imports(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS anomaly_resolutions (
@@ -123,6 +129,7 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS excel_imports (
       id TEXT PRIMARY KEY,
       filename TEXT NOT NULL,
+      import_type TEXT NOT NULL DEFAULT 'signatures',
       uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       total_rows INTEGER NOT NULL DEFAULT 0,
       inserted_count INTEGER NOT NULL DEFAULT 0,
@@ -204,6 +211,46 @@ export function initDatabase() {
     console.error('[DB] Migration error for user columns:', err);
   }
 
+  // Ensure import_id column exists on official_inventory
+  try {
+    const officialCols = db.prepare("PRAGMA table_info(official_inventory)").all() as Array<{ name: string }>;
+    if (!officialCols.some(col => col.name === 'import_id')) {
+      db.exec("ALTER TABLE official_inventory ADD COLUMN import_id TEXT REFERENCES excel_imports(id) ON DELETE CASCADE");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for import_id on official_inventory:', err);
+  }
+
+  // Ensure import_id column exists on sweep_observations
+  try {
+    const sweepCols = db.prepare("PRAGMA table_info(sweep_observations)").all() as Array<{ name: string }>;
+    if (!sweepCols.some(col => col.name === 'import_id')) {
+      db.exec("ALTER TABLE sweep_observations ADD COLUMN import_id TEXT REFERENCES excel_imports(id) ON DELETE CASCADE");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for import_id on sweep_observations:', err);
+  }
+
+  // Ensure import_id column exists on inventory_holders
+  try {
+    const holderCols = db.prepare("PRAGMA table_info(inventory_holders)").all() as Array<{ name: string }>;
+    if (!holderCols.some(col => col.name === 'import_id')) {
+      db.exec("ALTER TABLE inventory_holders ADD COLUMN import_id TEXT REFERENCES excel_imports(id) ON DELETE SET NULL");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for import_id on inventory_holders:', err);
+  }
+
+  // Ensure import_type column exists on excel_imports
+  try {
+    const importCols = db.prepare("PRAGMA table_info(excel_imports)").all() as Array<{ name: string }>;
+    if (!importCols.some(col => col.name === 'import_type')) {
+      db.exec("ALTER TABLE excel_imports ADD COLUMN import_type TEXT NOT NULL DEFAULT 'signatures'");
+    }
+  } catch (err) {
+    console.error('[DB] Migration error for import_type on excel_imports:', err);
+  }
+
   try {
     db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -219,19 +266,13 @@ export function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_sweep_obs_masha ON sweep_observations(masha);
       CREATE INDEX IF NOT EXISTS idx_official_inv_sn ON official_inventory(serial_number);
       CREATE INDEX IF NOT EXISTS idx_official_inv_masha ON official_inventory(masha);
+      CREATE INDEX IF NOT EXISTS idx_official_inv_import_id ON official_inventory(import_id);
+      CREATE INDEX IF NOT EXISTS idx_sweep_obs_import_id ON sweep_observations(import_id);
+      CREATE INDEX IF NOT EXISTS idx_inventory_holders_import_id ON inventory_holders(import_id);
+      CREATE INDEX IF NOT EXISTS idx_excel_imports_type ON excel_imports(import_type);
     `);
   } catch (err) {
     console.error('[DB] Error creating indexes:', err);
-  }
-
-  // Ensure import_id column exists on official_inventory
-  try {
-    const officialCols = db.prepare("PRAGMA table_info(official_inventory)").all() as Array<{ name: string }>;
-    if (!officialCols.some(col => col.name === 'import_id')) {
-      db.exec("ALTER TABLE official_inventory ADD COLUMN import_id TEXT REFERENCES excel_imports(id) ON DELETE SET NULL");
-    }
-  } catch (err) {
-    console.error('[DB] Migration error for import_id:', err);
   }
 
   // Ensure personal_number column exists for existing databases
@@ -260,13 +301,15 @@ export function initDatabase() {
           category TEXT NOT NULL,
           room_id TEXT,
           holder_id TEXT NOT NULL,
+          import_id TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-          FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE CASCADE
+          FOREIGN KEY (holder_id) REFERENCES inventory_holders(id) ON DELETE CASCADE,
+          FOREIGN KEY (import_id) REFERENCES excel_imports(id) ON DELETE CASCADE
         );
-        INSERT INTO official_inventory_temp (id, masha, serial_number, description, category, room_id, holder_id, created_at, updated_at)
-        SELECT id, masha, serial_number, description, category, room_id, holder_id, created_at, updated_at FROM official_inventory;
+        INSERT INTO official_inventory_temp (id, masha, serial_number, description, category, room_id, holder_id, import_id, created_at, updated_at)
+        SELECT id, masha, serial_number, description, category, room_id, holder_id, import_id, created_at, updated_at FROM official_inventory;
         DROP TABLE official_inventory;
         ALTER TABLE official_inventory_temp RENAME TO official_inventory;
         PRAGMA foreign_keys = ON;

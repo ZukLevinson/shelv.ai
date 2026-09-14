@@ -704,8 +704,9 @@ inventoryRouter.delete('/masha-registry/:masha', optionalToken, async (req, res)
 // Excel Imports & Baseline Reset Endpoints
 inventoryRouter.get('/excel-imports', async (req, res) => {
   try {
+    const { type } = req.query;
     const { getExcelImports } = await import('../services/excelImportService.js');
-    const imports = getExcelImports();
+    const imports = getExcelImports(type ? String(type) : undefined);
     res.json(imports);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to fetch excel imports' });
@@ -718,15 +719,42 @@ inventoryRouter.delete('/excel-imports/:id', authenticateToken, requireRole(['ma
     const { deleteExcelImport } = await import('../services/excelImportService.js');
     const { detectAnomalies } = await import('../services/anomalyService.js');
     const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+    const { logAction } = await import('../services/actionService.js');
 
     const result = deleteExcelImport(id);
     const anomalies = detectAnomalies();
 
     broadcast('ANOMALIES_UPDATED', anomalies);
-    broadcast('INVENTORY_SYNCED', { deletedImportId: id, action: 'deleted' });
+    if (result.importType === 'scans') {
+      broadcast('SCANS_UPDATED', { deletedImportId: id, action: 'deleted' });
+      broadcast('ROOMS_UPDATED', { action: 'scan_import_deleted' });
+    } else {
+      broadcast('INVENTORY_SYNCED', { deletedImportId: id, action: 'deleted' });
+      if (result.deletedHoldersCount > 0) {
+        broadcast('HOLDERS_UPDATED', { action: 'orphan_holders_cleaned' });
+      }
+    }
     scheduleDebouncedBackup(1000);
 
-    res.json({ success: true, message: `קובץ האקסל "${result.filename}" ו-${result.deletedItemsCount} פריטי מצאי נדרשים נמחקו בהצלחה`, result });
+    const isScans = result.importType === 'scans';
+    const desc = isScans
+      ? `מחיקת קובץ סריקות "${result.filename}" וביטול ${result.deletedItemsCount} תצפיות סריקה`
+      : `מחיקת קובץ חתימות "${result.filename}", ${result.deletedItemsCount} פריטים נדרשים${result.deletedHoldersCount > 0 ? ` וניקוי ${result.deletedHoldersCount} בעלי מצאי יתומים` : ''}`;
+
+    logAction({
+      actionType: isScans ? 'scan_import_deleted' : 'excel_import_deleted',
+      description: desc,
+      entityType: isScans ? 'scan_import' : 'excel_import',
+      entityId: id,
+      performedBy: (req as any).user?.name || 'משתמש מערכת',
+      stateBefore: { filename: result.filename, itemsCount: result.deletedItemsCount, holdersCount: result.deletedHoldersCount }
+    });
+
+    res.json({
+      success: true,
+      message: `${desc} בהצלחה`,
+      result
+    });
   } catch (err: any) {
     console.error('[Inventory API] Error deleting excel import:', err);
     res.status(500).json({ error: err.message || 'Failed to delete excel import' });
@@ -738,15 +766,29 @@ inventoryRouter.post('/baseline/reset', authenticateToken, requireRole(['manager
     const { resetAllOfficialInventory } = await import('../services/excelImportService.js');
     const { detectAnomalies } = await import('../services/anomalyService.js');
     const { scheduleDebouncedBackup } = await import('../services/gcsStorageService.js');
+    const { logAction } = await import('../services/actionService.js');
 
     const result = resetAllOfficialInventory();
     const anomalies = detectAnomalies();
 
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('INVENTORY_SYNCED', { action: 'reset_all' });
+    if (result.deletedHoldersCount > 0) {
+      broadcast('HOLDERS_UPDATED', { action: 'orphan_holders_cleaned' });
+    }
     scheduleDebouncedBackup(1000);
 
-    res.json({ success: true, message: `אופסו בהצלחה כל ${result.deletedItemsCount} הפריטים הנדרשים ו-${result.deletedImportsCount} רישומי אקסל`, result });
+    const desc = `איפוס כל המצאי הנדרש: נמחקו ${result.deletedItemsCount} פריטים, ${result.deletedImportsCount} קבצים${result.deletedHoldersCount > 0 ? `, ו-${result.deletedHoldersCount} בעלי מצאי יתומים` : ''}`;
+    logAction({
+      actionType: 'baseline_reset_all',
+      description: desc,
+      entityType: 'official_inventory',
+      entityId: 'all',
+      performedBy: (req as any).user?.name || 'משתמש מערכת',
+      stateBefore: { itemsCount: result.deletedItemsCount, importsCount: result.deletedImportsCount }
+    });
+
+    res.json({ success: true, message: `${desc} בהצלחה`, result });
   } catch (err: any) {
     console.error('[Inventory API] Error resetting baseline:', err);
     res.status(500).json({ error: err.message || 'Failed to reset official inventory baseline' });

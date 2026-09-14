@@ -683,7 +683,7 @@ export function importScansToDatabase(
   rowsToImport: ParsedScanRow[],
   scannedBy: string = 'ייבוא אקסל (Google Forms)',
   originalFilename: string = 'scans.xlsx'
-): { success: boolean; insertedCount: number; message: string } {
+): { success: boolean; insertedCount: number; importId?: string; message: string } {
   const eligibleRows = rowsToImport.filter(r => r.willImport && r.roomId && r.masha);
   if (eligibleRows.length === 0) {
     return {
@@ -693,10 +693,17 @@ export function importScansToDatabase(
     };
   }
 
+  const importId = 'import-scan-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+
+  const insertImportRecord = db.prepare(`
+    INSERT INTO excel_imports (id, filename, import_type, uploaded_at, total_rows, inserted_count, updated_count)
+    VALUES (?, ?, 'scans', CURRENT_TIMESTAMP, ?, ?, 0)
+  `);
+
   const insertObservation = db.prepare(`
     INSERT INTO sweep_observations (
-      id, sweep_id, room_id, masha, serial_number, scanned_by, sticker_owner_text, product_name_detected, scanned_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, sweep_id, room_id, masha, serial_number, scanned_by, sticker_owner_text, product_name_detected, scanned_at, import_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const upsertMasha = db.prepare(`
@@ -711,6 +718,8 @@ export function importScansToDatabase(
   let insertedCount = 0;
 
   const runTx = db.transaction(() => {
+    insertImportRecord.run(importId, originalFilename, rowsToImport.length, eligibleRows.length);
+
     for (let i = 0; i < eligibleRows.length; i++) {
       const row = eligibleRows[i];
       const obsId = `obs-xl-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
@@ -727,7 +736,8 @@ export function importScansToDatabase(
         scannedBy,
         row.snNote ? `הערת שטח מקורית: ${row.snNote}` : null,
         extractedDesc || null, // product_name_detected
-        row.timestamp
+        row.timestamp,
+        importId
       );
 
       insertedCount++;
@@ -739,7 +749,7 @@ export function importScansToDatabase(
   // Recalculate anomalies
   const anomalies = detectAnomalies();
   broadcast('ANOMALIES_UPDATED', anomalies);
-  broadcast('SCANS_UPDATED', { importedCount: insertedCount, batchSessionId });
+  broadcast('SCANS_UPDATED', { importedCount: insertedCount, batchSessionId, importId });
   broadcast('ROOMS_UPDATED', { action: 'bulk_scans_imported' });
 
   // Log action in audit history
@@ -747,9 +757,10 @@ export function importScansToDatabase(
     actionType: 'bulk_scans_imported',
     description: `ייבוא ${insertedCount} סריקות היסטוריות מקובץ "${originalFilename}"`,
     entityType: 'scan_batch',
-    entityId: batchSessionId,
+    entityId: importId,
     performedBy: scannedBy,
     stateAfter: {
+      importId,
       filename: originalFilename,
       count: insertedCount,
       importedAt: new Date().toISOString()
@@ -761,6 +772,7 @@ export function importScansToDatabase(
   return {
     success: true,
     insertedCount,
+    importId,
     message: `הסריקות יובאו בהצלחה: ${insertedCount} רשומות נוספו למערכת`
   };
 }

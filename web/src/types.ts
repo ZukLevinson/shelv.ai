@@ -49,6 +49,7 @@ export interface InventoryHolder {
 export interface ExcelImportRecord {
   id: string;
   filename: string;
+  import_type?: 'signatures' | 'scans';
   uploaded_at: string;
   total_rows: number;
   inserted_count: number;
@@ -161,6 +162,8 @@ export interface ScanObservation {
   official_room_name?: string | null;
   official_room_code?: string | null;
   official_holder_name?: string | null;
+  import_id?: string | null;
+  import_filename?: string | null;
   item_description: string;
   category: string;
   scan_status: 'matched' | 'mismatch' | 'unregistered';

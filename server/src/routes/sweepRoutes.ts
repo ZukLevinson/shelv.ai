@@ -251,6 +251,8 @@ sweepRouter.get('/scans', (req, res) => {
         o.sticker_owner_text,
         o.product_name_detected,
         o.scanned_at,
+        o.import_id,
+        e.filename as import_filename,
         r.name as scanned_room_name,
         r.code as scanned_room_code,
         h.id as scanned_holder_id,
@@ -271,6 +273,7 @@ sweepRouter.get('/scans', (req, res) => {
       FROM sweep_observations o
       JOIN rooms r ON o.room_id = r.id
       JOIN inventory_holders h ON r.holder_id = h.id
+      LEFT JOIN excel_imports e ON o.import_id = e.id
       LEFT JOIN official_inventory i ON i.id = COALESCE(
         (SELECT i1.id FROM official_inventory i1 WHERE o.serial_number IS NOT NULL AND o.serial_number != '' AND i1.serial_number = o.serial_number LIMIT 1),
         (SELECT i2.id FROM official_inventory i2 WHERE i2.masha = o.masha AND i2.holder_id = r.holder_id LIMIT 1),

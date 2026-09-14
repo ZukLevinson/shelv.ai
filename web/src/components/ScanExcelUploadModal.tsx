@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import {
   UploadCloud,
   FileSpreadsheet,
   X,
   CheckCircle2,
+  CheckCircle,
   AlertTriangle,
   AlertCircle,
   Search,
@@ -12,10 +13,12 @@ import {
   RotateCw,
   Info,
   MapPin,
-  Tag
+  Tag,
+  Trash2
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
+import type { ExcelImportRecord } from '../types';
 
 interface Props {
   isOpen: boolean;
@@ -26,7 +29,7 @@ interface Props {
 
 export interface ParsedScanRow {
   rowIdx: number;
-  timestamp: string;
+  timestamp: string; // ISO string
   rawTimestamp: string;
   rawRoom: string;
   roomId: string | null;
@@ -77,6 +80,12 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
   const { token, user } = useAuth();
   const effectiveToken = token || (typeof window !== 'undefined' ? localStorage.getItem('shelv_token') : null);
 
+  const [mainTab, setMainTab] = useState<'upload' | 'history'>('upload');
+  const [scanImports, setScanImports] = useState<ExcelImportRecord[]>([]);
+  const [loadingScanImports, setLoadingScanImports] = useState(false);
+  const [deletingScanImportId, setDeletingScanImportId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
   const [step, setStep] = useState<'upload' | 'preview' | 'success'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -90,10 +99,52 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
   const [scannedBy, setScannedBy] = useState(user?.name || currentUserName);
   const [insertedCount, setInsertedCount] = useState(0);
 
+  const fetchScanImports = async () => {
+    setLoadingScanImports(true);
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/inventory/excel-imports?type=scans`);
+      setScanImports(res.data);
+    } catch (err: any) {
+      console.error('Failed to fetch scan imports', err);
+    } finally {
+      setLoadingScanImports(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchScanImports();
+    }
+  }, [isOpen]);
+
+  const handleDeleteScanImport = async (rec: ExcelImportRecord) => {
+    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את קובץ הסריקות "${rec.filename}"?\nכל ${rec.active_items_count} תצפיות הסריקה שהגיעו מקובץ זה יימחקו מהמערכת והחריגות יתעדכנו בהתאם.`)) {
+      return;
+    }
+
+    setDeletingScanImportId(rec.id);
+    setActionMessage(null);
+    setError(null);
+    try {
+      const headers: Record<string, string> = {};
+      if (effectiveToken) headers['Authorization'] = `Bearer ${effectiveToken}`;
+
+      const res = await axios.delete(`${API_BASE_URL}/api/inventory/excel-imports/${rec.id}`, { headers });
+      setActionMessage(res.data.message || 'קובץ הסריקות והתצפיות שנוצרו ממנו נמחקו בהצלחה');
+      fetchScanImports();
+      onSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'שגיאה במחיקת קובץ הסריקות');
+    } finally {
+      setDeletingScanImportId(null);
+    }
+  };
+
   const handleReset = () => {
     setStep('upload');
     setFile(null);
     setError(null);
+    setActionMessage(null);
     setParseResult(null);
     setStatusFilter('all');
     setSearchTerm('');
@@ -240,6 +291,40 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
           </button>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex border-b border-gray-800 px-4 sm:px-6 bg-gray-950/40">
+          <button
+            onClick={() => { setMainTab('upload'); setError(null); setActionMessage(null); }}
+            className={`py-3 px-4 text-xs sm:text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
+              mainTab === 'upload'
+                ? 'border-emerald-500 text-emerald-400 font-bold'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>העלאת קובץ סריקות חדש</span>
+          </button>
+          <button
+            onClick={() => { setMainTab('history'); setError(null); setActionMessage(null); fetchScanImports(); }}
+            className={`py-3 px-4 text-xs sm:text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
+              mainTab === 'history'
+                ? 'border-emerald-500 text-emerald-400 font-bold'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>היסטוריית קבצי סריקות ({scanImports.length})</span>
+          </button>
+        </div>
+
+        {/* Global Action Banner */}
+        {actionMessage && (
+          <div className="mx-4 sm:mx-6 mt-3 flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+            <CheckCircle className="w-4 h-4 shrink-0" />
+            <span>{actionMessage}</span>
+          </div>
+        )}
+
         {/* Global Error Banner */}
         {error && (
           <div className="mx-4 sm:mx-6 mt-3 flex items-center gap-2 text-xs text-rose-400 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
@@ -250,9 +335,71 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
-          {step === 'upload' && (
-            <div className="space-y-4 max-w-2xl mx-auto py-2">
-              <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+          {mainTab === 'history' ? (
+            <div className="space-y-4 max-w-3xl mx-auto py-2">
+              <div>
+                <h4 className="text-sm font-semibold text-white">קבצי סריקות שיובאו למערכת</h4>
+                <p className="text-xs text-gray-400">מחיקת קובץ סריקות תמחק את כל תצפיות הסריקה שהגיעו ממנו ותעדכן את החריגות</p>
+              </div>
+
+              {loadingScanImports ? (
+                <div className="text-center py-10 text-gray-500 text-xs">טוען היסטוריית קבצי סריקות...</div>
+              ) : scanImports.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 text-xs bg-gray-950/40 border border-gray-800 rounded-xl p-6">
+                  <FileSpreadsheet className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                  <p>לא נמצאו קבצי סריקות שיובאו למערכת.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {scanImports.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="bg-gray-950/60 border border-gray-800 hover:border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <FileSpreadsheet className="w-4 h-4 text-blue-400 shrink-0" />
+                          <span className="font-semibold text-xs sm:text-sm text-white truncate max-w-md" title={rec.filename}>
+                            {rec.filename}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-medium border bg-blue-500/10 text-blue-300 border-blue-500/20">
+                            סריקות שטח
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 mt-1 text-[11px] text-gray-400 flex-wrap">
+                          <span>תאריך העלאה: {new Date(rec.uploaded_at).toLocaleString('he-IL')}</span>
+                          <span>•</span>
+                          <span className="text-blue-300 font-medium">
+                            {rec.active_items_count} תצפיות סריקה שמורות
+                          </span>
+                          {rec.total_rows > 0 && (
+                            <>
+                              <span>•</span>
+                              <span>({rec.total_rows} שורות בקובץ)</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteScanImport(rec)}
+                        disabled={deletingScanImportId === rec.id}
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/20 transition-all shrink-0 cursor-pointer self-end sm:self-auto"
+                        title="מחק קובץ סריקות זה ובטל את כל הסריקות שנקלטו ממנו"
+                      >
+                        <Trash2 className={`w-3.5 h-3.5 ${deletingScanImportId === rec.id ? 'animate-spin' : ''}`} />
+                        <span>מחק קובץ וסריקות</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {step === 'upload' && (
+                <div className="space-y-4 max-w-2xl mx-auto py-2">
+                  <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
                 באפשרותך להעלות קובץ אקסל שמקורו ב-<strong>Google Forms</strong> או קובץ <strong>PDF</strong> שיוצא מ-<strong>Google Drive בנייד</strong>, המכיל תגובות של סריקות שבוצעו לפני הקמת המערכת.
                 המערכת סורקת את הנתונים ומבצעת התאמות חכמות:
               </p>
@@ -625,18 +772,20 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
               </p>
             </div>
           )}
+          </>
+        )}
 
         </div>
 
         {/* Modal Footer */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gray-950/70 border-t border-gray-800">
           <div>
-            {step === 'preview' && (
+            {mainTab === 'upload' && step === 'preview' && (
               <button
                 type="button"
                 onClick={() => setStep('upload')}
                 disabled={saving}
-                className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+                className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
               >
                 בחר קובץ אחר
               </button>
@@ -644,7 +793,15 @@ export const ScanExcelUploadModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {step !== 'success' ? (
+            {mainTab === 'history' ? (
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-6 py-2 text-xs sm:text-sm font-bold rounded-xl bg-gray-800 hover:bg-gray-700 text-white transition-all cursor-pointer"
+              >
+                סגור
+              </button>
+            ) : step !== 'success' ? (
               <>
                 <button
                   type="button"

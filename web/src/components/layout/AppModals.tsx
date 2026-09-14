@@ -50,6 +50,7 @@ export function AppModals({
             onCloseUploadModal();
             onRefreshData();
           }}
+          onDataChanged={onRefreshData}
         />
       )}
 

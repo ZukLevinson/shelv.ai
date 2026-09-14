@@ -8,9 +8,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  onDataChanged?: () => void;
 }
 
-export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess, onDataChanged }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'manage'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,6 +24,7 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resettingAll, setResettingAll] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'signatures' | 'scans'>('all');
 
   useEffect(() => {
     if (isOpen) {
@@ -63,6 +65,9 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
       const res = await axios.post(`${API_BASE_URL}/api/upload-excel`, formData);
       setResult(res.data.result);
       fetchExcelImports();
+      if (onDataChanged) {
+        onDataChanged();
+      }
       setTimeout(() => {
         onSuccess();
       }, 1500);
@@ -73,18 +78,25 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
     }
   };
 
-  const handleDeleteImport = async (importId: string, filename: string) => {
-    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את רשומת האקסל "${filename}"?\nכל הפריטים הנדרשים שיובאו מקובץ זה יימחקו וחישוב החריגות יתאפס בהתאם.`)) {
+  const handleDeleteImport = async (rec: ExcelImportRecord) => {
+    const isScan = rec.import_type === 'scans';
+    const typeLabel = isScan ? 'סריקות' : 'חתימות';
+    const countLabel = isScan ? 'תצפיות סריקה' : 'פריטי חתימה רשמיים';
+
+    if (!window.confirm(`האם אתה בטוח שברצונך למחוק את קובץ ה${typeLabel} "${rec.filename}"?\nכל ${rec.active_items_count} ה${countLabel} שיובאו מקובץ זה יימחקו והמערכת תתעדכן בהתאם.`)) {
       return;
     }
 
-    setDeletingId(importId);
+    setDeletingId(rec.id);
     setActionMessage(null);
+    setError(null);
     try {
-      const res = await axios.delete(`${API_BASE_URL}/api/inventory/excel-imports/${importId}`);
-      setActionMessage(res.data.message || 'רשומת האקסל והפריטים הנדרשים נמחקו בהצלחה');
+      const res = await axios.delete(`${API_BASE_URL}/api/inventory/excel-imports/${rec.id}`);
+      setActionMessage(res.data.message || `קובץ ה${typeLabel} והנתונים שהגיעו ממנו נמחקו בהצלחה`);
       fetchExcelImports();
-      onSuccess();
+      if (onDataChanged) {
+        onDataChanged();
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'שגיאה במחיקת רשומת האקסל');
     } finally {
@@ -99,11 +111,14 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
 
     setResettingAll(true);
     setActionMessage(null);
+    setError(null);
     try {
       const res = await axios.post(`${API_BASE_URL}/api/inventory/baseline/reset`);
       setActionMessage(res.data.message || 'כל הפריטים הנדרשים אופסו בהצלחה');
       fetchExcelImports();
-      onSuccess();
+      if (onDataChanged) {
+        onDataChanged();
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'שגיאה באיפוס המצאי הנדרש');
     } finally {
@@ -243,22 +258,49 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
             </>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h4 className="text-sm font-semibold text-white">קבצי אקסל שיובאו למערכת</h4>
-                  <p className="text-xs text-gray-400">הסרת קובץ תאפס את רשימת הפריטים הנדרשים שהגיעו ממנו</p>
+                  <h4 className="text-sm font-semibold text-white">קבצי אקסל ונתונים שיובאו</h4>
+                  <p className="text-xs text-gray-400">מחיקת קובץ תסיר את כל החתימות או הסריקות שהגיעו ממנו</p>
                 </div>
-                {excelImports.length > 0 && (
+                {excelImports.some(i => i.import_type !== 'scans') && (
                   <button
                     onClick={handleResetAllBaseline}
                     disabled={resettingAll}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all self-start sm:self-auto"
                   >
                     <RotateCcw className={`w-3.5 h-3.5 ${resettingAll ? 'animate-spin' : ''}`} />
-                    <span>איפוס כל הנדרש</span>
+                    <span>איפוס כל החתימות</span>
                   </button>
                 )}
               </div>
+
+              {/* Type Filter Pills */}
+              {excelImports.length > 0 && (
+                <div className="flex items-center gap-1.5 p-1 bg-gray-950/60 rounded-xl border border-gray-800 text-xs w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setTypeFilter('all')}
+                    className={`px-3 py-1 rounded-lg transition-all ${typeFilter === 'all' ? 'bg-emerald-500 text-white font-bold shadow-xs' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    הכל ({excelImports.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTypeFilter('signatures')}
+                    className={`px-3 py-1 rounded-lg transition-all ${typeFilter === 'signatures' ? 'bg-emerald-500 text-white font-bold shadow-xs' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    חתימות מצאי ({excelImports.filter(i => (i.import_type || 'signatures') === 'signatures').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTypeFilter('scans')}
+                    className={`px-3 py-1 rounded-lg transition-all ${typeFilter === 'scans' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    סריקות שטח ({excelImports.filter(i => i.import_type === 'scans').length})
+                  </button>
+                </div>
+              )}
 
               {loadingImports ? (
                 <div className="text-center py-8 text-gray-500 text-xs">טוען היסטוריית קבצים...</div>
@@ -269,44 +311,56 @@ export const ExcelUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {excelImports.map((rec) => (
-                    <div
-                      key={rec.id}
-                      className="bg-gray-950/60 border border-gray-800 hover:border-gray-700 rounded-xl p-3.5 flex items-center justify-between gap-3 transition-all"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
-                          <span className="font-semibold text-xs sm:text-sm text-white truncate" title={rec.filename}>
-                            {rec.filename}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
-                          <span>תאריך: {new Date(rec.uploaded_at).toLocaleString('he-IL')}</span>
-                          <span>•</span>
-                          <span className="text-emerald-400 font-medium">
-                            {rec.active_items_count} פריטים נדרשים פעילים
-                          </span>
-                          {rec.total_rows > 0 && (
-                            <>
+                  {excelImports
+                    .filter(rec => typeFilter === 'all' || (rec.import_type || 'signatures') === typeFilter)
+                    .map((rec) => {
+                      const isScan = rec.import_type === 'scans';
+                      return (
+                        <div
+                          key={rec.id}
+                          className="bg-gray-950/60 border border-gray-800 hover:border-gray-700 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <FileSpreadsheet className={`w-4 h-4 ${isScan ? 'text-blue-400' : 'text-emerald-400'} shrink-0`} />
+                              <span className="font-semibold text-xs sm:text-sm text-white truncate max-w-xs" title={rec.filename}>
+                                {rec.filename}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                                isScan 
+                                  ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                              }`}>
+                                {isScan ? 'סריקות שטח' : 'חתימות רשמיות'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 sm:gap-3 mt-1 text-[11px] text-gray-400 flex-wrap">
+                              <span>תאריך: {new Date(rec.uploaded_at).toLocaleString('he-IL')}</span>
                               <span>•</span>
-                              <span>({rec.total_rows} שורות בקובץ)</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
+                              <span className={`${isScan ? 'text-blue-300' : 'text-emerald-400'} font-medium`}>
+                                {rec.active_items_count} {isScan ? 'סריקות פעילות' : 'חתימות פעילות'}
+                              </span>
+                              {rec.total_rows > 0 && (
+                                <>
+                                  <span>•</span>
+                                  <span>({rec.total_rows} שורות בקובץ)</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
 
-                      <button
-                        onClick={() => handleDeleteImport(rec.id, rec.filename)}
-                        disabled={deletingId === rec.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/20 transition-all shrink-0"
-                        title="מחק קובץ זה ואפס את הפריטים הנדרשים ממנו"
-                      >
-                        <Trash2 className={`w-3.5 h-3.5 ${deletingId === rec.id ? 'animate-spin' : ''}`} />
-                        <span>מחק ואפס פריטים</span>
-                      </button>
-                    </div>
-                  ))}
+                          <button
+                            onClick={() => handleDeleteImport(rec)}
+                            disabled={deletingId === rec.id}
+                            className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/20 transition-all shrink-0 cursor-pointer self-end sm:self-auto"
+                            title={isScan ? 'מחק קובץ זה ובטל את כל הסריקות שנוצרו ממנו' : 'מחק קובץ זה ובטל את כל החתימות שנוצרו ממנו'}
+                          >
+                            <Trash2 className={`w-3.5 h-3.5 ${deletingId === rec.id ? 'animate-spin' : ''}`} />
+                            <span>מחק קובץ ונתונים</span>
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
