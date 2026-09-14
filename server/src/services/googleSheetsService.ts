@@ -446,14 +446,18 @@ export async function updateScansForAssetInGoogleSheet(identifier: string, baseU
 }
 
 /**
- * Marks a scan row in Google Sheets as deleted.
+ * Completely deletes a scan observation row from Google Sheets using deleteDimension.
  */
-export async function markScanDeletedInGoogleSheet(observationId: string): Promise<boolean> {
+export async function deleteScanFromGoogleSheet(observationId: string): Promise<boolean> {
   const { client, spreadsheetId } = getSheetsClient();
   if (!client || !spreadsheetId) return false;
 
   try {
-    const sheetTitle = await ensureHeaders(client, spreadsheetId);
+    const meta = await client.spreadsheets.get({ spreadsheetId });
+    const firstSheet = meta.data.sheets?.[0];
+    const sheetTitle = firstSheet?.properties?.title || 'סריקות';
+    const numericSheetId = firstSheet?.properties?.sheetId || 0;
+
     const colARes = await client.spreadsheets.values.get({
       spreadsheetId,
       range: `'${sheetTitle}'!A:A`,
@@ -463,28 +467,106 @@ export async function markScanDeletedInGoogleSheet(observationId: string): Promi
     let foundRowIndex = -1;
     for (let i = 0; i < rows.length; i++) {
       if (rows[i]?.[0] === observationId) {
-        foundRowIndex = i + 1;
+        foundRowIndex = i + 1; // 1-indexed row number
         break;
       }
     }
 
-    if (foundRowIndex > 0) {
-      await client.spreadsheets.values.update({
+    if (foundRowIndex > 1) { // Never delete header row (row 1)
+      await client.spreadsheets.batchUpdate({
         spreadsheetId,
-        range: `'${sheetTitle}'!J${foundRowIndex}`,
-        valueInputOption: 'USER_ENTERED',
         requestBody: {
-          values: [['נמחק (בוטל במערכת)']],
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: numericSheetId,
+                  dimension: 'ROWS',
+                  startIndex: foundRowIndex - 1, // 0-indexed start (inclusive)
+                  endIndex: foundRowIndex,       // 0-indexed end (exclusive)
+                },
+              },
+            },
+          ],
         },
       });
       lastSyncTimestamp = new Date().toISOString();
+      console.log(`[GoogleSheets] Successfully deleted row ${foundRowIndex} for scan ${observationId}`);
       return true;
     }
     return false;
   } catch (err: any) {
-    console.error(`[GoogleSheets] Error marking scan ${observationId} deleted in sheet:`, err?.message || err);
+    console.error(`[GoogleSheets] Error deleting scan ${observationId} from sheet:`, err?.message || err);
     return false;
   }
+}
+
+/**
+ * Deletes multiple scan observation rows from Google Sheets in a single batch request.
+ */
+export async function deleteMultipleScansFromGoogleSheet(observationIds: string[]): Promise<number> {
+  if (!observationIds || observationIds.length === 0) return 0;
+  const { client, spreadsheetId } = getSheetsClient();
+  if (!client || !spreadsheetId) return 0;
+
+  try {
+    const meta = await client.spreadsheets.get({ spreadsheetId });
+    const firstSheet = meta.data.sheets?.[0];
+    const sheetTitle = firstSheet?.properties?.title || 'סריקות';
+    const numericSheetId = firstSheet?.properties?.sheetId || 0;
+
+    const colARes = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A:A`,
+    });
+
+    const rows = colARes.data.values || [];
+    const idSet = new Set(observationIds);
+    const indicesToDelete: number[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i]?.[0] && idSet.has(rows[i][0])) {
+        if (i > 0) { // Never delete header row (row 0 in 0-indexed)
+          indicesToDelete.push(i);
+        }
+      }
+    }
+
+    if (indicesToDelete.length === 0) return 0;
+
+    // Sort descending so deleting higher indices does not alter lower indices
+    indicesToDelete.sort((a, b) => b - a);
+
+    const requests = indicesToDelete.map((idx) => ({
+      deleteDimension: {
+        range: {
+          sheetId: numericSheetId,
+          dimension: 'ROWS',
+          startIndex: idx,
+          endIndex: idx + 1,
+        },
+      },
+    }));
+
+    await client.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests },
+    });
+
+    lastSyncTimestamp = new Date().toISOString();
+    console.log(`[GoogleSheets] Successfully batch deleted ${indicesToDelete.length} rows`);
+    return indicesToDelete.length;
+  } catch (err: any) {
+    console.error('[GoogleSheets] Error batch deleting scans from sheet:', err?.message || err);
+    return 0;
+  }
+}
+
+/**
+ * Backward-compatible alias for deleteScanFromGoogleSheet.
+ */
+export async function markScanDeletedInGoogleSheet(observationId: string): Promise<boolean> {
+  return deleteScanFromGoogleSheet(observationId);
 }
 
 /**
@@ -618,6 +700,12 @@ export async function syncAllScansToGoogleSheet(baseUrl?: string): Promise<{
         mashaCell,
       ]);
     }
+
+    // Clear any existing scan data rows below the header to guarantee deleted rows are removed
+    await client.spreadsheets.values.clear({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A2:O`,
+    });
 
     await client.spreadsheets.values.update({
       spreadsheetId,

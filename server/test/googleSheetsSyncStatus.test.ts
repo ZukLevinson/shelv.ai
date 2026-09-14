@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert';
+import assert from 'node:assert';
 import { db, initDatabase } from '../src/db/database.js';
 import {
   DEFAULT_SPREADSHEET_ID,
@@ -82,10 +82,15 @@ assert.strictEqual(status.officialRoomName, 'חדר א');
 assert.strictEqual(status.officialHolderName, 'בעל מצאי א');
 console.log('✓ Status change to matched verified:', status.scanStatus, 'Official Room:', status.officialRoomName);
 
-// Clean up test records
+// 4. Deletion of scan observation (cancel scan)
 db.prepare('DELETE FROM sweep_observations WHERE id = ?').run(obsId);
+status = queryScanStatus(obsId);
+assert.strictEqual(status, undefined, 'Expected scan observation to be completely removed upon cancellation');
+console.log('✓ Scan cancellation/deletion removal verified');
+
+// Clean up remaining test records
 db.prepare('DELETE FROM official_inventory WHERE id = ?').run(officialItemId);
 db.prepare('DELETE FROM rooms WHERE id IN (?, ?)').run(roomA, roomB);
 db.prepare('DELETE FROM inventory_holders WHERE id IN (?, ?)').run(holderA, holderB);
 
-console.log('✨ All status change and Google Sheets sync calculations verified successfully!');
+console.log('✨ All status change, deletion, and Google Sheets sync calculations verified successfully!');

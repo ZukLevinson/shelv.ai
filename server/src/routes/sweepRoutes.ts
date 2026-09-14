@@ -532,10 +532,10 @@ sweepRouter.delete('/scans/:id', async (req, res) => {
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('SCANS_UPDATED', { deletedObservationId: id, serialNumber: existing.serial_number });
 
-    const { markScanDeletedInGoogleSheet } = await import('../services/googleSheetsService.js');
+    const { deleteScanFromGoogleSheet } = await import('../services/googleSheetsService.js');
     setImmediate(() => {
-      markScanDeletedInGoogleSheet(id).catch((e) =>
-        console.error('[GoogleSheets] Failed to mark scan deleted:', e)
+      deleteScanFromGoogleSheet(id).catch((e) =>
+        console.error('[GoogleSheets] Failed to delete scan row:', e)
       );
     });
 
@@ -592,11 +592,11 @@ sweepRouter.post('/scans/bulk-delete', async (req, res) => {
     broadcast('ANOMALIES_UPDATED', anomalies);
     broadcast('SCANS_UPDATED', { bulkDeleted: true, count: deletedCount });
 
-    const { markScanDeletedInGoogleSheet } = await import('../services/googleSheetsService.js');
+    const { deleteMultipleScansFromGoogleSheet } = await import('../services/googleSheetsService.js');
     setImmediate(() => {
-      for (const id of ids) {
-        markScanDeletedInGoogleSheet(id).catch(() => {});
-      }
+      deleteMultipleScansFromGoogleSheet(ids).catch((e) => {
+        console.error('[GoogleSheets] Failed to bulk delete scan rows:', e);
+      });
     });
 
     res.json({ success: true, message: `נמחקו ${deletedCount} סריקות בהצלחה`, deletedCount });
