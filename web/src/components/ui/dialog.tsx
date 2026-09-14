@@ -58,26 +58,28 @@ export const DialogContent = React.forwardRef<
 >(({ className, children, size = 'lg', hideCloseButton = false, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed left-[50%] top-[50%] z-50 flex flex-col w-[calc(100%-1.5rem)] sm:w-full max-h-[92vh] translate-x-[-50%] translate-y-[-50%] border border-gray-800 bg-gray-900 shadow-2xl rounded-2xl overflow-hidden dialog-content-animate text-right',
-        sizeClasses[size],
-        className
-      )}
-      {...props}
-    >
-      {children}
-      {!hideCloseButton && (
-        <DialogPrimitive.Close
-          className="absolute left-4 top-4 rounded-lg p-1.5 text-gray-400 opacity-70 transition-all hover:opacity-100 hover:text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer z-10"
-          aria-label="סגור"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      )}
-    </DialogPrimitive.Content>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 pointer-events-none">
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          'pointer-events-auto relative flex flex-col w-full max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3.5rem)] border border-gray-800 bg-gray-900 shadow-2xl rounded-2xl overflow-hidden dialog-content-animate text-right',
+          sizeClasses[size],
+          className
+        )}
+        {...props}
+      >
+        {children}
+        {!hideCloseButton && (
+          <DialogPrimitive.Close
+            className="absolute left-4 top-4 rounded-lg p-1.5 text-gray-400 opacity-70 transition-all hover:opacity-100 hover:text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer z-10"
+            aria-label="סגור"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Content>
+    </div>
   </DialogPortal>
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;

@@ -67,22 +67,22 @@ body {
 @keyframes dialogContentShow {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.96);
+    transform: scale(0.96) translateY(-8px);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
 @keyframes dialogContentHide {
   from {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1) translateY(0);
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.96);
+    transform: scale(0.96) translateY(-8px);
   }
 }
 
@@ -98,4 +98,11 @@ body {
 }
 .dialog-content-animate[data-state='closed'] {
   animation: dialogContentHide 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-overlay-animate,
+  .dialog-content-animate {
+    animation: none !important;
+  }
 }
