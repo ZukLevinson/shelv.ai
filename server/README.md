@@ -30,7 +30,7 @@ server/
 │   │   ├── excelExportService.ts     # In-memory Excel export generation
 │   │   ├── excelImportService.ts     # Ingestion of baseline inventory workbooks
 │   │   ├── gcsStorageService.ts      # SQLite online backup & restore from GCS
-│   │   ├── geminiVisionService.ts    # Vertex AI Gemini 2.5 Flash OCR & Vision
+│   │   ├── geminiVisionService.ts    # Vertex AI Gemini 3 (3.8 Flash & 3.1 Flash Lite) OCR & Vision
 │   │   ├── scanExcelImportService.ts # Batch sweep observation imports from Excel
 │   │   └── sweepService.ts           # Sweep session lifecycle & room progress
 │   ├── sockets/        # Real-time WebSocket broadcasting
@@ -130,10 +130,11 @@ The WebSocket engine (`src/sockets/socketServer.ts`) broadcasts real-time system
 
 ## External Integrations
 
-### 1. Google Vertex AI (Gemini 2.5 Flash)
+### 1. Google Vertex AI (Gemini 3)
 - Implemented in [`src/services/geminiVisionService.ts`](file:///c:/dev/shelv.ai/server/src/services/geminiVisionService.ts).
-- Provides server-side OCR parsing of equipment labels, extracting MASHA codes, serial numbers, product names, and owner tags directly from captured photos.
-- Configured with `thinkingBudget: 0` for ultra-low latency response times.
+- Provides server-side OCR parsing of equipment labels, extracting MASHA codes, serial numbers, product names, and owner tags directly from captured photos using `gemini-3.8-flash`.
+- Features lightning-fast live mobile camera stream qualification using `gemini-3.1-flash-lite`.
+- Configured with `thinkingBudget: 0` for ultra-low latency response times without deliberation delay.
 
 ### 2. Google Cloud Storage
 - Implemented in [`src/services/gcsStorageService.ts`](file:///c:/dev/shelv.ai/server/src/services/gcsStorageService.ts).
@@ -151,7 +152,8 @@ The WebSocket engine (`src/sockets/socketServer.ts`) broadcasts real-time system
 | `GCS_DB_OBJECT_NAME` | Name of database snapshot file in GCS | `shelv.db` |
 | `GOOGLE_CLOUD_PROJECT` | GCP project ID for Vertex AI and GCS | `shelv-ai` |
 | `VERTEX_LOCATION` | Region for Vertex AI API requests | `us-central1` |
-| `VERTEX_MODEL` | Gemini model for image OCR analysis | `gemini-2.5-flash` |
+| `VERTEX_MODEL` | Primary Gemini model for image OCR and PDF table analysis | `gemini-3.8-flash` |
+| `VERTEX_FAST_MODEL` | Fast Gemini model for real-time mobile camera frame triage | `gemini-3.1-flash-lite` |
 | `JWT_SECRET` | Secret key for JWT token signing | `shelv-ai-super-secret-key-...` |
 | `CLIENT_BUILD_PATH` | Path to built web dashboard static files | `../web/dist` |
 | `MOBILE_BUILD_PATH` | Path to built mobile scanner PWA static files | `../mobile/dist` |

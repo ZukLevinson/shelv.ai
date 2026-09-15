@@ -100,7 +100,7 @@ The server broadcasts events using `broadcast(event, data)`:
 2. **Barcode Engine**: `@zxing/browser` and `@zxing/library` detect 1D/2D barcodes (Code 128, Code 39, QR).
 3. **OCR Engine**:
    - Primary: Client-side `tesseract.js` for on-device serial number and label detection.
-   - Cloud AI Fallback: If OCR is ambiguous or enabled by user, images can be sent to Google Cloud Vertex AI (Gemini 2.5 Flash) via `geminiVisionService.ts`.
+   - Cloud AI Fallback: If OCR is ambiguous or enabled by user, images can be sent to Google Cloud Vertex AI (Gemini 3) via `geminiVisionService.ts`.
 4. **Heartbeat / Presence**: The scanner periodically hits `/api/sweep/scanners/heartbeat` so the web dashboard displays active scanners in real time.
 
 ---

@@ -87,7 +87,7 @@ steps:
       - '--concurrency'
       - '80'
       - '--set-env-vars'
-      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA,BRANCH_NAME=$BRANCH_NAME,GOOGLE_SHEETS_SPREADSHEET_ID=110ZY-5XFP1fD55O3qu38RDDx4hZ8szPrMjWlRHMs-qg'
+      - 'GCS_BUCKET_NAME=shelv-ai-db-$PROJECT_ID,COMMIT_SHA=$SHORT_SHA,BRANCH_NAME=$BRANCH_NAME,GOOGLE_SHEETS_SPREADSHEET_ID=110ZY-5XFP1fD55O3qu38RDDx4hZ8szPrMjWlRHMs-qg,VERTEX_MODEL=gemini-3.8-flash,VERTEX_FAST_MODEL=gemini-3.1-flash-lite'
 
 images:
   - 'europe-west1-docker.pkg.dev/$PROJECT_ID/shelv-ai-repo/shelv-ai:$COMMIT_SHA'

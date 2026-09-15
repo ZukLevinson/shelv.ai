@@ -14,12 +14,12 @@ function getGenerativeModel() {
       location: LOCATION,
     });
     generativeModel = vertexAIInstance.getGenerativeModel({
-      model: process.env.VERTEX_MODEL || 'gemini-2.5-flash',
+      model: process.env.VERTEX_MODEL || 'gemini-3.8-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,
         maxOutputTokens: 250,
-        // Disable internal thinking latency on Gemini 2.5 Flash for OCR
+        // Disable internal thinking latency on Gemini for instant real-time OCR
         thinkingConfig: {
           thinkingBudget: 0,
         },
@@ -37,9 +37,9 @@ function getFastQualifyModel() {
         location: LOCATION,
       });
     }
-    // gemini-2.5-flash with maxOutputTokens 100 for lightning-fast qualification check
+    // gemini-3.1-flash-lite with maxOutputTokens 100 for lightning-fast (<0.2s) qualification check
     fastQualifyModel = vertexAIInstance.getGenerativeModel({
-      model: process.env.VERTEX_FAST_MODEL || process.env.VERTEX_MODEL || 'gemini-2.5-flash',
+      model: process.env.VERTEX_FAST_MODEL || process.env.VERTEX_MODEL || 'gemini-3.1-flash-lite',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.0,
@@ -291,7 +291,7 @@ export async function extractTableFromPdfWithGemini(
   try {
     const vertex = new VertexAI({ project: PROJECT_ID, location: LOCATION });
     const model = vertex.getGenerativeModel({
-      model: process.env.VERTEX_MODEL || 'gemini-2.5-flash',
+      model: process.env.VERTEX_MODEL || 'gemini-3.8-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,

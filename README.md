@@ -8,7 +8,7 @@
 
 ## Architecture Overview
 
-The system is organized as a lightweight pnpm monorepo consisting of a React web dashboard, an Expo-powered mobile scanning progressive web app (PWA), an Express backend with an embedded SQLite database (persisted to Google Cloud Storage), and Google Vertex AI (Gemini 2.5 Flash) vision capabilities.
+The system is organized as a lightweight pnpm monorepo consisting of a React web dashboard, an Expo-powered mobile scanning progressive web app (PWA), an Express backend with an embedded SQLite database (persisted to Google Cloud Storage), and Google Vertex AI (Gemini 3.8 Flash & 3.1 Flash Lite) vision capabilities.
 
 ```mermaid
 flowchart TD
@@ -26,7 +26,7 @@ flowchart TD
     subgraph Storage["Storage & Cloud"]
         DB[("SQLite Database<br/>(better-sqlite3, WAL mode)")]
         GCS["Google Cloud Storage<br/>(Automated DB Snapshots)"]
-        VAI["Google Vertex AI<br/>(Gemini 2.5 Flash Vision OCR)"]
+        VAI["Google Vertex AI<br/>(Gemini 3 Vision OCR & Triage)"]
     end
 
     W <-->|HTTP REST & WebSockets| API
